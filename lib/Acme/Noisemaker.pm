@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 use strict;
 use warnings;
@@ -50,31 +50,18 @@ sub make {
     else { usage("Unknown argument: $arg") }
   }
 
-  $args{smooth} = 1 if !defined $args{smooth};
-
-  $args{type}    ||= 'perlin';
-  $args{freq}    ||= 4;
-  $args{len}     ||= 256;
-  $args{octaves} ||= 4;
-  $args{bias}    ||= .5;
-
-  my $grid;
+  %args = defaultArgs(%args);
 
   usage("No output file specified") if !$args{out};
 
+  my $grid;
   if ( $args{type} eq 'white' ) {
-    $args{amp} ||= .5;
     $grid = white(%args);
   } elsif ( $args{type} eq 'square' ) {
-    $args{amp} ||= .5;
     $grid = square(%args);
   } elsif ( $args{type} eq 'perlin' ) {
-    $args{amp} ||= $args{octaves};
     $grid = perlin(%args);
   } elsif ( $args{type} eq 'complex' ) {
-    $args{amp} ||= $args{octaves};
-    $args{feather} ||= 25;
-    $args{layers}  ||= 4;
     $grid = complex(%args);
   } else {
     usage("Unknown noise type");
@@ -85,6 +72,20 @@ sub make {
   $img->write(file => $args{out}) || die $img->errstr;
 
   return($grid, $img);
+}
+
+sub defaultArgs {
+  my %args = @_;
+
+  $args{smooth} = 1 if !defined $args{smooth};
+
+  $args{type}    ||= 'perlin';
+  $args{freq}    ||= 4;
+  $args{len}     ||= 256;
+  $args{octaves} ||= 4;
+  $args{bias}    ||= .5;
+
+  return %args;
 }
 
 sub img {
@@ -120,8 +121,10 @@ sub img {
 sub white {
   my %args = @_;
 
+  %args = defaultArgs(%args);
+
   my $freq = $args{freq};
-  my $amp = $args{amp};
+  my $amp = $args{amp} || .5;
   my $bias = $args{bias};
 
   my $grid = [ ];
@@ -148,8 +151,10 @@ sub white {
 sub square {
   my %args = @_;
 
+  %args = defaultArgs(%args);
+
   my $freq = $args{freq};
-  my $amp = $args{amp};
+  my $amp = $args{amp} || .5;
   my $bias = $args{bias};
   my $length = $args{len};
 
@@ -240,6 +245,10 @@ sub square {
 sub perlin {
   my %args = @_;
 
+  %args = defaultArgs(%args);
+
+  $args{amp} ||= $args{octaves};
+
   my $length = $args{len};
   my $amp = $args{amp};
   my $freq = $args{freq};
@@ -323,6 +332,12 @@ sub smooth {
 
 sub complex {
   my %args = @_;
+
+  %args = defaultArgs(%args);
+
+  $args{amp} ||= $args{octaves};
+  $args{feather} ||= 25;
+  $args{layers}  ||= 4;
 
   my $reference = perlin(%args);
 
@@ -456,7 +471,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version B<0.002> of Acme::Noisemaker.
+This document is for version B<0.003> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
@@ -468,6 +483,10 @@ Make some noise and save it as an image to the specified filename:
     type => $type,        # white|square|perlin|complex
     out  => $filename,    # "pattern.bmp"
   );
+
+A wrapper script, C<bin/make-noise>, is included with this distribution.
+
+  bin/make-noise --type complex --out pattern.bmp
 
 Noise sets are just 2D arrays:
 
@@ -489,8 +508,6 @@ L<Imager> can take care of further post-processing.
   #
 
   $img->write(file => "oot.png");
-
-A wrapper script, C<bin/make-noise>, is included with this distribution.
 
 =head1 DESCRIPTION
 
