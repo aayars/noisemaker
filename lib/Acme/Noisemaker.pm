@@ -456,7 +456,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version B<.001> of Acme::Noisemaker.
+This document is for version B<0.001> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
