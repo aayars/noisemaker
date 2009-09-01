@@ -1,0 +1,9 @@
+bin/make-noise
+Changes
+cpl1.0.txt
+INSTALL
+lib/Acme/Noisemaker.pm
+Makefile.PL
+MANIFEST
+README
+t/Noisemaker.t

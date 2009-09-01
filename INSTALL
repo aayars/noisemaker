@@ -1,0 +1,6 @@
+This is a pure Perl module, requiring only Imager.
+
+Install by hand or from CPAN.
+
+  perl -MCPAN -e 'install Acme::Noisemaker'
+
