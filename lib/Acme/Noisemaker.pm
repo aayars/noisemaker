@@ -696,6 +696,8 @@ of different noise modules.
 
 =head1 SEE ALSO
 
+Acme::Noisemaker is on github: http://github.com/aayars/noisemaker
+
 =over 4
 
 =item * Wikipedia
