@@ -1,6 +1,6 @@
-package Noisemaker;
+package Acme::Noisemaker;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use strict;
 use warnings;
@@ -456,7 +456,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version B<0.001> of Acme::Noisemaker.
+This document is for version B<0.002> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
@@ -489,6 +489,8 @@ L<Imager> can take care of further post-processing.
   #
 
   $img->write(file => "oot.png");
+
+A wrapper script, C<bin/make-noise>, is included with this distribution.
 
 =head1 DESCRIPTION
 
