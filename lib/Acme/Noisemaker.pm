@@ -446,7 +446,7 @@ sub coslerp {
   return( $a * (1-$f) + $b*$f );
 }
 
-make(@ARGV);
+1;
 __END__
 =pod
 
