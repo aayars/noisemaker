@@ -1,6 +1,10 @@
 bin/make-noise
 Changes
 cpl1.0.txt
+ex/complex.jpg
+ex/perlin.jpg
+ex/square.jpg
+ex/white.jpg
 INSTALL
 lib/Acme/Noisemaker.pm
 Makefile.PL
