@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 use strict;
 use warnings;
@@ -303,10 +303,10 @@ sub smooth {
 
   my $smooth = [ ];
 
-  for ( my $x = 0; $x <= $haveLength; $x++ ) {
+  for ( my $x = 0; $x < $haveLength; $x++ ) {
     $smooth->[$x] = [ ];
 
-    for ( my $y = 0; $y <= $haveLength; $y++ ) {
+    for ( my $y = 0; $y < $haveLength; $y++ ) {
       my $corners = (
         noise($grid,$x-1,$y-1)
          + noise($grid,$x+1,$y-1)
@@ -471,7 +471,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version B<0.004> of Acme::Noisemaker.
+This document is for version B<0.005> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
