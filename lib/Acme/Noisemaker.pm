@@ -336,8 +336,8 @@ sub complex {
   %args = defaultArgs(%args);
 
   $args{amp} ||= $args{octaves};
-  $args{feather} ||= 25;
-  $args{layers}  ||= 4;
+  $args{feather} = 25 if !defined $args{feather};
+  $args{layers} ||= 4;
 
   my $reference = perlin(%args);
 
@@ -387,8 +387,15 @@ sub complex {
           ##
           $out->[$x]->[$y] = $layers[$z][$x]->[$y];
 
-        } elsif ( $diff <= $feather ) {
-          my $fadeAmt = $diff / $feather;
+        } elsif (
+          ( ( $feather > 0 ) && $diff <= $feather )
+           || ( ( $feather < 0 ) && $diff <= $feather*-1 )
+        ) {
+          my $fadeAmt = $diff / abs($feather);
+
+          if ( $feather < 0 ) {
+            $fadeAmt = 1 - $fadeAmt;
+          }
 
           ##
           ## Reference pixel value is less than current level,
