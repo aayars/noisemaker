@@ -43,6 +43,7 @@ sub usage {
   print "  [-layers <int>] \\                       ## Complex layers (eg 3)\n";
   print "  [-smooth <0|1>] \\                       ## Anti-aliasing off/on\n";
   print "  [-sphere <0|1>] \\                       ## Make fake spheremap\n";
+  print "  [-refract <0|1>] \\                      ## Refractive noise\n";
   print "  [-quiet <0|1>] \\                        ## No STDOUT spam\n";
   print "  -out <filename>                         ## Output file (foo.bmp)\n";
   print "\n";
@@ -70,6 +71,7 @@ sub make {
     elsif ( $arg =~ /smooth/ ) { $args{smooth} = shift; }
     elsif ( $arg =~ /out/ ) { $args{out} = shift; }
     elsif ( $arg =~ /sphere/ ) { $args{sphere} = shift; }
+    elsif ( $arg =~ /refract/ ) { $args{refract} = shift; }
     elsif ( $arg =~ /quiet/ ) { $QUIET = shift; }
     else { usage("Unknown argument: $arg") }
   }
@@ -93,6 +95,10 @@ sub make {
 
   if ( $args{sphere} ) {
     $grid = spheremap($grid,%args);
+  }
+
+  if ( $args{refract} ) {
+    $grid = refract($grid);
   }
 
   my $img = img($grid);
@@ -329,6 +335,30 @@ sub perlin {
   return $args{smooth} ? smooth($combined) : $combined;
 }
 
+sub refract {
+  print "Refracting...\n" if !$QUIET;
+
+  my $grid = shift;
+  my $haveLength = scalar(@{ $grid });
+
+  my $out = [ ];
+
+  for ( my $x = 0; $x < $haveLength; $x++ ) {
+    $out->[$x] = [ ];
+
+    for ( my $y = 0; $y < $haveLength; $y++ ) {
+      my $color = $grid->[$x]->[$y] || 0;
+      my $srcY = ($color/256)*$haveLength;
+      $srcY -= $haveLength if $srcY > $haveLength;
+      $srcY += $haveLength if $srcY < 0;
+
+      $out->[$x]->[$y] = $grid->[0]->[$srcY];
+    }
+  }
+
+  return $out;
+}
+
 sub smooth {
   print "Smoothing...\n" if !$QUIET;
 
@@ -560,7 +590,8 @@ sub spheremap {
     }
   }
 
-  return $out;
+  return $args{smooth} ? smooth($out) : $out;
+  # return $out;
 }
 
 sub cartCoords {
@@ -613,7 +644,7 @@ Make some noise and save it as an image to the specified filename:
     out  => $filename,    # "pattern.bmp"
 
     #
-    # Any noise args
+    # Any noise args or post-processing args
     #
   );
 
@@ -670,7 +701,7 @@ of 256 (256x256).
     out  => "perlin.bmp",
 
     #
-    # Any noise args
+    # Any noise args or post-processing args
     #
   );
   
@@ -679,6 +710,8 @@ writing the resulting image to the received filename.
 
 Returns the resulting dataset, as well as the L<Imager> object which
 was created from it.
+
+See POST-PROCESSING FUNCTIONS for additional fun-ctionality.
 
 C<make-noise>, included with this distribution, provides a CLI for
 this function.
@@ -696,18 +729,6 @@ this function.
   $img->write(file => "oot.png");
 
 Returns an L<Imager> object from the received two-dimensional grid.
-
-=item * smooth($grid)
-
-  #
-  # Unsmoothed noise source
-  #
-  my $grid = white(smooth => 0);
-
-  my $smooth = smooth($grid);
-
-Perform smoothing of the values contained in the received two-dimensional
-grid. Returns a new grid.
 
 =item * clamp($value)
 
@@ -739,6 +760,26 @@ http://en.wikipedia.org/wiki/Linear_interpolation
 
 Cosine interpolate from $a to $b, by $x percent. $x is between 0 and 1.
 
+=back
+
+=head1 POST-PROCESSING FUNCTIONS
+
+=over 4
+
+=item * smooth($grid)
+
+  #
+  # Unsmoothed noise source
+  #
+  my $grid = white(smooth => 0);
+
+  my $smooth = smooth($grid);
+
+Perform smoothing of the values contained in the received two-dimensional
+grid. Returns a new grid.
+
+Smoothing is on by default.
+
 =item * spheremap($grid, %args)
 
 Generates a fake spheremap from the received 2D noise grid by
@@ -759,9 +800,26 @@ Returns a new 2D grid of pixel values.
 
 C<sphere> may also be passed as an arg to to C<make>.
 
-  my $spheremap = make(
-    type   => 'perlin',
-    sphere => true,
+  my $grid = make(
+    type => "perlin",
+    sphere => 1,
+  );
+
+=item * refract($grid)
+
+Return a new grid, replacing the color values in the received grid
+with one-dimensional indexed noise values from itself. This can
+enhance the "fractal" appearance of noise.
+
+  my $grid = perlin(%args);
+
+  my $refracted = refract($grid);
+
+C<refract> may also be passed as an arg to C<make>.
+
+  my $grid = make(
+    type => "perlin",
+    refract => 1,
   );
 
 =back
