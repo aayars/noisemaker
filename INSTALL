@@ -1,4 +1,4 @@
-This is a pure Perl module, requiring only Imager.
+This modules requires Imager and Math::Trig.
 
 Install by hand or from CPAN.
 
