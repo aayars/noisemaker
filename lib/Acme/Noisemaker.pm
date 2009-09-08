@@ -111,11 +111,10 @@ sub defaultArgs {
 
   $args{smooth} = 1 if !defined $args{smooth};
 
-  $args{amp}     ||= 1;
   $args{type}    ||= 'perlin';
   $args{freq}    ||= 4;
   $args{len}     ||= 256;
-  $args{octaves} ||= 4;
+  $args{octaves} ||= 3;
   $args{bias}    ||= .5;
 
   return %args;
@@ -281,7 +280,8 @@ sub perlin {
 
   %args = defaultArgs(%args);
 
-  $args{amp} ||= $args{octaves};
+  $args{amp} ||= .5;
+  $args{amp} *= $args{octaves};
 
   my $length = $args{len};
   my $amp = $args{amp};
@@ -303,7 +303,6 @@ sub perlin {
     );
 
     $amp *= .5;
-
     $freq *= 2;
   }
 
@@ -370,8 +369,8 @@ sub complex {
 
   %args = defaultArgs(%args);
 
-  $args{amp} ||= $args{octaves};
-  $args{feather} = 25 if !defined $args{feather};
+  $args{amp} ||= .5;
+  $args{feather} = 50 if !defined $args{feather};
   $args{layers} ||= 4;
 
   my $reference = perlin(%args);
@@ -379,22 +378,21 @@ sub complex {
   my @layers;
 
   do {
-    my $bias = 0;
     my $biasOffset = .5;
-    my $amp = $args{amp} * $args{octaves};
+    my $bias = 0;
+    my $amp = $args{amp};
 
     for ( my $i = 0; $i < $args{layers}; $i++ ) {
       print "### Complex Layer $i...\n" if !$QUIET;
 
       push @layers, perlin(%args,
-        amp  => $amp,
+        # amp  => $amp,
         bias => $bias,
       );
 
       $bias += $biasOffset;
-      $amp = ( $args{amp} - $bias ) * $args{octaves};
-
-      $biasOffset /= 2;
+      $biasOffset *= .5;
+      $amp *= .5;
     }
   };
 
@@ -459,7 +457,8 @@ sub complex {
     }
   }
 
-  return $args{smooth} ? smooth($out) : $out;
+  return $out;
+  # return $args{smooth} ? smooth($out) : $out;
 }
 
 sub clamp {
