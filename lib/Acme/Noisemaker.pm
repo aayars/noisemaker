@@ -553,20 +553,14 @@ sub spheremap {
   #
   for ( my $x = 0; $x < $len; $x++ ) {
     for ( my $y = 0; $y < $len; $y++ ) {
+      my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
+
       ### North Pole
-      do {
-        my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
-        $out->[$x]->[$y/2] =
-          $grid->[$srclen - $cartX]->[$cartY/2];
-      };
+      $out->[$x]->[$y/2] = $grid->[$srclen - $cartX]->[$cartY/2];
 
       ### South Pole
-      do {
-        my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
-
-        $out->[$x]->[$len-($y/2)] =
-          $grid->[$cartX]->[($offset*$scale)+($cartY/2)];
-      };
+      $out->[$x]->[$len-($y/2)] =
+        $grid->[$cartX]->[($offset*$scale)+($cartY/2)];
     }
   }
 
