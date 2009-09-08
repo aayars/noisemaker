@@ -1,4 +1,12 @@
-Sep 2009: Added example images to ex/ dir and inline with pod
+Sep 2009: .005
+  - Fixed bug with size of output images
+  - Added $QUIET option
+  - Allow negative feather vals for cool "refracting" noise effect
+    when generating complex noise
 
-Sep 2009: Initial release
+Sep 2009: .004
+  - Added example images to ex/ dir and inline with pod
+
+Sep 2009: .001
+  - Initial release
 

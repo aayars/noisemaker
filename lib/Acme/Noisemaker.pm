@@ -7,6 +7,8 @@ use warnings;
 
 use Imager;
 
+our $QUIET;
+
 sub usage {
   my $warning = shift;
   print "$warning\n" if $warning;
@@ -22,6 +24,7 @@ sub usage {
   print "  [-feather <num>] \\                      ## Feather amt (0..255)\n";
   print "  [-layers <int>] \\                       ## Complex layers (eg 3)\n";
   print "  [-smooth <0|1>] \\                       ## Anti-aliasing off/on\n";
+  print "  [-quiet] \\                              ## No STDOUT spam\n";
   print "  -out <filename>                         ## Output file (foo.bmp)\n";
   print "\n";
   print "perldoc Acme::Noisemaker for more help.\n";
@@ -47,6 +50,7 @@ sub make {
     elsif ( $arg =~ /layers/ ) { $args{layers} = shift; }
     elsif ( $arg =~ /smooth/ ) { $args{smooth} = shift; }
     elsif ( $arg =~ /out/ ) { $args{out} = shift; }
+    elsif ( $arg =~ /quiet/ ) { $QUIET++ }
     else { usage("Unknown argument: $arg") }
   }
 
@@ -70,6 +74,8 @@ sub make {
   my $img = img($grid);
 
   $img->write(file => $args{out}) || die $img->errstr;
+
+  print "Saved file to $args{out}\n" if !$QUIET;
 
   return($grid, $img);
 }
@@ -167,7 +173,8 @@ sub square {
   my $haveLength = $freq * 2;
   my $baseOffset = 255 * $amp;
 
-  print "    ... Frequency: $freq, Amplitude $amp, Bias $bias\n";
+  print "    ... Frequency: $freq, Amplitude $amp, Bias $bias\n"
+    if !$QUIET;
 
   until ( $haveLength >= $length ) {
     my $grown = [ ];
@@ -258,7 +265,8 @@ sub perlin {
   my @layers;
 
   for ( my $o = 0; $o < $octaves; $o++ ) {
-    print "  ... Working on octave ". ($o+1) ."... \n";
+    print "  ... Working on octave ". ($o+1) ."... \n"
+      if !$QUIET;
 
     push @layers, square(%args,
       freq => $freq,
@@ -296,7 +304,7 @@ sub perlin {
 }
 
 sub smooth {
-  print "Smoothing...\n";
+  print "Smoothing...\n" if !$QUIET;
 
   my $grid = shift;
   my $haveLength = scalar(@{ $grid });
@@ -323,7 +331,7 @@ sub smooth {
 
       my $center = noise($grid,$x,$y) / 4;
 
-      $smooth->[$x]->[$y] = clamp($corners + $sides + $center);
+      $smooth->[$x]->[$y] = $corners + $sides + $center;
     }
   }
 
@@ -349,6 +357,8 @@ sub complex {
     my $amp = $args{amp} * $args{octaves};
 
     for ( my $i = 0; $i < $args{layers}; $i++ ) {
+      print "### Complex Layer $i...\n" if !$QUIET;
+
       push @layers, perlin(%args,
         amp  => $amp,
         bias => $bias,
