@@ -6,6 +6,24 @@ use strict;
 use warnings;
 
 use Imager;
+use Math::Trig qw| :radial deg2rad |;
+
+use constant Rho => 1;
+
+use base qw| Exporter |;
+
+our @EXPORT_OK = qw|
+  make img smooth clamp noise lerp coslerp spheremap
+  white square perlin complex
+|;
+
+our %EXPORT_TAGS = (
+  'flavors' => [
+    qw| white square perlin complex spheremap img smooth |
+  ],
+
+  'all' => \@EXPORT_OK,
+);
 
 our $QUIET;
 
@@ -24,7 +42,8 @@ sub usage {
   print "  [-feather <num>] \\                      ## Feather amt (0..255)\n";
   print "  [-layers <int>] \\                       ## Complex layers (eg 3)\n";
   print "  [-smooth <0|1>] \\                       ## Anti-aliasing off/on\n";
-  print "  [-quiet] \\                              ## No STDOUT spam\n";
+  print "  [-sphere <0|1>] \\                       ## Make fake spheremap\n";
+  print "  [-quiet <0|1>] \\                        ## No STDOUT spam\n";
   print "  -out <filename>                         ## Output file (foo.bmp)\n";
   print "\n";
   print "perldoc Acme::Noisemaker for more help.\n";
@@ -50,7 +69,8 @@ sub make {
     elsif ( $arg =~ /layers/ ) { $args{layers} = shift; }
     elsif ( $arg =~ /smooth/ ) { $args{smooth} = shift; }
     elsif ( $arg =~ /out/ ) { $args{out} = shift; }
-    elsif ( $arg =~ /quiet/ ) { $QUIET++ }
+    elsif ( $arg =~ /sphere/ ) { $args{sphere} = shift; }
+    elsif ( $arg =~ /quiet/ ) { $QUIET = shift; }
     else { usage("Unknown argument: $arg") }
   }
 
@@ -71,7 +91,13 @@ sub make {
     usage("Unknown noise type");
   }
 
+  if ( $args{sphere} ) {
+    $grid = spheremap($grid,%args);
+  }
+
   my $img = img($grid);
+
+  # $img->filter(type=>'autolevels');
 
   $img->write(file => $args{out}) || die $img->errstr;
 
@@ -85,6 +111,7 @@ sub defaultArgs {
 
   $args{smooth} = 1 if !defined $args{smooth};
 
+  $args{amp}     ||= 1;
   $args{type}    ||= 'perlin';
   $args{freq}    ||= 4;
   $args{len}     ||= 256;
@@ -478,6 +505,92 @@ sub coslerp {
   return( $a * (1-$f) + $b*$f );
 }
 
+sub spheremap {
+  my $grid = shift;
+  my %args = @_;
+
+  print "Generating spheremap...\n" if !$QUIET;
+
+  my $len = $args{len};
+  my $offset = $len/2;
+
+  my $out = [ ];
+
+  my $srclen = scalar(@{$grid});
+  my $scale = $srclen/$len;
+
+  #
+  # Polar regions
+  #
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      ### North Pole
+      do {
+        my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
+        $out->[$x]->[$y/2] =
+          $grid->[$srclen - $cartX]->[$cartY/2];
+      };
+
+      ### South Pole
+      do {
+        my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
+
+        $out->[$x]->[$len-($y/2)] =
+          $grid->[$cartX]->[($offset*$scale)+($cartY/2)];
+      };
+    }
+  }
+
+  #
+  # Equator
+  #
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $diff = abs($offset - $y);
+      my $pct = $diff/$offset;
+
+      my $srcY = $scale * $y / 2;
+      $srcY += ($offset/2) * $scale;
+      $srcY -= $srclen if $srcY > $srclen;
+
+      my $source = $grid->[$scale*$x]->[$srcY];
+
+      my $target = $out->[$x]->[$y] || 0;
+
+      $out->[$x]->[$y] = coslerp($source, $target, $pct);
+    }
+  }
+
+  return $out;
+}
+
+sub cartCoords {
+  my $x = shift;
+  my $y = shift;
+  my $len = shift;
+  my $scale = shift || 1;
+
+  my $thisLen = $len * $scale;
+  $x *= $scale;
+  $y *= $scale;
+
+  $x -= $thisLen if $x > $thisLen;
+  $y -= $thisLen if $y > $thisLen;
+  $x += $thisLen if $x < 0;
+  $y += $thisLen if $y < 0;
+
+  my $theta = deg2rad( ($x/$thisLen)*360 );
+  my $phi   = deg2rad( ($y/$thisLen)*90 );
+
+  my ($cartX, $cartY, $cartZ) = spherical_to_cartesian(Rho, $theta, $phi);
+
+  $cartX = int( (($cartX+1)/2)*$thisLen );
+  $cartY = int( (($cartY+1)/2)*$thisLen );
+  $cartZ = int( (($cartZ+1)/2)*$thisLen );
+
+  return($cartX, $cartY, $cartZ);
+}
+
 1;
 __END__
 =pod
@@ -492,13 +605,17 @@ This document is for version B<0.005> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
-  use Acme::Noisemaker;
+  use Acme::Noisemaker qw| make |;
 
 Make some noise and save it as an image to the specified filename:
 
-  Acme::Noisemaker::make(
+  make(
     type => $type,        # white|square|perlin|complex
     out  => $filename,    # "pattern.bmp"
+
+    #
+    # Any noise args
+    #
   );
 
 A wrapper script, C<bin/make-noise>, is included with this distribution.
@@ -507,7 +624,9 @@ A wrapper script, C<bin/make-noise>, is included with this distribution.
 
 Noise sets are just 2D arrays:
 
-  my $grid = Acme::Noisemaker::square(%args);
+  use Acme::Noisemaker qw| :flavors |;
+
+  my $grid = square(%args);
 
   #
   # Look up a value, given X and Y coords
@@ -516,9 +635,9 @@ Noise sets are just 2D arrays:
 
 L<Imager> can take care of further post-processing.
 
-  my $grid = Acme::Noisemaker::perlin(%args);
+  my $grid = perlin(%args);
 
-  my $img = Acme::Noisemaker::img($grid);
+  my $img = img($grid);
 
   #
   # Insert image manip methods here!
@@ -541,30 +660,35 @@ frequency, this module will produce seamless tiles. For example, a
 base frequency of 2 would work fine for an image with a side length
 of 256 (256x256).
 
-Other than using L<Imager> for output, this is a pure Perl module.
-
 =head1 FUNCTIONS
 
 =over 4
 
 =item * make(type => $type, out => $filename, %ARGS)
 
-  my ( $grid, $img ) = Acme::Noisemaker::make(
+  my ( $grid, $img ) = make(
     type => "perlin",
-    out  => "perlin.bmp"
+    out  => "perlin.bmp",
+
+    #
+    # Any noise args
+    #
   );
   
 Creates the specified noise type (white, square, perlin, or complex),
 writing the resulting image to the received filename.
 
-Returns the resulting dataset, as well as the Imager object which
+Returns the resulting dataset, as well as the L<Imager> object which
 was created from it.
+
+C<make-noise>, included with this distribution, provides a CLI for
+this function.
 
 =item * img($grid)
 
-  my $grid = Acme::Noisemaker::perlin();
+  my $grid = perlin();
 
-  my $img = Acme::Noisemaker::img($grid);
+  my $img = img($grid);
 
   #
   # Insert Imager image manip stuff here!
@@ -579,7 +703,7 @@ Returns an L<Imager> object from the received two-dimensional grid.
   #
   # Unsmoothed noise source
   #
-  my $grid = Acme::Noisemaker::white(smooth => 0);
+  my $grid = white(smooth => 0);
 
   my $smooth = smooth($grid);
 
@@ -616,6 +740,31 @@ http://en.wikipedia.org/wiki/Linear_interpolation
 
 Cosine interpolate from $a to $b, by $x percent. $x is between 0 and 1.
 
+=item * spheremap($grid, %args)
+
+Generates a fake spheremap from the received 2D noise grid by
+embellishing the polar regions.
+
+Applies polar coordinates along the north and south edges of the
+source image, slowly blending back into original pixel values towards
+the middle.
+
+Polar regions are currently twice the frequency of the equator-- I
+hope to fix this eventually.
+
+Returns a new 2D grid of pixel values.
+
+  my $grid = perlin(%args);
+
+  my $spheremap = spheremap($grid);
+
+C<sphere> may also be passed as an arg to to C<make>.
+
+  my $spheremap = make(
+    type   => 'perlin',
+    sphere => true,
+  );
+
 =back
 
 =head1 GENERATORS
@@ -650,7 +799,7 @@ the starting white noise grid.
 
 =item * White
 
-  my $grid = Acme::Noisemaker::white(
+  my $grid = white(
     amp     => <num>,
     freq    => <num>,
     len     => <int>,
@@ -852,7 +1001,7 @@ pixel contains a pseudo-random value.
 
 =item * Diamond-Square
 
-  my $grid = Acme::Noisemaker::square(
+  my $grid = square(
     amp     => <num>,
     freq    => <num>,
     len     => <int>,
@@ -1005,7 +1154,7 @@ This module seeds the initial values with White noise.
 
 =item * Perlin
 
-  my $grid = Acme::Noisemaker::perlin(
+  my $grid = perlin(
     amp     => <num>,
     freq    => <num>,
     len     => <int>,
@@ -1164,7 +1313,7 @@ This module generates its Perlin slices from Diamond-Square noise.
 
 =item * Complex Perlin
 
-  my $grid = Acme::Noisemaker::complex(
+  my $grid = complex(
     amp     => <num>,
     freq    => <num>,
     len     => <int>,
