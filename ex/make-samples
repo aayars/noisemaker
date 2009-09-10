@@ -1,0 +1,118 @@
+use strict;
+use warnings;
+
+use Acme::Noisemaker qw| make |;
+use YAML::Syck;
+
+sub makeSamples {
+  my $flags = {
+    notsmooth => {
+      smooth => 0,
+    },
+    normal => {
+    },
+    sphere => {
+      sphere => 1,
+    },
+    lowfreq => {
+      freq => 2,
+      oct  => 4,
+    },
+    midfreq => {
+      freq => 4,
+    },
+    highfreq => {
+      freq => 8,
+    },
+    refract => {
+      refract => 1,
+    },
+    lowfeather => {
+      feather => 10,
+    },
+    highfeather => {
+      feather => 100,
+    },
+    negfeather => {
+      feather => -100,
+    },
+    crazy => {
+      refract => 1,
+      sphere => 1,
+    },
+  };
+
+  my $typeFlags = {
+    white => [ qw|
+      notsmooth normal sphere
+    | ],
+
+    square => [ qw|
+      notsmooth
+      lowfreq midfreq highfreq
+      sphere refract refract refract crazy
+    | ],
+
+    perlin => [ qw|
+      notsmooth
+      lowfreq midfreq highfreq
+      sphere refract refract refract crazy
+    | ],
+
+    complex => [ qw|
+      notsmooth
+      lowfreq midfreq highfreq
+      lowfeather highfeather negfeather
+      sphere refract refract refract crazy
+    | ],
+  };
+
+  my $template = '%s-%02i-%s.jpg';
+
+  open(OUT, ">", "index.html");
+  print OUT "<html>\n";
+  print OUT "<head>\n";
+  print OUT "<style> body, pre { font-family: sans-serif } </style>\n";
+  print OUT "</head>\n";
+  print OUT "<body>\n";
+
+  print OUT "<h1>Samples from Acme::Noisemaker::make</h1>\n";
+
+  for my $type ( sort keys %{ $typeFlags } ) {
+    my $i = 0;
+
+    for my $kind ( @{ $typeFlags->{$type} } ) {
+      $i++;
+
+      my $filename = sprintf($template,$type,$i,$kind);
+
+      print OUT "<hr />\n";
+      print OUT "<h3>$type $kind</h3>\n";
+      print OUT "<p>\n";
+      print OUT "<img src=\"$filename\" title=\"$type $kind\"/>\n";
+      print OUT "<pre>\n";
+      print OUT YAML::Syck::Dump({
+        type => $type, %{ $flags->{$kind} }
+      });
+      print OUT "</pre>\n";
+      print OUT "</p>\n";
+
+      make(
+        type => $type,
+        out  => $filename,
+        len  => 128,
+        quiet => 1,
+        %{ $flags->{$kind} }
+      );
+    }
+  }
+
+  print OUT "<hr />\n";
+  print OUT "Generated with Acme::Noisemaker $Acme::Noisemaker::VERSION\n";
+  print OUT "</body>\n";
+  print OUT "</html>\n";
+
+  close(OUT);
+}
+
+makeSamples();

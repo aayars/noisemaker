@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use strict;
 use warnings;
@@ -93,12 +93,12 @@ sub make {
     usage("Unknown noise type");
   }
 
-  if ( $args{sphere} ) {
-    $grid = spheremap($grid,%args);
-  }
-
   if ( $args{refract} ) {
     $grid = refract($grid);
+  }
+
+  if ( $args{sphere} ) {
+    $grid = spheremap($grid,%args);
   }
 
   my $img = img($grid);
@@ -556,11 +556,14 @@ sub spheremap {
       my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
 
       ### North Pole
-      $out->[$x]->[$y/2] = $grid->[$srclen - $cartX]->[$cartY/2];
+      $out->[$x]->[$y/2] = noise(
+        $grid, ($srclen-$cartX)/2, $cartY/2/2 # Stretch XY*2 to match
+      );                                      # appearance of equator
 
       ### South Pole
-      $out->[$x]->[$len-($y/2)] =
-        $grid->[$cartX]->[($offset*$scale)+($cartY/2)];
+      $out->[$x]->[$len-($y/2)] = noise($grid,
+        $cartX/2, ($offset*$scale)+($cartY/2)/2 # Stretch XY*2
+      );
     }
   }
 
@@ -572,11 +575,15 @@ sub spheremap {
       my $diff = abs($offset - $y);
       my $pct = $diff/$offset;
 
-      my $srcY = $scale * $y / 2;
+      my $srcY = $scale * $y / 2; # Stretch Y*2 to avoid smooshed equator
+                                  # when viewing texture on a real sphere
+      #
+      # Scale to size of input image
+      #
       $srcY += ($offset/2) * $scale;
       $srcY -= $srclen if $srcY > $srclen;
 
-      my $source = $grid->[$scale*$x]->[$srcY];
+      my $source = noise($grid, $scale*$x, $srcY);
 
       my $target = $out->[$x]->[$y] || 0;
 
@@ -585,7 +592,6 @@ sub spheremap {
   }
 
   return $args{smooth} ? smooth($out) : $out;
-  # return $out;
 }
 
 sub cartCoords {
@@ -625,7 +631,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version B<0.005> of Acme::Noisemaker.
+This document is for version B<0.006> of Acme::Noisemaker.
 
 =head1 SYNOPSIS;
 
@@ -776,15 +782,12 @@ Smoothing is on by default.
 
 =item * spheremap($grid, %args)
 
-Generates a fake spheremap from the received 2D noise grid by
-embellishing the polar regions.
+Generates a fake (but convincing) spheremap from the received 2D
+noise grid, by embellishing the polar regions.
 
-Applies polar coordinates along the north and south edges of the
-source image, slowly blending back into original pixel values towards
-the middle.
-
-Polar regions are currently twice the frequency of the equator-- I
-hope to fix this eventually.
+Re-maps the pixel values along the north and south edges of the
+source image using polar coordinates, slowly blending back into
+original pixel values towards the middle.
 
 Returns a new 2D grid of pixel values.
 
