@@ -31,21 +31,40 @@ sub usage {
   my $warning = shift;
   print "$warning\n" if $warning;
 
+  print "noisetypes:\n";
+  print "  white           ### pseudo-random values\n";
+  print "  square          ### diamond-square algorithm\n";
+  print "  perlin          ### Perlin algorithm\n";
+  print "  ridged          ### ridged multifractal Perlin\n";
+  print "  block           ### unsmoothed Perlin\n";
+  print "  complex         ### complex layered perlin\n";
+  print "  gel             ### self-displaced smooth\n";
+  print "  sgel            ### self-displaced diamond-square\n";
+  print "  pgel            ### self-displaced Perlin\n";
+  print "  rgel            ### self-displaced ridged\n";
+  print "\n";
   print "Usage:\n";
   print "$0 \\\n";
-  print "  [-type <white|square|perlin|complex>] \\ ## Noise type\n";
-  print "  [-amp <num>] \\                          ## Base amplitude (eg .5)\n";
-  print "  [-freq <num>] \\                         ## Base frequency (eg 2)\n";
-  print "  [-len <int>] \\                          ## Side length (eg 256)\n";
-  print "  [-oct <int>] \\                          ## Octave count (eg 4)\n";
-  print "  [-bias <num>] \\                         ## Value bias (0..1)\n";
-  print "  [-feather <num>] \\                      ## Feather amt (0..255)\n";
-  print "  [-layers <int>] \\                       ## Complex layers (eg 3)\n";
-  print "  [-smooth <0|1>] \\                       ## Anti-aliasing off/on\n";
-  print "  [-sphere <0|1>] \\                       ## Make fake spheremap\n";
-  print "  [-refract <0|1>] \\                      ## Refractive noise\n";
-  print "  [-quiet <0|1>] \\                        ## No STDOUT spam\n";
-  print "  -out <filename>                         ## Output file (foo.bmp)\n";
+  print "  [-type <noisetype>] \\       ## noise type\n";
+  print "  [-slicetype <white|square|gel|sgel|rand>]    \\ ## perlin source\n";
+  print "  [-layertype <any type except complex|rand>]  \\ ## complex source\n";
+  print "  [-amp <num>] \\              ## base amplitude (eg .5)\n";
+  print "  [-freq <num>] \\             ## base frequency (eg 2)\n";
+  print "  [-len <int>] \\              ## side length (eg 256)\n";
+  print "  [-oct <int>] \\              ## octave count (eg 4)\n";
+  print "  [-bias <num>] \\             ## value bias (0..1)\n";
+  print "  [-gap <num>] \\              ## gappiness (0..1)\n";
+  print "  [-feather <num>] \\          ## feather amt (0..255)\n";
+  print "  [-layers <int>] \\           ## complex layers (eg 3)\n";
+  print "  [-smooth <0|1>] \\           ## anti-aliasing off/on\n";
+  print "  [-sphere <0|1>] \\           ## make fake spheremap\n";
+  print "  [-refract <0|1>] \\          ## refractive noise\n";
+  print "  [-offset <num>] \\           ## fractal pixel offset (eg .25)\n";
+  print "  [-clut <filename>] \\        ## color table (ex.bmp)\n";
+  print "  [-clutdir 0|1|2] \\          ## displace hyp|vert|fract\n";
+  print "  [-limit 0|1] \\              ## scale|clip pixel values\n";
+  print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
+  print "  -out <filename>              # Output file (foo.bmp)\n";
   print "\n";
   print "perldoc Acme::Noisemaker for more help.\n";
   print "\n";
@@ -60,25 +79,33 @@ sub make {
   ### type
   ###
   while ( my $arg = shift ) {
-    if ( $arg =~ /type/ ) { $args{type} = shift; }
+    if ( $arg =~ /help/ ) { usage(); }
+    elsif ( $arg =~ /(^|-)type/ ) { $args{type} = shift; }
+    elsif ( $arg =~ /slicetype/ ) { $args{slicetype} = shift; }
+    elsif ( $arg =~ /layertype/ ) { $args{layertype} = shift; }
     elsif ( $arg =~ /amp/ ) { $args{amp} = shift; }
     elsif ( $arg =~ /freq/ ) { $args{freq} = shift; }
     elsif ( $arg =~ /len/ ) { $args{len} = shift; }
     elsif ( $arg =~ /oct/ ) { $args{octaves} = shift; }
     elsif ( $arg =~ /bias/ ) { $args{bias} = shift; }
+    elsif ( $arg =~ /gap/ ) { $args{gap} = shift; }
     elsif ( $arg =~ /feather/ ) { $args{feather} = shift; }
     elsif ( $arg =~ /layers/ ) { $args{layers} = shift; }
     elsif ( $arg =~ /smooth/ ) { $args{smooth} = shift; }
     elsif ( $arg =~ /out/ ) { $args{out} = shift; }
     elsif ( $arg =~ /sphere/ ) { $args{sphere} = shift; }
     elsif ( $arg =~ /refract/ ) { $args{refract} = shift; }
+    elsif ( $arg =~ /offset/ ) { $args{offset} = shift; }
+    elsif ( $arg =~ /clut$/ ) { $args{clut} = shift; }
+    elsif ( $arg =~ /clutdir$/ ) { $args{clutdir} = shift; }
+    elsif ( $arg =~ /limit/ ) { $args{auto} = shift() ? 0 : 1; }
     elsif ( $arg =~ /quiet/ ) { $QUIET = shift; }
     else { usage("Unknown argument: $arg") }
   }
 
-  %args = defaultArgs(%args);
+  usage("Specified CLUT file not found") if $args{clut} && !-e $args{clut};
 
-  usage("No output file specified") if !$args{out};
+  $args{type} ||= 'perlin';
 
   my $grid;
   if ( $args{type} eq 'white' ) {
@@ -87,21 +114,46 @@ sub make {
     $grid = square(%args);
   } elsif ( $args{type} eq 'perlin' ) {
     $grid = perlin(%args);
+  } elsif ( $args{type} eq 'ridged' ) {
+    $grid = ridged(%args);
+  } elsif ( $args{type} eq 'block' ) {
+    $grid = block(%args);
   } elsif ( $args{type} eq 'complex' ) {
     $grid = complex(%args);
+  } elsif ( $args{type} eq 'gel' ) {
+    $grid = gel(%args);
+  } elsif ( $args{type} eq 'sgel' ) {
+    $grid = sgel(%args);
+  } elsif ( $args{type} eq 'pgel' ) {
+    $grid = pgel(%args);
+  } elsif ( $args{type} eq 'rgel' ) {
+    $grid = rgel(%args);
   } else {
     usage("Unknown noise type");
   }
 
+  $args{out} ||= "$args{type}.bmp";
+
   if ( $args{refract} ) {
-    $grid = refract($grid);
+    $grid = refract($grid,%args);
   }
 
   if ( $args{sphere} ) {
+    %args = defaultArgs(%args);
+    $args{len} /= 2;
+
     $grid = spheremap($grid,%args);
   }
 
-  my $img = img($grid);
+  my $img;
+
+  if ( $args{clut} && $args{clutdir} ) {
+    $img = vertclut($grid,%args);
+  } elsif ( $args{clut} ) {
+    $img = hypoclut($grid,%args);
+  } else {
+    $img = img($grid,%args);
+  }
 
   # $img->filter(type=>'autolevels');
 
@@ -115,19 +167,26 @@ sub make {
 sub defaultArgs {
   my %args = @_;
 
+  $args{bias} = .5 if !defined $args{bias};
   $args{smooth} = 1 if !defined $args{smooth};
+  $args{auto} = 1 if !defined $args{auto};
 
+  $args{gap}     ||= 0;
   $args{type}    ||= 'perlin';
   $args{freq}    ||= 4;
   $args{len}     ||= 256;
-  $args{octaves} ||= 3;
-  $args{bias}    ||= .5;
+  $args{octaves} ||= 8;
+
+  $args{len} *= 2 if $args{sphere};
 
   return %args;
 }
 
 sub img {
   my $grid = shift;
+  my %args = defaultArgs(@_);
+
+  print "Generating image...\n" if !$QUIET;
 
   my $length = scalar(@{ $grid });
 
@@ -139,15 +198,53 @@ sub img {
     ysize => $length,
   );
 
+  ###
+  ### Scale pixel values to sane levels
+  ###
+  my ( $min, $max, $range );
+
+  if ( $args{auto} || $args{type} eq 'ridged' ) {
+    for ( my $x = 0; $x < $length; $x++ ) {
+      for ( my $y = 0; $y < $length; $y++ ) {
+        my $gray = $grid->[$x]->[$y];
+
+        if ( $args{type} eq 'ridged' && $gray < 0 ) {
+          $gray = abs($gray);
+          $grid->[$x]->[$y] = $gray;
+        }
+
+        $min = $gray if !defined $min;
+        $max = $gray if !defined $max;
+
+        $min = $gray if $gray < $min;
+        $max = $gray if $gray > $max;
+      }
+    }
+
+    $range = $max - $min;
+  }
+
   for ( my $x = 0; $x < $length; $x++ ) {
     for ( my $y = 0; $y < $length; $y++ ) {
-      my $gray = clamp($grid->[$x]->[$y]);
+      my $gray = $grid->[$x]->[$y];
+
+      my $scaled;
+
+      if ( $args{auto} ) {
+        $scaled = (($gray-$min)/$range)*255;
+      } else {
+        $scaled = clamp($gray);
+      }
+
+      if ( $args{type} eq 'ridged' ) {
+        $scaled = abs(255-$scaled);
+      }
 
       do {
         $img->setpixel(
           x => $x,
           y => $y,
-          color => [ $gray, $gray, $gray ],
+          color => [ $scaled, $scaled, $scaled ],
         );
       };
     }
@@ -156,51 +253,130 @@ sub img {
   return $img;
 }
 
+sub grow {
+  my $noise = shift;
+  my %args = @_;
+
+  my $grid = $noise;
+
+  my $wantLength = $args{len};
+  my $haveLength = scalar( @{ $noise } );
+
+  until ( $haveLength >= $wantLength ) {
+    my $grown = [ ];
+
+    for ( my $x = 0; $x < $haveLength*2; $x++ ) {
+      $grown->[$x] = [ ];
+
+      for ( my $y = 0; $y < $haveLength*2; $y++ ) {
+        $grown->[$x]->[$y] = $grid->[$x/2]->[$y/2];
+      }
+    }
+
+    $grid = $args{smooth} ? smooth($grown,%args) : $grown;
+
+    $haveLength *= 2;
+  }
+
+  return $grid;
+}
+
 sub white {
   my %args = @_;
 
-  %args = defaultArgs(%args);
+  print "Generating white noise...\n" if !$QUIET;
 
-  my $freq = $args{freq};
-  my $amp = $args{amp} || .5;
-  my $bias = $args{bias};
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
 
   my $grid = [ ];
 
-  my $length = $args{len} || 2*$freq;
+  my $freq = $args{freq};
+  my $gap  = $args{gap};
 
-  my $ampValue = 255 * $amp;
-  my $biasValue = 255 * $bias;
+  $args{amp} = .5 if !defined $args{amp};
 
-  for ( my $x = 0; $x < $length; $x++ ) {
+  my $ampVal  = $args{amp} * 255;
+  my $biasVal = $args{bias} * 255;
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
     $grid->[$x] = [ ];
 
-    for ( my $y = 0; $y < $length; $y++ ) {
-      my $randAmp = rand($ampValue);
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      if ( rand() < $gap ) {
+        $grid->[$x]->[$y] = 0;
+        next;
+      }
+
+      my $randAmp = rand($ampVal);
+
       $randAmp *= -1 if rand(1) >= .5;
 
-      $grid->[$x]->[$y] = $randAmp + $biasValue;
+      $grid->[$x]->[$y] = $randAmp + $biasVal;
     }
   }
 
-  return $args{smooth} ? smooth($grid) : $grid;
+  return grow($grid,%args);
 }
 
-sub square {
+sub gel {
   my %args = @_;
+
+  print "Generating gel noise...\n" if !$QUIET;
+
+  $args{offset} = 8 if !defined $args{offset};
+  $args{freq}   = 8 if !defined $args{offset};
 
   %args = defaultArgs(%args);
 
+  my $grid = white(%args);
+
+  return offset($grid,%args);
+}
+
+sub offset {
+  my $grid = shift;
+  my %args = @_;
+
+  print "Applying fractal XY displacement...\n" if !$QUIET;
+
+  my $out = [ ];
+
+  my $length = $args{len};
+  my $offset = $args{offset};
+
+  for ( my $x = 0; $x < $length; $x++ ) {
+    $out->[$x] = [ ];
+
+    for ( my $y = 0; $y < $length; $y++ ) {
+      my $offsetX = noise($grid,$x,$y)*$offset;
+      my $offsetY = noise($grid,$length-$x,$length-$y)*$offset;
+
+      $out->[$x]->[$y] = noise($grid,
+        int($x + $offsetX),
+        int($y + $offsetY)
+      );
+    }
+  }
+
+  return $out;
+}
+
+sub square {
+  my %args = defaultArgs(@_);
+
+  print "Generating square noise...\n" if !$QUIET;
+
   my $freq = $args{freq};
-  my $amp = $args{amp} || .5;
+  my $amp = $args{amp};
   my $bias = $args{bias};
   my $length = $args{len};
 
-  my $grid = white(%args,
-    freq => $freq,
-    amp => $amp,
-    bias => $bias
-  );
+  $amp = .5 if !defined $amp;
+
+  my $grid = white(%args, len => $freq*2);
 
   my $haveLength = $freq * 2;
   my $baseOffset = 255 * $amp;
@@ -226,7 +402,7 @@ sub square {
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
-        # $grown->[$thisX]->[$thisY] = clamp($grid->[$x]->[$y] + $offset);
+        # $grown->[$thisX]->[$thisY] = $grid->[$x]->[$y] + $offset;
         $grown->[$thisX]->[$thisY] = $grid->[$x]->[$y] + $offset;
       }
     }
@@ -248,7 +424,6 @@ sub square {
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
-        # $grown->[$thisX]->[$thisY] = clamp($corners + $offset);
         $grown->[$thisX]->[$thisY] = $corners + $offset;
       }
     }
@@ -268,7 +443,6 @@ sub square {
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
-        # $grown->[$x]->[$y] = clamp($sides + $offset);
         $grown->[$x]->[$y] = $sides + $offset;
       }
     }
@@ -278,13 +452,27 @@ sub square {
     $grid = $grown;
   }
 
-  return $args{smooth} ? smooth($grid) : $grid;
+  if ( $args{smooth} ) {
+    $grid = smooth($grid,%args);
+  }
+
+  return $grid;
+}
+
+sub sgel {
+  my %args = defaultArgs(@_);
+
+  print "Generating square gel noise...\n" if !$QUIET;
+
+  my $grid = square(%args);
+
+  return offset($grid,%args);
 }
 
 sub perlin {
-  my %args = @_;
+  my %args = defaultArgs(@_);
 
-  %args = defaultArgs(%args);
+  print "Generating Perlin noise...\n" if !$QUIET;
 
   $args{amp} ||= .5;
   $args{amp} *= $args{octaves};
@@ -298,14 +486,46 @@ sub perlin {
   my @layers;
 
   for ( my $o = 0; $o < $octaves; $o++ ) {
-    print "  ... Working on octave ". ($o+1) ."... \n"
+    last if $freq >= $length;
+
+    print "Octave ". ($o+1) ." ... \n"
       if !$QUIET;
 
-    push @layers, square(%args,
+    my $generator;
+
+    $args{slicetype} ||= 'white';
+
+    if ( $args{slicetype} eq 'white' ) {
+      $generator = \&white;
+    } elsif ( $args{slicetype} eq 'square' ) {
+      $generator = \&square;
+    } elsif ( $args{slicetype} eq 'gel' ) {
+      $generator = \&gel;
+    } elsif ( $args{slicetype} eq 'sgel' ) {
+      $generator = \&sgel;
+    } elsif ( $args{slicetype} =~ /rand/ ) {
+      my $num = rand(4);
+
+      if ( int($num) == 0 ) {
+        $generator = \&white;
+      } elsif ( int($num) == 1 ) {
+        $generator = \&square;
+      } elsif ( int($num) == 2 ) {
+        $generator = \&gel;
+      } elsif ( int($num) == 3 ) {
+        $generator = \&sgel;
+      }
+    } else {
+      usage("Unknown layer type specified");
+    }
+
+    push @layers, &$generator(%args,
+    # push @layers, white(%args,
+    # push @layers, square(%args,
       freq => $freq,
       amp => $amp,
       bias => $bias,
-      len => $length
+      len => $length,
     );
 
     $amp *= .5;
@@ -324,21 +544,74 @@ sub perlin {
       for ( my $z = 0; $z < @layers; $z++ ) {
         $n++;
 
-        $t += $layers[$z][$x]->[$y];
+        my $gray = $layers[$z][$x]->[$y];
+
+        if ( $args{ridged} ) {
+          $t += abs($gray);
+        } else {
+          $t += $gray;
+        }
       }
 
-      # $combined->[$x]->[$y] = clamp($t/$n);
       $combined->[$x]->[$y] = $t/$n;
     }
   }
 
-  return $args{smooth} ? smooth($combined) : $combined;
+  return $combined;
+}
+
+sub block {
+  my %args = @_;
+
+  print "Generating Perlin block noise...\n" if !$QUIET;
+
+  $args{smooth} = 0;
+
+  return perlin(%args);
+}
+
+sub pgel {
+  my %args = @_;
+
+  print "Generating Perlin gel noise...\n" if !$QUIET;
+
+  my $grid = perlin(%args);
+
+  $args{offset} = 4 if !defined $args{offset};
+
+  %args = defaultArgs(%args);
+
+  return offset($grid,%args);
+}
+
+sub ridged {
+  my %args = @_;
+
+  print "Generating ridged multifractal Perlin noise...\n" if !$QUIET;
+
+  $args{ridged} = 1;
+  $args{bias} ||= 0;
+  $args{amp}  ||= 1;
+
+  return perlin(%args);
+}
+
+sub rgel {
+  my %args = @_;
+
+  print "Generating ridged multifractal Perlin gel noise...\n" if !$QUIET;
+
+  $args{ridged} = 1;
+
+  return pgel(%args);
 }
 
 sub refract {
-  print "Refracting...\n" if !$QUIET;
-
   my $grid = shift;
+  my %args = @_;
+
+  print "Applying fractal Z displacement...\n" if !$QUIET;
+
   my $haveLength = scalar(@{ $grid });
 
   my $out = [ ];
@@ -348,7 +621,7 @@ sub refract {
 
     for ( my $y = 0; $y < $haveLength; $y++ ) {
       my $color = $grid->[$x]->[$y] || 0;
-      my $srcY = ($color/256)*$haveLength;
+      my $srcY = ($color/255)*$haveLength;
       $srcY -= $haveLength if $srcY > $haveLength;
       $srcY += $haveLength if $srcY < 0;
 
@@ -360,9 +633,9 @@ sub refract {
 }
 
 sub smooth {
-  print "Smoothing...\n" if !$QUIET;
-
   my $grid = shift;
+  my %args = @_;
+
   my $haveLength = scalar(@{ $grid });
 
   my $smooth = [ ];
@@ -395,13 +668,13 @@ sub smooth {
 }
 
 sub complex {
-  my %args = @_;
+  my %args = defaultArgs(@_);
 
-  %args = defaultArgs(%args);
+  print "Generating complex noise...\n" if !$QUIET;
 
-  $args{amp} ||= .5;
+  $args{amp} = 1 if !defined $args{amp};
   $args{feather} = 50 if !defined $args{feather};
-  $args{layers} ||= 4;
+  $args{layers}  ||= 4;
 
   my $reference = perlin(%args);
 
@@ -413,9 +686,58 @@ sub complex {
     my $amp = $args{amp};
 
     for ( my $i = 0; $i < $args{layers}; $i++ ) {
-      print "### Complex Layer $i...\n" if !$QUIET;
+      print "---------------------------------------\n" if !$QUIET;
+      print "Complex layer $i ...\n" if !$QUIET;
 
-      push @layers, perlin(%args,
+      $args{layertype} ||= 'perlin';
+
+      my $generator;
+
+      if ( $args{layertype} eq 'white' ) {
+        $generator = \&white;
+      } elsif ( $args{layertype} eq 'square' ) {
+        $generator = \&square;
+      } elsif ( $args{layertype} eq 'perlin' ) {
+        $generator = \&perlin;
+      } elsif ( $args{layertype} eq 'ridged' ) {
+        $generator = \&ridged;
+      } elsif ( $args{layertype} eq 'block' ) {
+        $generator = \&block;
+      } elsif ( $args{layertype} eq 'gel' ) {
+        $generator = \&gel;
+      } elsif ( $args{layertype} eq 'sgel' ) {
+        $generator = \&sgel;
+      } elsif ( $args{layertype} eq 'pgel' ) {
+        $generator = \&pgel;
+      } elsif ( $args{layertype} eq 'rgel' ) {
+        $generator = \&rgel;
+      } elsif ( $args{layertype} =~ /rand/ ) {
+        my $num = rand(9);
+
+        if ( int($num) == 0 ) {
+          $generator = \&white;
+        } elsif ( int($num) == 1 ) {
+          $generator = \&square;
+        } elsif ( int($num) == 2 ) {
+          $generator = \&perlin;
+        } elsif ( int($num) == 3 ) {
+          $generator = \&ridged;
+        } elsif ( int($num) == 4 ) {
+          $generator = \&block;
+        } elsif ( int($num) == 5 ) {
+          $generator = \&gel;
+        } elsif ( int($num) == 6 ) {
+          $generator = \&sgel;
+        } elsif ( int($num) == 7 ) {
+          $generator = \&pgel;
+        } elsif ( int($num) == 8 ) {
+          $generator = \&rgel;
+        }
+      } else {
+        usage("Unknown layer type specified");
+      }
+
+      push @layers, &$generator(%args,
         # amp  => $amp,
         bias => $bias,
       );
@@ -493,9 +815,17 @@ sub complex {
 
 sub clamp {
   my $val = shift;
+  my $max = shift || 255;
+  my $ridged = shift;
 
-  $val = 0 if $val < 0;
-  $val = 255 if $val > 255;
+  if ( $ridged ) {
+    $val = abs($val) if $val < 0;
+    $val = $max if $val > $max;
+    # $val = $max - ($val-$max) if $val > $max;
+  } else {
+    $val = 0 if $val < 0;
+    $val = $max if $val > $max;
+  }
 
   return $val;
 }
@@ -507,9 +837,9 @@ sub noise {
   
   my $length  = @{ $noise };
 
-  $x -= $length if $x >= $length;
-  $y -= $length if $y >= $length;
-        
+  $x = $x % $length;
+  $y = $y % $length;
+
   die "no data for $x,$y" if !defined $noise->[$x]->[$y];
       
   return $noise->[$x]->[$y];
@@ -536,7 +866,7 @@ sub coslerp {
 
 sub spheremap {
   my $grid = shift;
-  my %args = @_;
+  my %args = defaultArgs(@_);
 
   print "Generating spheremap...\n" if !$QUIET;
 
@@ -556,13 +886,13 @@ sub spheremap {
       my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
 
       ### North Pole
-      $out->[$x]->[$y/2] = noise(
-        $grid, ($srclen-$cartX)/2, $cartY/2/2 # Stretch XY*2 to match
-      );                                      # appearance of equator
+      $out->[$x]->[$y/2] = noise($grid,
+        ($srclen-$cartX)/2, $cartY/2
+      );
 
       ### South Pole
       $out->[$x]->[$len-($y/2)] = noise($grid,
-        $cartX/2, ($offset*$scale)+($cartY/2)/2 # Stretch XY*2
+        $cartX/2, ($offset*$scale)+($cartY/2)
       );
     }
   }
@@ -591,7 +921,8 @@ sub spheremap {
     }
   }
 
-  return $args{smooth} ? smooth($out) : $out;
+  return $out;
+  # return $args{smooth} ? smooth($out,%args) : $out;
 }
 
 sub cartCoords {
@@ -619,6 +950,106 @@ sub cartCoords {
   $cartZ = int( (($cartZ+1)/2)*$thisLen );
 
   return($cartX, $cartY, $cartZ);
+}
+
+##
+## Look up color values using vertical offset
+##
+sub vertclut {
+  my $grid = shift;
+  my %args = @_;
+
+  print "Applying vertical CLUT...\n";
+
+  my $palette = Imager->new;
+  $palette->read(file => $args{clut}) || die $palette->errstr;
+
+  my $srcHeight = $palette->getheight();
+  my $srcWidth  = $palette->getwidth();
+
+  my $len = scalar(@{$grid});
+
+  my $out = Imager->new(
+    xsize => $len,
+    ysize => $len,
+  );
+
+  #
+  # Polar regions
+  #
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $gray = $grid->[$x]->[$y];
+
+      my $srcY;
+
+      if ( $args{clutdir} == 1 ) {
+        ##
+        ## Vertical displacement
+        ##
+        $srcY = $y/$len;
+      } else {
+        ##
+        ## Fractal displacement
+        ##
+        $srcY = noise($grid,
+          $len/2,
+          ($gray/255)*$len
+        )/255;
+      }
+
+      $out->setpixel(
+        x => $x,
+        y => $y,
+        color => $palette->getpixel(
+          x => clamp(($gray/255)*($srcWidth-1), $srcWidth-1),
+          y => clamp($srcY*($srcHeight-1), $srcHeight-1),
+        )
+      );
+    }
+  }
+
+  return $out;
+}
+
+##
+## Look up color values in a hypotenuse from palette
+##
+sub hypoclut {
+  my $grid = shift;
+  my %args = @_;
+
+  print "Applying hypotenuse (corner-to-corner) CLUT...\n";
+
+  my $palette = Imager->new;
+  $palette->read(file => $args{clut}) || die $palette->errstr;
+
+  my $srcHeight = $palette->getheight();
+  my $srcWidth  = $palette->getwidth();
+
+  my $len = scalar(@{$grid});
+
+  my $out = Imager->new(
+    xsize => $len,
+    ysize => $len,
+  );
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $gray = $grid->[$x]->[$y];
+
+      $out->setpixel(
+        x => $x,
+        y => $y,
+        color => $palette->getpixel(
+          y => clamp($gray)/255*($srcHeight-1),
+          x => clamp($gray)/255*($srcWidth-1),
+        )
+      );
+    }
+  }
+
+  return $out;
 }
 
 1;
@@ -667,7 +1098,7 @@ L<Imager> can take care of further post-processing.
 
   my $grid = perlin(%args);
 
-  my $img = img($grid);
+  my $img = img($grid,%args);
 
   #
   # Insert image manip methods here!
@@ -716,11 +1147,11 @@ See POST-PROCESSING FUNCTIONS for additional fun-ctionality.
 C<make-noise>, included with this distribution, provides a CLI for
 this function.
 
-=item * img($grid)
+=item * img($grid,%args)
 
   my $grid = perlin();
 
-  my $img = img($grid);
+  my $img = img($grid,%args);
 
   #
   # Insert Imager image manip stuff here!
