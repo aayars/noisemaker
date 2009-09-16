@@ -136,8 +136,8 @@ sub make {
     }
   }
 
-return if -e $args{out};
-
+  # XXX
+  # return if -e $args{out};
 
   my $grid;
   if ( $args{type} eq 'white' ) {
@@ -260,7 +260,7 @@ sub img {
       my $scaled;
 
       if ( $args{auto} ) {
-        $scaled = (($gray-$min)/$range)*255;
+        $scaled = $range ? (($gray-$min)/$range)*255 : 0;
       } else {
         $scaled = clamp($gray);
       }
