@@ -1185,9 +1185,6 @@ frequency of 2 would work fine for an image with a side length of 256
   # Care slightly more:
   #
   my ( $grid, $img, $filename ) = make(
-    type => "complex",
-    out  => "foo.bmp",
-
     #
     # Any MAKE ARGS or noise args here!
     #
@@ -1275,7 +1272,9 @@ generated.
 
 =back
 
-=head1 SIMPLE NOISE
+=head1 NOISE TYPES
+
+=head2 SIMPLE NOISE
 
 Simple noise types are generated from a single noise source.
 
@@ -1347,7 +1346,7 @@ Enable/disable noise smoothing. 1 is default/recommended
 
 =cut
 
-=head1 PERLIN TYPES
+=head2 PERLIN TYPES
 
 Perlin noise combines the values from multiple 2D slices (octaves),
 which are generated using successively higher frequencies and lower
@@ -1408,7 +1407,7 @@ specified.
 
 =back
 
-=head1 COMPLEX NOISE
+=head2 COMPLEX NOISE
 
 =over 4
 
@@ -1475,7 +1474,7 @@ except for C<complex> may be used.
 
 =back
 
-=head1 GEL TYPES
+=head2 GEL TYPES
 
 The simple and Perlin "gel" types - C<gel>, C<sgel>, C<pgel> and
 C<rgel>, accept the following additional arguments:

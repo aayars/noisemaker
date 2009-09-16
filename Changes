@@ -1,11 +1,11 @@
 Sep 2009: .007
   - Added traditional smoothed noise source for Perlin
   - Many new options for combining noise sources
-  - New noise types: square multifractal, ridged multifractal
+  - New noise types: ridged multifractal and "gel" types
   - Added some simple color mapping options
   - More futzing with spheremap scaling
   - Added gappiness option (ie for starfields)
-  - Tweaked defaults for over 500 decent noise presets(!)
+  - Tweaked defaults for about 500 reasonable complex noise presets
   - Rewrote POD
 
 Sep 2009: .006
