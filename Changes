@@ -1,3 +1,6 @@
+Sep 2009: .008
+  - Add missing POD header
+
 Sep 2009: .007
   - Added traditional smoothed noise source for Perlin
   - Many new options for combining noise sources
