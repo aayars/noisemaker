@@ -1,118 +1,39 @@
 use strict;
 use warnings;
 
-use Acme::Noisemaker qw| make |;
-use YAML::Syck;
+use Acme::Noisemaker qw| :all |;
 
-sub makeSamples {
-  my $flags = {
-    notsmooth => {
-      smooth => 0,
-    },
-    normal => {
-    },
-    sphere => {
-      sphere => 1,
-    },
-    lowfreq => {
-      freq => 2,
-      oct  => 4,
-    },
-    midfreq => {
-      freq => 4,
-    },
-    highfreq => {
-      freq => 8,
-    },
-    refract => {
-      refract => 1,
-    },
-    lowfeather => {
-      feather => 10,
-    },
-    highfeather => {
-      feather => 100,
-    },
-    negfeather => {
-      feather => -100,
-    },
-    crazy => {
-      refract => 1,
-      sphere => 1,
-    },
-  };
+my %args = (
+  len => 128,
+);
 
-  my $typeFlags = {
-    white => [ qw|
-      notsmooth normal sphere
-    | ],
+for my $type ( qw| white square gel sgel pgel rgel stars | ) {
+  make(type => $type, %args);
+}
 
-    square => [ qw|
-      notsmooth
-      lowfreq midfreq highfreq
-      sphere refract refract refract crazy
-    | ],
+for my $type ( qw| perlin ridged block | ) {
+  for my $stype ( qw| white square gel sgel stars | ) {
+    make(type => $type, stype => $stype, %args);
+  }
+}
 
-    perlin => [ qw|
-      notsmooth
-      lowfreq midfreq highfreq
-      sphere refract refract refract crazy
-    | ],
+my @types = @Acme::Noisemaker::NOISE_TYPES;
 
-    complex => [ qw|
-      notsmooth
-      lowfreq midfreq highfreq
-      lowfeather highfeather negfeather
-      sphere refract refract refract crazy
-    | ],
-  };
+for my $lbase ( @types ) {
+  next if $lbase eq 'complex';
 
-  my $template = '%s-%02i-%s.jpg';
+  for my $ltype ( @types ) {
+    next if $ltype eq 'complex';
 
-  open(OUT, ">", "index.html");
-  print OUT "<html>\n";
-  print OUT "<head>\n";
-  print OUT "<style> body, pre { font-family: sans-serif } </style>\n";
-  print OUT "</head>\n";
-  print OUT "<body>\n";
-
-  print OUT "<h1>Samples from Acme::Noisemaker::make</h1>\n";
-
-  for my $type ( sort keys %{ $typeFlags } ) {
-    my $i = 0;
-
-    for my $kind ( @{ $typeFlags->{$type} } ) {
-      $i++;
-
-      my $filename = sprintf($template,$type,$i,$kind);
-
-      print OUT "<hr />\n";
-      print OUT "<h3>$type $kind</h3>\n";
-      print OUT "<p>\n";
-      print OUT "<img src=\"$filename\" title=\"$type $kind\"/>\n";
-      print OUT "<pre>\n";
-      print OUT YAML::Syck::Dump({
-        type => $type, %{ $flags->{$kind} }
-      });
-      print OUT "</pre>\n";
-      print OUT "</p>\n";
-
+    for my $stype ( qw| white square gel sgel stars | ) {
       make(
-        type => $type,
-        out  => $filename,
-        len  => 128,
-        quiet => 1,
-        %{ $flags->{$kind} }
+        type => 'complex',
+        lbase => $lbase,
+        ltype => $ltype,
+        stype => $stype,
+        %args
       );
     }
   }
-
-  print OUT "<hr />\n";
-  print OUT "Generated with Acme::Noisemaker $Acme::Noisemaker::VERSION\n";
-  print OUT "</body>\n";
-  print OUT "</html>\n";
-
-  close(OUT);
 }
 
-makeSamples();
