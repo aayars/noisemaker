@@ -1492,6 +1492,8 @@ Amount of self-displacement to apply to gel noise
 
 =head1 MORE FUNCTIONS
 
+=over 4
+
 =item * img($grid,%args)
 
   my $grid = perlin();
