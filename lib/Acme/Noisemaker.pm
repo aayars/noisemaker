@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use strict;
 use warnings;
@@ -1125,7 +1125,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.007 of Acme::Noisemaker.
+This document is for version 0.008 of Acme::Noisemaker.
 
 =head1 SYNOPSIS
 
