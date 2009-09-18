@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 use strict;
 use warnings;
@@ -13,7 +13,8 @@ use constant Rho => 1;
 use base qw| Exporter |;
 
 our @NOISE_TYPES = qw|
-  white square perlin ridged block complex gel sgel pgel rgel stars
+  white wavelet square perlin ridged block complex gel sgel pgel rgel stars
+  mandel buddha fern
 |;
 
 our @EXPORT_OK = ( qw|
@@ -68,6 +69,8 @@ sub usage {
   print "  [-clut <filename>] \\        ## color table (ex.bmp)\n";
   print "  [-clutdir 0|1|2] \\          ## displace hyp|vert|fract\n";
   print "  [-limit 0|1] \\              ## scale|clip pixel values\n";
+  print "  [-zoom <num>] \\             ## mag for fractals\n";
+  print "  [-maxiter <num>] \\          ## iter limit for fractals\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  -out <filename>              # Output file (foo.bmp)\n";
   print "\n";
@@ -105,6 +108,7 @@ sub make {
     elsif ( $arg =~ /clut$/ ) { $args{clut} = shift; }
     elsif ( $arg =~ /clutdir$/ ) { $args{clutdir} = shift; }
     elsif ( $arg =~ /limit/ ) { $args{auto} = shift() ? 0 : 1; }
+    elsif ( $arg =~ /zoom/ ) { $args{zoom} = shift; }
     elsif ( $arg =~ /quiet/ ) { $QUIET = shift; }
     else { usage("Unknown argument: $arg") }
   }
@@ -129,7 +133,7 @@ sub make {
   if ( !$args{out} ) {
     if ( $args{type} eq 'complex' ) {
       $args{out} = "$args{lbase}-$args{ltype}-$args{stype}.bmp";
-    } elsif ( $args{type} =~ /perlin|ridged|block/ ) {
+    } elsif ( $args{type} =~ /perlin|ridged|block|pgel|rgel/ ) {
       $args{out} = "$args{type}-$args{stype}.bmp";
     } else {
       $args{out} = "$args{type}.bmp";
@@ -160,6 +164,16 @@ sub make {
     $grid = pgel(%args);
   } elsif ( $args{type} eq 'rgel' ) {
     $grid = rgel(%args);
+  } elsif ( $args{type} eq 'mandel' ) {
+    $grid = mandel(%args);
+  } elsif ( $args{type} eq 'buddha' ) {
+    $grid = buddha(%args);
+  } elsif ( $args{type} eq 'fern' ) {
+    $grid = fern(%args);
+  } elsif ( $args{type} eq 'gasket' ) {
+    $grid = gasket(%args);
+  } elsif ( $args{type} eq 'wavelet' ) {
+    $grid = wavelet(%args);
   } elsif ( $args{type} eq 'stars' ) {
     $grid = stars(%args);
   } else {
@@ -200,7 +214,7 @@ sub defaultArgs {
 
   $args{bias} = .5 if !defined $args{bias};
   $args{smooth} = 1 if !defined $args{smooth};
-  $args{auto} = 1 if !defined $args{auto};
+  $args{auto} = 1 if !defined($args{auto}) && $args{type} ne 'fern';
 
   $args{gap}     ||= 0;
   $args{type}    ||= 'perlin';
@@ -305,6 +319,37 @@ sub grow {
     $grid = $args{smooth} ? smooth($grown,%args) : $grown;
 
     $haveLength *= 2;
+  }
+
+  return $grid;
+}
+
+sub shrink {
+  my $noise = shift;
+  my %args = @_;
+
+  my $grid = $noise;
+
+  my $wantLength = $args{len};
+  my $haveLength = scalar( @{ $noise } );
+
+  until ( $haveLength <= $wantLength ) {
+    my $grown = [ ];
+
+    for ( my $x = 0; $x < $haveLength/2; $x++ ) {
+      $grown->[$x] = [ ];
+
+      for ( my $y = 0; $y < $haveLength/2; $y++ ) {
+        $grown->[$x]->[$y] = $grid->[$x*2]->[$y*2]/4;
+        $grown->[$x]->[$y] += $grid->[(($x*2)+1) % $haveLength]->[$y*2]/4;
+        $grown->[$x]->[$y] += $grid->[$x*2]->[(($y*2)+1) % $haveLength]/4;
+        $grown->[$x]->[$y] += $grid->[(($x*2)+1) % $haveLength]->[($y*2)+1]/4;
+      }
+    }
+
+    $haveLength /= 2;
+
+    $grid = $grown;
   }
 
   return $grid;
@@ -533,7 +578,7 @@ sub perlin {
   my @layers;
 
   for ( my $o = 0; $o < $octaves; $o++ ) {
-    last if $freq >= $length;
+    last if $freq > $length;
 
     print "Octave ". ($o+1) ." ... \n"
       if !$QUIET;
@@ -550,27 +595,19 @@ sub perlin {
       $generator = \&sgel;
     } elsif ( $args{stype} eq 'stars' ) {
       $generator = \&stars;
-    } elsif ( $args{stype} =~ /rand/ ) {
-      my $num = rand(5);
-
-      if ( int($num) == 0 ) {
-        $generator = \&white;
-      } elsif ( int($num) == 1 ) {
-        $generator = \&square;
-      } elsif ( int($num) == 2 ) {
-        $generator = \&gel;
-      } elsif ( int($num) == 3 ) {
-        $generator = \&sgel;
-      } elsif ( int($num) == 4 ) {
-        $generator = \&stars;
-      }
+    } elsif ( $args{stype} eq 'mandel' ) {
+      $generator = \&mandel;
+    } elsif ( $args{stype} eq 'buddha' ) {
+      $generator = \&buddha;
+    } elsif ( $args{stype} eq 'wavelet' ) {
+      $generator = \&wavelet;
+    } elsif ( $args{stype} eq 'fern' ) {
+      $generator = \&fern;
     } else {
       usage("Unknown layer type specified");
     }
 
     push @layers, &$generator(%args,
-    # push @layers, white(%args,
-    # push @layers, square(%args,
       freq => $freq,
       amp => $amp,
       bias => $bias,
@@ -927,6 +964,278 @@ sub coslerp {
   return( $a * (1-$f) + $b*$f );
 }
 
+sub wavelet {
+  my %args = @_;
+
+  %args = defaultArgs(%args);
+
+  my $source = white(%args, len => $args{freq});
+
+  my $down = shrink($source,%args,len => $args{freq}/2);
+
+  my $up = grow($down,%args,len => $args{freq});
+
+  my $out = [ ];
+
+  for ( my $x = 0; $x < $args{freq}; $x++ ) {
+    $out->[$x] = [ ];
+    for ( my $y = 0; $y < $args{freq}; $y++ ) {
+      $out->[$x]->[$y] = $source->[$x]->[$y] - $up->[$x]->[$y];
+    }
+  }
+
+  return grow($out,%args);
+}
+
+sub gasket {
+  my %args = @_;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+  $args{amp} ||= 1;
+
+  my $freq = $args{freq};
+  my $amp = $args{amp}*255;
+
+  %args = defaultArgs(%args);
+
+  my $grid = [ ];
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    $grid->[$x] = [ ];
+
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      $grid->[$x]->[$y] = 0;
+    }
+  }
+
+  my $f1 = sub { return($_[0]/2, $_[1]/2) };
+  my $f2 = sub { return(($_[0]+1)/2, $_[1]/2) };
+  my $f3 = sub { return($_[0]/2, ($_[1]+1)/2) };
+
+  my $iters = $args{maxiter} || $freq*$freq;
+
+  my $x = rand(1);
+  my $y = rand(1);
+
+  for ( my $i = 0; $i < $iters; $i++ ) {
+    if ( $i > 20 ) {
+      my $thisX = ( $x * $freq ) % $freq;
+      my $thisY = ( $y * $freq ) % $freq;
+      $grid->[$thisX]->[$thisY] = 255;
+    }
+
+    my $rand = rand(3);
+    if ( $rand < 1 ) {
+      ($x,$y) = &$f1($x,$y);
+    } elsif ( $rand < 2 ) {
+      ($x,$y) = &$f2($x,$y);
+    } else {
+      ($x,$y) = &$f3($x,$y);
+    }
+  }
+
+  return $grid;
+}
+
+sub fern {
+  my %args = @_;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+  $args{amp} ||= 1;
+
+  my $freq = $args{freq};
+  my $amp = $args{amp}*255;
+
+  %args = defaultArgs(%args);
+
+  my $grid = [ ];
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    $grid->[$x] = [ ];
+
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      $grid->[$x]->[$y] = 0;
+    }
+  }
+
+  my $steps = $freq*$freq*10;
+
+  my $x = 0;
+  my $y = 0;
+
+  my $scale = $args{zoom} || 1;
+
+  for ( my $n = 0; $n < $steps; $n++ ) {
+    my $gx = ($freq-( (($x*$scale)+2.1818)/4.8374*$freq )) % $freq;
+    my $gy = ($freq-( (($y*$scale)/9.95851)*$freq )) % $freq;
+
+    $grid->[$gx]->[$gy] += sqrt(rand()*$amp);
+
+    my $rand = rand();
+
+    $grid->[$gx]->[$gy] ||= 0;
+
+    if ( $rand <= .01 ) {
+      ($x, $y) = _fern1($x, $y);
+    } elsif ( $rand <= .08 ) {
+      ($x, $y) = _fern2($x, $y);
+    } elsif ( $rand <= .15 ) {
+      ($x, $y) = _fern3($x, $y);
+    } else {
+      ($x, $y) = _fern4($x, $y);
+    }
+  }
+
+  return grow($grid,%args);
+}
+
+sub _fern1 {
+  my $x = shift;
+  my $y = shift;
+
+  return( 0, .16*$y );
+}
+
+sub _fern2 {
+  my $x = shift;
+  my $y = shift;
+
+  return( (.2*$x)-(.26)*$y, (.23*$x)+(.22*$y)+1.6 );
+}
+
+sub _fern3 {
+  my $x = shift;
+  my $y = shift;
+
+  return( (-.15*$x)+(.28*$y), (.26*$x)+(.24*$y)+.44 );
+}
+
+sub _fern4 {
+  my $x = shift;
+  my $y = shift;
+
+  return( (.85*$x)+(.04*$y), (-.04*$x)+(.85*$y)+1.6 );
+}
+
+sub mandel {
+  my %args = @_;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $grid = [ ];
+
+  my $freq = $args{freq};
+
+  my $iters = $args{maxiter} || $freq;
+
+  my $scale = $args{zoom} || 1;
+
+  for ( my $x = 0; $x < $freq; $x += 1 ) {
+    $grid->[$x] = [ ];
+
+    my $cx = ($x/$freq)*2 - 1;
+    $cx -= .5;
+    $cx /= $scale;
+
+    for ( my $y = 0; $y < $freq; $y += 1 ) {
+      $grid->[$x]->[$y] ||= 0;
+
+      my $cy = ($y/$freq)*2 - 1;
+      $cy /= $scale;
+
+      my $zx = 0; 
+      my $zy = 0; 
+      my $n = 0;
+      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
+        my $new_zx = $zx*$zx - $zy*$zy + $cx;
+        $zy = 2*$zx*$zy + $cy;
+        $zx = $new_zx;
+        $n++;
+      }
+
+      $grid->[$x]->[$y] = 255 - (($n/$iters)*255);
+    }
+  }
+
+  return grow($grid,%args);
+}
+
+sub buddha {
+  my %args = @_;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $freq = $args{freq};
+
+  my $grid = [ ];
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    $grid->[$x] = [ ];
+
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      $grid->[$x]->[$y] = 0;
+    }
+  }
+
+  my $iters = $args{maxiter} || 1024;
+
+  my $gap = $args{gap};
+
+  my $scale = $args{zoom} || 1;
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      next if rand() < $gap;
+
+      my $cx = ($x/$freq)*2 - 1;
+      $cx -= .5;
+
+      my $cy = ($y/$freq)*2 - 1;
+
+      $cx /= $scale;
+      $cy /= $scale;
+
+      my $zx = 0;
+      my $zy = 0;
+      my $n = 0;
+      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
+        my $new_zx = $zx*$zx - $zy*$zy + $cx;
+        $zy = 2*$zx*$zy + $cy;
+        $zx = $new_zx;
+        $n++;
+      }
+
+      next if $n == $iters;
+      next if $n <= sqrt($iters);
+
+      $zx = 0;
+      $zy = 0;
+      $n = 0;
+      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
+        my $new_zx = $zx*$zx - $zy*$zy + $cx;
+        $zy = 2*$zx*$zy + $cy;
+        $zx = $new_zx;
+        $n++;
+
+        my $thisX = ((($zx+1)/2)*$freq+($freq*.25)) % $freq;
+        my $thisY = (($zy+1)/2)*$freq % $freq;
+
+        $grid->[$thisY]->[$thisX]++;
+      }
+    }
+  }
+
+  return grow($grid,%args);
+}
+
 sub spheremap {
   my $grid = shift;
   my %args = defaultArgs(@_);
@@ -1125,7 +1434,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.008 of Acme::Noisemaker.
+This document is for version 0.009 of Acme::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -1284,6 +1593,10 @@ Simple noise types are generated from a single noise source.
 
 Each non-smoothed pixel contains a pseudo-random value
 
+=item * wavelet(%args)
+
+Basis function for sharper Perlin slices, invented by Pixar
+
 =item * square(%args)
 
 Diamond-Square
@@ -1300,6 +1613,23 @@ Diamond-Square noise with XY offset; see GEL TYPES
 
 White noise generated with extreme gappiness
 
+=item * mandel(%args)
+
+Fractal type - Mandelbrot fractal set. Not currently very useful,
+this is a work in progress.
+
+=item * buddha(%args)
+
+Fractal type - "Buddhabrot" Mandelbrot variant. Not currently very
+useful, this is a work in progress.
+
+This is a very, very slow function.
+
+=item * fern(%args)
+
+Fractal type - Barnsley's fern. Not currently very useful, this is
+a proof of concept for future IFS noise types.
+  
 =back
 
 Simple noise types accept the following arguments in hash key form:
@@ -1342,6 +1672,20 @@ Enable/disable noise smoothing. 1 is default/recommended
 
   make(smooth => 0);
 
+=item * zoom => $num
+
+Used for fractal types only. Magnifaction factor.
+
+  make(type => 'buddha', zoom => 2);
+
+=item * maxiter => $int
+
+Used for fractal types only. Iteration limit for determining
+infinite boundaries, larger values take longer but are more
+accurate/look nicer.
+
+  make(type => 'mandel', maxiter => 2000);
+
 =back
 
 =cut
@@ -1361,23 +1705,33 @@ The default slice type is smoothed C<white> noise.
 
 =item * perlin(%args)
 
-B<Perlin>
+Perlin
+
+  make(type => 'perlin', stype => 'wavelet');
 
 =item * ridged(%args)
 
-B<Ridged multifractal>
+Ridged multifractal
+
+  make(type => 'ridged', stype => 'wavelet');
 
 =item * block(%args)
 
-B<Unsmoothed Perlin>
+Unsmoothed Perlin
+
+  make(type => 'block', stype => ...);
 
 =item * pgel(%args)
 
 Perlin noise with an XY offset; see GEL TYPES
 
+  make(type => 'pgel', stype => ...);
+
 =item * rgel(%args)
 
 Ridged multifractal noise with an XY offset; see GEL TYPES
+
+  make(type => 'rgel', stype => ...);
 
 =back
 
@@ -1440,7 +1794,7 @@ different base types, layer types, and slice types.
 =back
 
 In addition to all simple and Perlin args, complex noise accepts
-the following additional args in hash key form:
+the following args in hash key form:
 
 =over 4
 
@@ -1593,9 +1947,16 @@ L<Imager>, L<Math::Trig>
 
 Acme::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
 
-Acme::Noisemaker uses adapted pseudocode from
-http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
-and http://gameprogrammer.com/fractal.html
+Uses adapted pseudocode from:
+
+  - http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
+    Perlin
+
+  - http://gameprogrammer.com/fractal.html
+    Diamond-Square
+
+  - http://graphics.pixar.com/library/WaveletNoise/paper.pdf
+    Wavelet
 
 =head1 AUTHOR
 

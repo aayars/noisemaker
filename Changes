@@ -1,3 +1,6 @@
+Sep 2009: .009
+  - Added wavelet, mandel, buddha, fern functions
+
 Sep 2009: .008
   - Add missing POD header
 
