@@ -1,10 +1,14 @@
-Sep 2009: .009
+.010
+  - Added dmandel, diffusion, flame, infile, spiral, voronoi functions
+  - Even more futzing with spheremaps, poles conform better now
+
+.009
   - Added wavelet, mandel, buddha, fern functions
 
-Sep 2009: .008
+.008
   - Add missing POD header
 
-Sep 2009: .007
+.007
   - Added traditional smoothed noise source for Perlin
   - Many new options for combining noise sources
   - New noise types: ridged multifractal and "gel" types
@@ -14,12 +18,12 @@ Sep 2009: .007
   - Tweaked defaults for about 500 reasonable complex noise presets
   - Rewrote POD
 
-Sep 2009: .006
+.006
   - Added a script to generate lots of example noise
   - Tweaked scale at polar regions to more closely match look of equator
   - Refractive spheremaps should look better
 
-Sep 2009: .005
+.005
   - Added spheremap option! They're fake but good.
   - Added refractive palette option, looks like fractals
   - Fixed bug with size of output images, was off by one in smooth function
@@ -28,7 +32,7 @@ Sep 2009: .005
   - Complex noise now skips an un-needed smoothing step
   - Tweaked default args
 
-Sep 2009: .004
+.004
   - Added example images to ex/ dir and inline with pod
 
 Sep 2009: .001

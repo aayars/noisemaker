@@ -49,6 +49,7 @@ sub usage {
   print "* diffusion       ### diffusion fractal\n";
   print "* spiral          ### tiny logspirals\n";
   print "* voronoi         ### ridged voronoi cells\n";
+  print "* infile          ### image file named by 'in' arg\n";
   print "  perlin          ### multi-resolution\n";
   print "  ridged          ### ridged multifractal\n";
   print "  block           ### unsmoothed Perlin\n";
@@ -81,6 +82,7 @@ sub usage {
   print "  [-limit 0|1] \\              ## scale|clip pixel values\n";
   print "  [-zoom <num>] \\             ## mag for fractals\n";
   print "  [-maxiter <num>] \\          ## iter limit for fractals\n";
+  print "  [-in <filename>] \\          ## input filename for infile\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  [-out <filename>]           ## Output file (foo.bmp)\n";
   print "\n";
@@ -1639,17 +1641,24 @@ sub spheremap {
   #
   # Polar regions
   #
+  my $xOffset = $len/4;
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my ( $cartX, $cartY, $cartZ ) = cartCoords( $x, $y, $len, $scale );
 
       ### North Pole
       $out->[$x]->[ $y / 2 ] =
-        noise( $grid, ( $srclen - $cartX ) / 2, $cartY / 2 );
+        noise( $grid,
+          $xOffset + (($srclen-$cartX)/2),
+          $cartY / 2
+        );
 
       ### South Pole
-      $out->[$x]->[ $len - ( $y / 2 ) ] =
-        noise( $grid, $cartX / 2, ( $offset * $scale ) + ( $cartY / 2 ) );
+      $out->[$len - 1 - $x]->[ $len - ( $y / 2 ) ] =
+        noise( $grid,
+          $xOffset + ($cartX/2),
+          ( $offset * $scale ) + ( $cartY / 2 )
+        );
     }
   }
 
