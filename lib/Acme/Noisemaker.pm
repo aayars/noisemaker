@@ -2377,6 +2377,14 @@ IFS type - Barnsley's fern. Included as a demo.
 =item * gasket(%args)
 
 IFS type - Sierpinski's triangle/gasket. Included as a demo.
+
+=item * spiral(%args)
+
+Tiny logarithmic spirals
+
+=item * voronoi(%args)
+
+Ridged Voronoi cells
   
 =back
 
