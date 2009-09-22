@@ -47,6 +47,8 @@ sub usage {
   print "* fern            ### IFS fern (demo)\n";
   print "* gasket          ### IFS gasket (demo)\n";
   print "* diffusion       ### diffusion fractal\n";
+  print "* spiral          ### tiny logspirals\n";
+  print "* voronoi         ### ridged voronoi cells\n";
   print "  perlin          ### multi-resolution\n";
   print "  ridged          ### ridged multifractal\n";
   print "  block           ### unsmoothed Perlin\n";
@@ -223,6 +225,9 @@ sub make {
   }
   elsif ( $args{type} eq 'spiral' ) {
     $grid = spiral(%args);
+  }
+  elsif ( $args{type} eq 'voronoi' ) {
+    $grid = voronoi(%args);
   }
   elsif ( $args{type} eq 'diffusion' ) {
     $grid = diffusion(%args);
@@ -743,6 +748,9 @@ sub perlin {
     elsif ( $args{stype} eq 'infile' ) {
       $generator = \&infile;
     }
+    elsif ( $args{stype} eq 'voronoi' ) {
+      $generator = \&voronoi;
+    }
     elsif ( $args{stype} eq 'spiral' ) {
       $generator = \&spiral;
     }
@@ -991,7 +999,7 @@ sub complex {
           $out->[$x]->[$y] = $color;
         }
 
-        $out->[$x]->[$y] = coslerp( $out->[$x]->[$y], $value, .25 );
+        # $out->[$x]->[$y] = coslerp( $out->[$x]->[$y], $value, .25 );
 
         $level += $levelOffset;
         $levelOffset /= 2;
@@ -1042,6 +1050,27 @@ sub __complexGenerator {
   }
   elsif ( $type eq 'infile' ) {
     $generator = \&infile;
+  }
+  elsif ( $type eq 'diffusion' ) {
+    $generator = \&diffusion;
+  }
+  elsif ( $type eq 'mandel' ) {
+    $generator = \&mandel;
+  }
+  elsif ( $type eq 'dmandel' ) {
+    $generator = \&dmandel;
+  }
+  elsif ( $type eq 'buddha' ) {
+    $generator = \&buddha;
+  }
+  elsif ( $type eq 'flame' ) {
+    $generator = \&flame;
+  }
+  elsif ( $type eq 'spiral' ) {
+    $generator = \&spiral;
+  }
+  elsif ( $type eq 'voronoi' ) {
+    $generator = \&voronoi;
   }
   else {
     usage("Unknown layer type specified");
@@ -1239,20 +1268,6 @@ sub flame {
       $grid->[$gx]->[$gy] ||= 0;
       $grid->[$gx]->[$gy]++;
     };
-    do {
-      my $gx = ( ($x*($freq)) + ($freq/2) ) % $freq;
-      my $gy = ( ($y*($freq)) + ($freq/2) ) % $freq;
-
-      $grid->[$gx]->[$gy] ||= 0;
-      $grid->[$gx]->[$gy]++;
-    };
-    do {
-      my $gx = ( ($x*($freq*6)) + ($freq/2) ) % $freq;
-      my $gy = ( ($y*($freq*6)) + ($freq/2) ) % $freq;
-
-      $grid->[$gx]->[$gy] ||= 0;
-      $grid->[$gx]->[$gy]++;
-    };
 
     my $rand = rand();
 
@@ -1270,10 +1285,20 @@ sub flame {
     }
   }
 
+  $grid = densemap($grid);
+
+  return glow( grow( $grid, %args ), %args);
+}
+
+sub densemap {
+  my $grid = shift;
+
+  my $len = scalar(@{ $grid });
+
   my $colors = { };
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    for ( my $y = 0; $y < $freq; $y++ ) {
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
       $colors->{ $grid->[$x]->[$y] }++
     }
   }
@@ -1282,20 +1307,21 @@ sub flame {
 
   my $i = 0;
   for ( sort { $a <=> $b } @colors ) {
-    $colors->{$_} = (($i/@colors)*255);
+    $colors->{$_} = (sqrt($i/@colors)*255);
 
     $i++;
   }
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    for ( my $y = 0; $y < $freq; $y++ ) {
-      $grid->[$x]->[$y] = $colors->{ $grid->[$x]->[$y] };
+  my $out = [ ];
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    $out->[$x] = [ ];
+    for ( my $y = 0; $y < $len; $y++ ) {
+      $out->[$x]->[$y] = $colors->{ $grid->[$x]->[$y] };
     }
   }
 
-print "$aa, $bb, $c, $d, $e, $f\n";
-
-  return glow( grow( $grid, %args ), %args);
+  return $out;
 }
 
 sub fern {
@@ -1490,9 +1516,13 @@ sub dmandel {
     $cx /= $scale;
 
     for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
+      $grid->[$x]->[$y] ||= 0;
+
       my $cy = ( $y / $freq ) * 2 - 1;
-      $cy += $tuple->[1] * $scale;;
+
+      $cy += $tuple->[1] * $scale;
       $cy /= $scale;
+      my $cyKey = $cy*$scale;
 
       my $zx = 0;
       my $zy = 0;
@@ -1506,13 +1536,14 @@ sub dmandel {
 
       my $color = ( ( $n / ($iters-1)) * 255 );
 
-$color = 0 if $color >= 255;
+      $color = 0 if $color >= 255;
 
-      $grid->[$x]->[$y] = $color;
+      $grid->[$x]->[$y] += $color;
     }
 
     printRow($grid->[$x]);
   }
+
 
   return glow( grow( $grid, %args ) );
 }
@@ -1582,7 +1613,7 @@ sub buddha {
         my $thisX = ( ( ( $zx + 1 ) / 2 ) * $freq + ( $freq * .25 ) ) % $freq;
         my $thisY = ( ( $zy + 1 ) / 2 ) * $freq % $freq;
 
-        $grid->[$thisY]->[$thisX]++;
+        $grid->[$thisY]->[$thisX] += 10;
       }
     }
     printRow($grid->[$x]);
@@ -1775,65 +1806,80 @@ sub hypoclut {
   return $out;
 }
 
+sub voronoi {
+  return spiral(@_, voronoi => 1);
+}
+
 sub spiral {
   my %args = @_;
 
   $args{len} ||= 256;
   $args{freq} = $args{len} if !defined $args{freq};
 
+  my $voronoi = $args{voronoi};
+
   %args = defaultArgs(%args);
 
   my $len = $args{freq};
 
-  my $coils = $args{freq};
-  my $sides = $args{maxiter} || 65536;
-
   my $grid = grid(%args, len => $len, bias => 0);
 
   my $half = $len/2;
-
   my $radius = $half;
-
-for ( my $n = 0; $n < 32; $n++ ) {
-  my $centerX = rand($len);
-  my $centerY = rand($len);
-
-  # my $aroundStep = $coils/$sides;
-  my $aroundStep = .2;
-
-  my $aroundRads = $aroundStep * 2 * (22/7);
-
-  # $rotation *= 2 * 22/7;
-
-  my @points;
-
-  $args{amp} ||= .5;
-
-  my $bias = $args{bias}*255;
-  # my $amp = $args{amp}*255;
-  my $amp = $args{amp}*255;
   my $rand = sub { ( rand() >= .5 ) ? 1 : -1 };
 
-  my $rotation = 0;
+  for ( my $n = 0; $n < sqrt($len)*2; $n++ ) {
+    my ( $coils, $arms, $steps );
 
-  $grid->[$centerX]->[$centerY] = 255;
-  # $grid->[$centerX]->[$centerY] = $amp;
+    if ( $voronoi ) {
+      $coils = 360;
+      $arms  = 1;
+      $steps = $len*$len*2;
+    } else {
+      $coils = int(rand(5));
+      $arms  = int(rand(7)) + 1;
+      $steps = 180+rand(180);
+    }
 
-  for ( my $i = 1; $i <= $sides; $i++ ) {
-    my $away = $radius ** ( $i/$sides);
+    my $aroundStep = ( $coils/$steps );
+    my $aroundRads = $aroundStep * 2 * (22/7);
 
-    my $around = $i * $aroundRads + $rotation;
+    my $centerX = rand($len);
+    my $centerY = rand($len);
 
-    my $x = ( $centerX + cos($around) * $away ) % $len;
-    my $y = ( $centerY + sin($around) * $away ) % $len;
+    my $rotation = rand() * 2 * 22/7;
 
-    my $color = 255 - (($i/$sides)*255);
-    $grid->[$x]->[$y] = ($grid->[$x]->[$y] > $color)
-      ? $grid->[$x]->[$y] : $color;
+    for ( my $i = 1; $i <= $steps; $i += 1 ) {
+      my $away = $radius ** ( $i/$steps);
 
-    # $grid->[$x]->[$y] = (sqrt($i/$sides))*255;
+      for ( my $r = 0; $r < $arms; $r += 1/$arms ) {
+        my $around = ( $i * $aroundRads ) + $rotation + ( $r * 2 * (22/7) );
+
+        my $x = ( $centerX + cos($around) * $away ) % $len;
+        my $y = ( $centerY + sin($around) * $away ) % $len;
+
+        my $color = 255 - ((($i-1)/($steps-1))*255);
+
+        if ( $grid->[$x]->[$y] < $color ) {
+          $grid->[$x]->[$y] = $color;
+        }
+      }
+    }
+
+    $grid->[$centerX]->[$centerY] = 255;
   }
-}
+
+  if ( $voronoi ) {
+    $grid = densemap($grid);
+
+    for ( my $x = 0; $x < $len; $x++ ) {
+      for ( my $y = 0; $y < $len; $y++ ) {
+        $grid->[$x]->[$y] = 255 - ( ($grid->[$x]->[$y]/255)*255 );
+      }
+    }
+  } else {
+    $grid = glow($grid,%args);
+  }
 
   return grow($grid,%args);
 }
@@ -2021,7 +2067,8 @@ sub translate {
   return $x, $y;
 }
 
-my @chars = (' ', '.', ',', ':', ';', '!', 'v', 'V', '=', '#', '0');
+my @chars = (" ", ".", "-", "+", "=", "/", ">", "X", "#", "@");
+
 sub printRow {
   return if $QUIET;
 
@@ -2029,9 +2076,9 @@ sub printRow {
 
   my $len = scalar(@{ $row });
 
-  for my $i ( 0..71 ) {
-    my $pct = $i/71;
-    my $rowI = $pct * ($len-1);
+  for my $i ( 0..79 ) {
+    my $pct = $i/80;
+    my $rowI = $pct * ($len);
     my $val = $row->[$rowI];
 
     my $valPct = clamp($val)/255;
