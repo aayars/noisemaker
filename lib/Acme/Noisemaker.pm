@@ -337,10 +337,6 @@ sub img {
         $scaled = clamp($gray);
       }
 
-      if ( $args{type} eq 'ridged' ) {
-        $scaled = abs( 255 - $scaled );
-      }
-
       do {
         $scaledGrid->[$x]->[$y] = $scaled;
       };
@@ -801,7 +797,11 @@ sub perlin {
         }
       }
 
-      $combined->[$x]->[$y] = $t / $n;
+      if ( $args{ridged} ) {
+        $combined->[$x]->[$y] = 255 - ($t / $n);
+      } else {
+        $combined->[$x]->[$y] = $t / $n;
+      }
     }
     printRow($combined->[$x]);
   }
