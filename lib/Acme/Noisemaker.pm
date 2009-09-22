@@ -14,7 +14,7 @@ use base qw| Exporter |;
 
 our @NOISE_TYPES = qw|
   white wavelet square perlin ridged block complex gel sgel pgel rgel stars
-  mandel buddha fern
+  spiral voronoi diffusion flame mandel dmandel buddha fern gasket
   |;
 
 our @EXPORT_OK = (
@@ -39,7 +39,6 @@ sub usage {
   print "* square          ### diamond-square algorithm\n";
   print "* gel             ### self-displaced smooth\n";
   print "* sgel            ### self-displaced diamond-square\n";
-  print "* stars           ### starfield\n";
   print "* mandel          ### Mandelbrot\n";
   print "* dmandel         ### Deep Mandelbrot\n";
   print "* buddha          ### buddhabrot\n";
@@ -47,7 +46,8 @@ sub usage {
   print "* fern            ### IFS fern (demo)\n";
   print "* gasket          ### IFS gasket (demo)\n";
   print "* diffusion       ### diffusion fractal\n";
-  print "* spiral          ### tiny logspirals\n";
+  print "* stars           ### starfield\n";
+  print "* spirals         ### tiny logspirals\n";
   print "* voronoi         ### ridged voronoi cells\n";
   print "* infile          ### image file named by 'in' arg\n";
   print "  perlin          ### multi-resolution\n";
@@ -225,8 +225,8 @@ sub make {
   elsif ( $args{type} eq 'stars' ) {
     $grid = stars(%args);
   }
-  elsif ( $args{type} eq 'spiral' ) {
-    $grid = spiral(%args);
+  elsif ( $args{type} eq 'spirals' ) {
+    $grid = spirals(%args);
   }
   elsif ( $args{type} eq 'voronoi' ) {
     $grid = voronoi(%args);
@@ -753,8 +753,8 @@ sub perlin {
     elsif ( $args{stype} eq 'voronoi' ) {
       $generator = \&voronoi;
     }
-    elsif ( $args{stype} eq 'spiral' ) {
-      $generator = \&spiral;
+    elsif ( $args{stype} eq 'spirals' ) {
+      $generator = \&spirals;
     }
     elsif ( $args{stype} eq 'flame' ) {
       $generator = \&flame;
@@ -1068,8 +1068,8 @@ sub __complexGenerator {
   elsif ( $type eq 'flame' ) {
     $generator = \&flame;
   }
-  elsif ( $type eq 'spiral' ) {
-    $generator = \&spiral;
+  elsif ( $type eq 'spirals' ) {
+    $generator = \&spirals;
   }
   elsif ( $type eq 'voronoi' ) {
     $generator = \&voronoi;
@@ -1816,10 +1816,10 @@ sub hypoclut {
 }
 
 sub voronoi {
-  return spiral(@_, voronoi => 1);
+  return spirals(@_, voronoi => 1);
 }
 
-sub spiral {
+sub spirals {
   my %args = @_;
 
   $args{len} ||= 256;
@@ -2340,10 +2340,6 @@ Low-frequency smooth white noise with XY offset; see GEL TYPES
 
 Diamond-Square noise with XY offset; see GEL TYPES
 
-=item * stars(%args)
-
-White noise generated with extreme gappiness
-
 =item * diffusion(%args)
 
 Diffusion noise, recipe inspired by Fractint's fractal type of the
@@ -2378,7 +2374,11 @@ IFS type - Barnsley's fern. Included as a demo.
 
 IFS type - Sierpinski's triangle/gasket. Included as a demo.
 
-=item * spiral(%args)
+=item * stars(%args)
+
+White noise generated with extreme gappiness
+
+=item * spirals(%args)
 
 Tiny logarithmic spirals
 
