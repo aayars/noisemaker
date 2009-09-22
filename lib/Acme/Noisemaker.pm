@@ -1,6 +1,6 @@
 package Acme::Noisemaker;
 
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use strict;
 use warnings;
@@ -15,16 +15,16 @@ use base qw| Exporter |;
 our @NOISE_TYPES = qw|
   white wavelet square perlin ridged block complex gel sgel pgel rgel stars
   mandel buddha fern
-|;
+  |;
 
-our @EXPORT_OK = ( qw|
-  make img smooth offset clamp noise lerp coslerp spheremap
-|, @NOISE_TYPES );
+our @EXPORT_OK = (
+  qw|
+    make img smooth offset clamp noise lerp coslerp spheremap
+    |, @NOISE_TYPES
+);
 
 our %EXPORT_TAGS = (
-  'flavors' => [ (
-    qw| make spheremap img smooth offset |, @NOISE_TYPES
-  ) ],
+  'flavors' => [ ( qw| make spheremap img smooth offset |, @NOISE_TYPES ) ],
 
   'all' => \@EXPORT_OK,
 );
@@ -32,28 +32,36 @@ our %EXPORT_TAGS = (
 our $QUIET;
 
 sub usage {
-  my $warning = shift;
-  print "$warning\n" if $warning;
-
-  print "noisetypes:\n";
-  print "  white           ### pseudo-random values\n";
-  print "  square          ### diamond-square algorithm\n";
-  print "  perlin          ### Perlin algorithm\n";
+  print "Noise Types:\n";
+  print "\n";
+  print "* white           ### pseudo-random values\n";
+  print "* wavelet         ### band-limited ortho\n";
+  print "* square          ### diamond-square algorithm\n";
+  print "* gel             ### self-displaced smooth\n";
+  print "* sgel            ### self-displaced diamond-square\n";
+  print "* stars           ### starfield\n";
+  print "* mandel          ### Mandelbrot\n";
+  print "* dmandel         ### Deep Mandelbrot\n";
+  print "* buddha          ### buddhabrot\n";
+  print "* flame           ### IFS flame\n";
+  print "* fern            ### IFS fern (demo)\n";
+  print "* gasket          ### IFS gasket (demo)\n";
+  print "* diffusion       ### diffusion fractal\n";
+  print "  perlin          ### multi-resolution\n";
   print "  ridged          ### ridged multifractal\n";
   print "  block           ### unsmoothed Perlin\n";
-  print "  complex         ### complex layered\n";
-  print "  gel             ### self-displaced smooth\n";
-  print "  sgel            ### self-displaced diamond-square\n";
   print "  pgel            ### self-displaced Perlin\n";
   print "  rgel            ### self-displaced ridged\n";
-  print "  stars           ### starfield\n";
+  print "  complex         ### multi-layer multi-res\n";
+  print "\n";
+  print "* - Simple type, may be used as a Perlin slice type (stype)\n";
   print "\n";
   print "Usage:\n";
   print "$0 \\\n";
-  print "  [-type <noisetype>] \\       ## noise type\n";
-  print "  [-stype <white|square|gel|sgel|stars>]\\ ## perlin slice type\n";
-  print "  [-lbase <any type except complex>]    \\ ## complex basis\n";
-  print "  [-ltype <any type except complex>]    \\ ## complex layer\n";
+  print "  [-type <noisetype>] \\                ## noise type\n";
+  print "  [-stype <simple type>]\\              ## perlin slice type\n";
+  print "  [-lbase <any type except complex>] \\ ## complex basis\n";
+  print "  [-ltype <any type except complex>] \\ ## complex layer\n";
   print "  [-amp <num>] \\              ## base amplitude (eg .5)\n";
   print "  [-freq <num>] \\             ## base frequency (eg 2)\n";
   print "  [-len <int>] \\              ## side length (eg 256)\n";
@@ -72,10 +80,13 @@ sub usage {
   print "  [-zoom <num>] \\             ## mag for fractals\n";
   print "  [-maxiter <num>] \\          ## iter limit for fractals\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
-  print "  -out <filename>              # Output file (foo.bmp)\n";
+  print "  [-out <filename>]           ## Output file (foo.bmp)\n";
   print "\n";
   print "perldoc Acme::Noisemaker for more help.\n";
   print "\n";
+
+  my $warning = shift;
+  print "$warning\n" if $warning;
 
   exit 2;
 }
@@ -87,55 +98,67 @@ sub make {
   ### type
   ###
   while ( my $arg = shift ) {
-    if ( $arg =~ /help/ ) { usage(); }
+    if    ( $arg =~ /help/ )      { usage(); }
     elsif ( $arg =~ /(^|-)type/ ) { $args{type} = shift; }
-    elsif ( $arg =~ /stype/ ) { $args{stype} = shift; }
-    elsif ( $arg =~ /lbase/ ) { $args{lbase} = shift; }
-    elsif ( $arg =~ /ltype/ ) { $args{ltype} = shift; }
-    elsif ( $arg =~ /amp/ ) { $args{amp} = shift; }
-    elsif ( $arg =~ /freq/ ) { $args{freq} = shift; }
-    elsif ( $arg =~ /len/ ) { $args{len} = shift; }
-    elsif ( $arg =~ /octaves/ ) { $args{octaves} = shift; }
-    elsif ( $arg =~ /bias/ ) { $args{bias} = shift; }
-    elsif ( $arg =~ /gap/ ) { $args{gap} = shift; }
-    elsif ( $arg =~ /feather/ ) { $args{feather} = shift; }
-    elsif ( $arg =~ /layers/ ) { $args{layers} = shift; }
-    elsif ( $arg =~ /smooth/ ) { $args{smooth} = shift; }
-    elsif ( $arg =~ /out/ ) { $args{out} = shift; }
-    elsif ( $arg =~ /sphere/ ) { $args{sphere} = shift; }
-    elsif ( $arg =~ /refract/ ) { $args{refract} = shift; }
-    elsif ( $arg =~ /offset/ ) { $args{offset} = shift; }
-    elsif ( $arg =~ /clut$/ ) { $args{clut} = shift; }
-    elsif ( $arg =~ /clutdir$/ ) { $args{clutdir} = shift; }
-    elsif ( $arg =~ /limit/ ) { $args{auto} = shift() ? 0 : 1; }
-    elsif ( $arg =~ /zoom/ ) { $args{zoom} = shift; }
-    elsif ( $arg =~ /quiet/ ) { $QUIET = shift; }
-    else { usage("Unknown argument: $arg") }
+    elsif ( $arg =~ /stype/ )     { $args{stype} = shift; }
+    elsif ( $arg =~ /lbase/ )     { $args{lbase} = shift; }
+    elsif ( $arg =~ /ltype/ )     { $args{ltype} = shift; }
+    elsif ( $arg =~ /amp/ )       { $args{amp} = shift; }
+    elsif ( $arg =~ /freq/ )      { $args{freq} = shift; }
+    elsif ( $arg =~ /len/ )       { $args{len} = shift; }
+    elsif ( $arg =~ /octaves/ )   { $args{octaves} = shift; }
+    elsif ( $arg =~ /bias/ )      { $args{bias} = shift; }
+    elsif ( $arg =~ /gap/ )       { $args{gap} = shift; }
+    elsif ( $arg =~ /feather/ )   { $args{feather} = shift; }
+    elsif ( $arg =~ /layers/ )    { $args{layers} = shift; }
+    elsif ( $arg =~ /smooth/ )    { $args{smooth} = shift; }
+    elsif ( $arg =~ /out/ )       { $args{out} = shift; }
+    elsif ( $arg =~ /sphere/ )    { $args{sphere} = shift; }
+    elsif ( $arg =~ /refract/ )   { $args{refract} = shift; }
+    elsif ( $arg =~ /offset/ )    { $args{offset} = shift; }
+    elsif ( $arg =~ /clut$/ )     { $args{clut} = shift; }
+    elsif ( $arg =~ /clutdir$/ )  { $args{clutdir} = shift; }
+    elsif ( $arg =~ /limit/ )     { $args{auto} = shift() ? 0 : 1; }
+    elsif ( $arg =~ /zoom/ )    { $args{zoom}    = shift; }
+    elsif ( $arg =~ /maxiter/ ) { $args{maxiter} = shift; }
+    elsif ( $arg =~ /in/ )      { $args{in} = shift; }
+    elsif ( $arg =~ /quiet/ )   { $QUIET         = shift; }
+    else                        { usage("Unknown argument: $arg") }
   }
 
   usage("Specified CLUT file not found") if $args{clut} && !-e $args{clut};
 
-  $args{type} ||= 'perlin';
+  $args{type}  ||= 'perlin';
   $args{stype} ||= 'white';
   $args{lbase} ||= 'perlin';
   $args{ltype} ||= 'perlin';
 
-  if ( ( $args{lbase} =~ /[prs]gel/ ) || ( $args{ltype} =~ /[prs]gel/ ) || $args{stype} =~ /[prs]gel/ ) {
-    $args{freq}    ||= 2;
-    $args{offset}  ||= .125;
-  } elsif ( ( $args{lbase} eq 'gel' ) || ( $args{ltype} eq 'gel' ) || $args{stype} eq 'gel' ) {
-    $args{freq}    ||= 4;
-    $args{offset}  ||= .5;
-  } else {
+  if ( ( $args{lbase} =~ /[prs]gel/ )
+    || ( $args{ltype} =~ /[prs]gel/ )
+    || $args{stype} =~ /[prs]gel/ )
+  {
+    $args{freq}   ||= 2;
+    $args{offset} ||= .125;
+  }
+  elsif ( ( $args{lbase} eq 'gel' )
+    || ( $args{ltype} eq 'gel' )
+    || $args{stype} eq 'gel' )
+  {
+    $args{freq}   ||= 4;
+    $args{offset} ||= .5;
+  }
+  else {
     $args{octaves} ||= 8;
   }
 
   if ( !$args{out} ) {
     if ( $args{type} eq 'complex' ) {
       $args{out} = "$args{lbase}-$args{ltype}-$args{stype}.bmp";
-    } elsif ( $args{type} =~ /perlin|ridged|block|pgel|rgel/ ) {
+    }
+    elsif ( $args{type} =~ /perlin|ridged|block|pgel|rgel/ ) {
       $args{out} = "$args{type}-$args{stype}.bmp";
-    } else {
+    }
+    else {
       $args{out} = "$args{type}.bmp";
     }
   }
@@ -146,75 +169,100 @@ sub make {
   my $grid;
   if ( $args{type} eq 'white' ) {
     $grid = white(%args);
-  } elsif ( $args{type} eq 'square' ) {
+  }
+  elsif ( $args{type} eq 'square' ) {
     $grid = square(%args);
-  } elsif ( $args{type} eq 'perlin' ) {
+  }
+  elsif ( $args{type} eq 'perlin' ) {
     $grid = perlin(%args);
-  } elsif ( $args{type} eq 'ridged' ) {
+  }
+  elsif ( $args{type} eq 'ridged' ) {
     $grid = ridged(%args);
-  } elsif ( $args{type} eq 'block' ) {
+  }
+  elsif ( $args{type} eq 'block' ) {
     $grid = block(%args);
-  } elsif ( $args{type} eq 'complex' ) {
+  }
+  elsif ( $args{type} eq 'complex' ) {
     $grid = complex(%args);
-  } elsif ( $args{type} eq 'gel' ) {
+  }
+  elsif ( $args{type} eq 'gel' ) {
     $grid = gel(%args);
-  } elsif ( $args{type} eq 'sgel' ) {
+  }
+  elsif ( $args{type} eq 'sgel' ) {
     $grid = sgel(%args);
-  } elsif ( $args{type} eq 'pgel' ) {
+  }
+  elsif ( $args{type} eq 'pgel' ) {
     $grid = pgel(%args);
-  } elsif ( $args{type} eq 'rgel' ) {
+  }
+  elsif ( $args{type} eq 'rgel' ) {
     $grid = rgel(%args);
-  } elsif ( $args{type} eq 'mandel' ) {
+  }
+  elsif ( $args{type} eq 'mandel' ) {
     $grid = mandel(%args);
-  } elsif ( $args{type} eq 'buddha' ) {
+  }
+  elsif ( $args{type} eq 'dmandel' ) {
+    $grid = dmandel(%args);
+  }
+  elsif ( $args{type} eq 'buddha' ) {
     $grid = buddha(%args);
-  } elsif ( $args{type} eq 'fern' ) {
+  }
+  elsif ( $args{type} eq 'fern' ) {
     $grid = fern(%args);
-  } elsif ( $args{type} eq 'gasket' ) {
+  }
+  elsif ( $args{type} eq 'flame' ) {
+    $grid = flame(%args);
+  }
+  elsif ( $args{type} eq 'gasket' ) {
     $grid = gasket(%args);
-  } elsif ( $args{type} eq 'wavelet' ) {
+  }
+  elsif ( $args{type} eq 'wavelet' ) {
     $grid = wavelet(%args);
-  } elsif ( $args{type} eq 'stars' ) {
+  }
+  elsif ( $args{type} eq 'stars' ) {
     $grid = stars(%args);
-  } else {
+  }
+  elsif ( $args{type} eq 'spiral' ) {
+    $grid = spiral(%args);
+  }
+  elsif ( $args{type} eq 'diffusion' ) {
+    $grid = diffusion(%args);
+  }
+  elsif ( $args{type} eq 'infile' ) {
+    $grid = infile(%args);
+  }
+  else {
     usage("Unknown noise type");
   }
 
   if ( $args{refract} ) {
-    $grid = refract($grid,%args);
+    $grid = refract( $grid, %args );
   }
 
   if ( $args{sphere} ) {
     %args = defaultArgs(%args);
 
-    $grid = spheremap($grid,%args);
+    $grid = spheremap( $grid, %args );
   }
 
   my $img;
 
-  if ( $args{clut} && $args{clutdir} ) {
-    $img = vertclut($grid,%args);
-  } elsif ( $args{clut} ) {
-    $img = hypoclut($grid,%args);
-  } else {
-    $img = img($grid,%args);
-  }
+  $img = img( $grid, %args );
 
   # $img->filter(type=>'autolevels');
 
-  $img->write(file => $args{out}) || die $img->errstr;
+  $img->write( file => $args{out} ) || die $img->errstr;
 
   print "Saved file to $args{out}\n" if !$QUIET;
 
-  return($grid, $img, $args{out});
+  return ( $grid, $img, $args{out} );
 }
 
 sub defaultArgs {
   my %args = @_;
 
-  $args{bias} = .5 if !defined $args{bias};
-  $args{smooth} = 1 if !defined $args{smooth};
-  $args{auto} = 1 if !defined($args{auto}) && $args{type} ne 'fern';
+  $args{bias}   = .5 if !defined $args{bias};
+  $args{smooth} = 1  if !defined $args{smooth};
+  $args{auto}   = 1  if !defined( $args{auto} ) && $args{type} ne 'fern';
 
   $args{gap}     ||= 0;
   $args{type}    ||= 'perlin';
@@ -231,7 +279,7 @@ sub img {
 
   print "Generating image...\n" if !$QUIET;
 
-  my $length = scalar(@{ $grid });
+  my $length = scalar( @{$grid} );
 
   ###
   ### Save the image
@@ -247,8 +295,8 @@ sub img {
   my ( $min, $max, $range );
 
   if ( $args{auto} || $args{type} eq 'ridged' ) {
-    for ( my $x = 0; $x < $length; $x++ ) {
-      for ( my $y = 0; $y < $length; $y++ ) {
+    for ( my $x = 0 ; $x < $length ; $x++ ) {
+      for ( my $y = 0 ; $y < $length ; $y++ ) {
         my $gray = $grid->[$x]->[$y];
 
         if ( $args{type} eq 'ridged' && $gray < 0 ) {
@@ -267,30 +315,47 @@ sub img {
     $range = $max - $min;
   }
 
-  for ( my $x = 0; $x < $length; $x++ ) {
-    for ( my $y = 0; $y < $length; $y++ ) {
+  my $scaledGrid = [ ];
+
+  for ( my $x = 0 ; $x < $length ; $x++ ) {
+    for ( my $y = 0 ; $y < $length ; $y++ ) {
       my $gray = $grid->[$x]->[$y];
 
       my $scaled;
 
       if ( $args{auto} ) {
-        $scaled = $range ? (($gray-$min)/$range)*255 : 0;
-      } else {
+        $scaled = $range ? ( ( $gray - $min ) / $range ) * 255 : 0;
+      }
+      else {
         $scaled = clamp($gray);
       }
 
       if ( $args{type} eq 'ridged' ) {
-        $scaled = abs(255-$scaled);
+        $scaled = abs( 255 - $scaled );
       }
 
       do {
-        $img->setpixel(
-          x => $x,
-          y => $y,
-          color => [ $scaled, $scaled, $scaled ],
-        );
+        $scaledGrid->[$x]->[$y] = $scaled;
       };
     }
+  }
+
+  if ( $args{clut} && $args{clutdir} ) {
+    return vertclut( $scaledGrid, %args );
+  } elsif ( $args{clut} ) {
+    return hypoclut( $scaledGrid, %args );
+  }
+
+  for ( my $x = 0 ; $x < $length ; $x++ ) {
+    for ( my $y = 0 ; $y < $length ; $y++ ) {
+      my $gray = $scaledGrid->[$x]->[$y];
+      $img->setpixel(
+        x     => $x,
+        y     => $y,
+        color => [ $gray, $gray, $gray ],
+      );
+    }
+    printRow($scaledGrid->[$x]);
   }
 
   return $img;
@@ -298,25 +363,25 @@ sub img {
 
 sub grow {
   my $noise = shift;
-  my %args = @_;
+  my %args  = @_;
 
   my $grid = $noise;
 
   my $wantLength = $args{len};
-  my $haveLength = scalar( @{ $noise } );
+  my $haveLength = scalar( @{$noise} );
 
   until ( $haveLength >= $wantLength ) {
-    my $grown = [ ];
+    my $grown = [];
 
-    for ( my $x = 0; $x < $haveLength*2; $x++ ) {
-      $grown->[$x] = [ ];
+    for ( my $x = 0 ; $x < $haveLength * 2 ; $x++ ) {
+      $grown->[$x] = [];
 
-      for ( my $y = 0; $y < $haveLength*2; $y++ ) {
-        $grown->[$x]->[$y] = $grid->[$x/2]->[$y/2];
+      for ( my $y = 0 ; $y < $haveLength * 2 ; $y++ ) {
+        $grown->[$x]->[$y] = $grid->[ $x / 2 ]->[ $y / 2 ];
       }
     }
 
-    $grid = $args{smooth} ? smooth($grown,%args) : $grown;
+    $grid = $args{smooth} ? smooth( $grown, %args ) : $grown;
 
     $haveLength *= 2;
   }
@@ -326,30 +391,86 @@ sub grow {
 
 sub shrink {
   my $noise = shift;
-  my %args = @_;
+  my %args  = @_;
 
   my $grid = $noise;
 
   my $wantLength = $args{len};
-  my $haveLength = scalar( @{ $noise } );
+  my $haveLength = scalar( @{$noise} );
 
   until ( $haveLength <= $wantLength ) {
-    my $grown = [ ];
+    my $grown = [];
 
-    for ( my $x = 0; $x < $haveLength/2; $x++ ) {
-      $grown->[$x] = [ ];
+    for ( my $x = 0 ; $x < $haveLength / 2 ; $x++ ) {
+      $grown->[$x] = [];
 
-      for ( my $y = 0; $y < $haveLength/2; $y++ ) {
-        $grown->[$x]->[$y] = $grid->[$x*2]->[$y*2]/4;
-        $grown->[$x]->[$y] += $grid->[(($x*2)+1) % $haveLength]->[$y*2]/4;
-        $grown->[$x]->[$y] += $grid->[$x*2]->[(($y*2)+1) % $haveLength]/4;
-        $grown->[$x]->[$y] += $grid->[(($x*2)+1) % $haveLength]->[($y*2)+1]/4;
+      for ( my $y = 0 ; $y < $haveLength / 2 ; $y++ ) {
+        $grown->[$x]->[$y] = $grid->[ $x * 2 ]->[ $y * 2 ] / 4;
+        $grown->[$x]->[$y] +=
+          $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]->[ $y * 2 ] / 4;
+        $grown->[$x]->[$y] +=
+          $grid->[ $x * 2 ]->[ ( ( $y * 2 ) + 1 ) % $haveLength ] / 4;
+        $grown->[$x]->[$y] +=
+          $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]->[ ( $y * 2 ) + 1 ] / 4;
       }
     }
 
     $haveLength /= 2;
 
     $grid = $grown;
+  }
+
+  return $grid;
+}
+
+sub grid {
+  my %args = defaultArgs(@_);
+
+  my $grid = [];
+
+  my $len = $args{len};
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    $grid->[$x] = [];
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      $grid->[$x]->[$y] = ($args{bias}/1)*255;
+    }
+  }
+
+  return $grid;
+}
+
+sub infile {
+  my %args = defaultArgs(@_);
+
+  my $grid = [];
+
+  print "Loading image...\n";
+
+  my $len = $args{len};
+
+  my $img = Imager->new;
+
+  $img->read(
+    file => $args{in}
+  ) || die $img->errstr();
+
+  my $width = $img->getwidth();
+  my $height = $img->getheight();
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    $grid->[$x] = [ ];
+
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $color = $img->getpixel(
+        x => ($x/($len/1))*($width-1), y => ($y/($len-1))*($height-1) );
+
+      my ( $r, $g, $b ) = $color->rgba;
+
+      $grid->[$x]->[$y] = ($r+$g+$b)/3;
+    }
+    printRow($grid->[$x]);
   }
 
   return $grid;
@@ -365,7 +486,7 @@ sub white {
 
   %args = defaultArgs(%args);
 
-  my $grid = [ ];
+  my $grid = [];
 
   my $freq = $args{freq};
   my $gap  = $args{gap};
@@ -375,10 +496,12 @@ sub white {
   my $ampVal  = $args{amp} * 255;
   my $biasVal = $args{bias} * 255;
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    $grid->[$x] = [ ];
+  spamConsole(%args) if !$QUIET;
 
-    for ( my $y = 0; $y < $freq; $y++ ) {
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    $grid->[$x] = [];
+
+    for ( my $y = 0 ; $y < $freq ; $y++ ) {
       if ( rand() < $gap ) {
         $grid->[$x]->[$y] = 0;
         next;
@@ -390,13 +513,16 @@ sub white {
 
       $grid->[$x]->[$y] = $randAmp + $biasVal;
     }
+    printRow($grid->[$x]);
   }
 
-  return grow($grid,%args);
+  return grow( $grid, %args );
 }
 
 sub stars {
   my %args = @_;
+
+  print "Generating stars...\n";
 
   $args{bias} = .5;
   $args{amp}  = .5;
@@ -404,7 +530,7 @@ sub stars {
 
   my $grid = white(%args);
 
-  return smooth($grid, %args);
+  return smooth( $grid, %args );
 }
 
 sub gel {
@@ -419,7 +545,7 @@ sub gel {
 
   my $grid = white(%args);
 
-  return offset($grid,%args);
+  return offset( $grid, %args );
 }
 
 sub offset {
@@ -428,26 +554,25 @@ sub offset {
 
   print "Applying fractal XY displacement...\n" if !$QUIET;
 
-  my $out = [ ];
+  my $out = [];
 
   my $length = $args{len};
   my $offset = $args{offset};
 
   $offset = .5 if !defined $offset;
 
-  $offset = ($offset/1)*($length/256); # Same visual offset for diff size imgs
+  $offset =
+    ( $offset / 1 ) * ( $length / 256 ); # Same visual offset for diff size imgs
 
-  for ( my $x = 0; $x < $length; $x++ ) {
-    $out->[$x] = [ ];
+  for ( my $x = 0 ; $x < $length ; $x++ ) {
+    $out->[$x] = [];
 
-    for ( my $y = 0; $y < $length; $y++ ) {
-      my $offsetX = noise($grid,$x,$y)*$offset;
-      my $offsetY = noise($grid,$length-$x,$length-$y)*$offset;
+    for ( my $y = 0 ; $y < $length ; $y++ ) {
+      my $offsetX = noise( $grid, $x,           $y ) * $offset;
+      my $offsetY = noise( $grid, $length - $x, $length - $y ) * $offset;
 
-      $out->[$x]->[$y] = noise($grid,
-        int($x + $offsetX),
-        int($y + $offsetY)
-      );
+      $out->[$x]->[$y] =
+        noise( $grid, int( $x + $offsetX ), int( $y + $offsetY ) );
     }
   }
 
@@ -459,58 +584,57 @@ sub square {
 
   print "Generating square noise...\n" if !$QUIET;
 
-  my $freq = $args{freq};
-  my $amp = $args{amp};
-  my $bias = $args{bias};
+  my $freq   = $args{freq};
+  my $amp    = $args{amp};
+  my $bias   = $args{bias};
   my $length = $args{len};
 
   $amp = .5 if !defined $amp;
 
-  my $grid = white(%args, len => $freq*2);
+  my $grid = white( %args, len => $freq * 2 );
 
   my $haveLength = $freq * 2;
   my $baseOffset = 255 * $amp;
 
-  print "    ... Frequency: $freq, Amplitude $amp, Bias $bias\n"
-    if !$QUIET;
+  spamConsole(%args) if !$QUIET;
 
   until ( $haveLength >= $length ) {
-    my $grown = [ ];
+    my $grown = [];
 
-    for ( my $x = 0; $x < $haveLength*2; $x++ ) {
-      $grown->[$x] = [ ];
-      for ( my $y = 0; $y < $haveLength*2; $y++ ) {
+    for ( my $x = 0 ; $x < $haveLength * 2 ; $x++ ) {
+      $grown->[$x] = [];
+      for ( my $y = 0 ; $y < $haveLength * 2 ; $y++ ) {
         push @{ $grown->[$x] }, undef;
       }
     }
 
-    for ( my $x = 0; $x < $haveLength; $x++ ) {
+    for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
       my $thisX = $x * 2;
 
-      for ( my $y = 0; $y < $haveLength; $y++ ) {
+      for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
         my $thisY = $y * 2;
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
+
         # $grown->[$thisX]->[$thisY] = $grid->[$x]->[$y] + $offset;
         $grown->[$thisX]->[$thisY] = $grid->[$x]->[$y] + $offset;
       }
     }
 
-    for ( my $x = 0; $x < $haveLength; $x++ ) {
+    for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
       my $thisX = $x * 2;
       $thisX += 1;
 
-      for ( my $y = 0; $y < $haveLength; $y++ ) {
+      for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
         my $thisY = $y * 2;
         $thisY += 1;
 
-        my $corners = (
-          noise($grid, $x-1,$y-1)
-           + noise($grid, $x+1,$y-1)
-           + noise($grid, $x-1,$y+1)
-           + noise($grid, $x+1,$y+1)
-        ) / 4;
+        my $corners =
+          ( noise( $grid, $x - 1, $y - 1 ) +
+            noise( $grid, $x + 1, $y - 1 ) +
+            noise( $grid, $x - 1, $y + 1 ) +
+            noise( $grid, $x + 1, $y + 1 ) ) / 4;
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
@@ -520,16 +644,15 @@ sub square {
 
     $haveLength *= 2;
 
-    for ( my $x = 0; $x < $haveLength; $x++ ) {
-      for ( my $y = 0; $y < $haveLength; $y++ ) {
+    for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
+      for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
         next if defined $grown->[$x]->[$y];
 
-        my $sides = (
-          noise($grown,$x-1,$y)
-           + noise($grown,$x+1,$y)
-           + noise($grown,$x,$y-1)
-           + noise($grown,$x,$y+1)
-        ) / 4; 
+        my $sides =
+          ( noise( $grown, $x - 1, $y ) +
+            noise( $grown, $x + 1, $y ) +
+            noise( $grown, $x,     $y - 1 ) +
+            noise( $grown, $x,     $y + 1 ) ) / 4;
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
@@ -543,7 +666,7 @@ sub square {
   }
 
   if ( $args{smooth} ) {
-    $grid = smooth($grid,%args);
+    $grid = smooth( $grid, %args );
   }
 
   return $grid;
@@ -556,7 +679,7 @@ sub sgel {
 
   my $grid = square(%args);
 
-  return offset($grid,%args);
+  return offset( $grid, %args );
 }
 
 sub perlin {
@@ -569,78 +692,108 @@ sub perlin {
   $args{amp} ||= .5;
   $args{amp} *= $args{octaves};
 
-  my $length = $args{len};
-  my $amp = $args{amp};
-  my $freq = $args{freq};
-  my $bias = $args{bias};
+  my $length  = $args{len};
+  my $amp     = $args{amp};
+  my $freq    = $args{freq};
+  my $bias    = $args{bias};
   my $octaves = $args{octaves};
 
   my @layers;
 
-  for ( my $o = 0; $o < $octaves; $o++ ) {
+  spamConsole(%args) if !$QUIET;
+
+  for ( my $o = 0 ; $o < $octaves ; $o++ ) {
     last if $freq > $length;
 
-    print "Octave ". ($o+1) ." ... \n"
+    print "Octave " . ( $o + 1 ) . " ... \n"
       if !$QUIET;
 
     my $generator;
 
     if ( $args{stype} eq 'white' ) {
       $generator = \&white;
-    } elsif ( $args{stype} eq 'square' ) {
+    }
+    elsif ( $args{stype} eq 'square' ) {
       $generator = \&square;
-    } elsif ( $args{stype} eq 'gel' ) {
+    }
+    elsif ( $args{stype} eq 'gel' ) {
       $generator = \&gel;
-    } elsif ( $args{stype} eq 'sgel' ) {
+    }
+    elsif ( $args{stype} eq 'sgel' ) {
       $generator = \&sgel;
-    } elsif ( $args{stype} eq 'stars' ) {
+    }
+    elsif ( $args{stype} eq 'stars' ) {
       $generator = \&stars;
-    } elsif ( $args{stype} eq 'mandel' ) {
+    }
+    elsif ( $args{stype} eq 'mandel' ) {
       $generator = \&mandel;
-    } elsif ( $args{stype} eq 'buddha' ) {
+    }
+    elsif ( $args{stype} eq 'dmandel' ) {
+      $generator = \&dmandel;
+    }
+    elsif ( $args{stype} eq 'buddha' ) {
       $generator = \&buddha;
-    } elsif ( $args{stype} eq 'wavelet' ) {
+    }
+    elsif ( $args{stype} eq 'wavelet' ) {
       $generator = \&wavelet;
-    } elsif ( $args{stype} eq 'fern' ) {
+    }
+    elsif ( $args{stype} eq 'fern' ) {
       $generator = \&fern;
-    } else {
+    }
+    elsif ( $args{stype} eq 'infile' ) {
+      $generator = \&infile;
+    }
+    elsif ( $args{stype} eq 'spiral' ) {
+      $generator = \&spiral;
+    }
+    elsif ( $args{stype} eq 'flame' ) {
+      $generator = \&flame;
+    }
+    elsif ( $args{stype} eq 'diffusion' ) {
+      $generator = \&diffusion;
+    }
+    else {
       usage("Unknown layer type specified");
     }
 
-    push @layers, &$generator(%args,
+    push @layers,
+      &$generator(
+      %args,
       freq => $freq,
-      amp => $amp,
+      amp  => $amp,
       bias => $bias,
-      len => $length,
-    );
+      len  => $length,
+      );
 
-    $amp *= .5;
+    $amp  *= .5;
     $freq *= 2;
   }
 
-  my $combined = [ ];
+  my $combined = [];
 
-  for ( my $x = 0; $x < $length; $x++ ) {
-    $combined->[$x] = [ ];
+  for ( my $x = 0 ; $x < $length ; $x++ ) {
+    $combined->[$x] = [];
 
-    for ( my $y = 0; $y < $length; $y++ ) {
+    for ( my $y = 0 ; $y < $length ; $y++ ) {
       my $n;
       my $t;
 
-      for ( my $z = 0; $z < @layers; $z++ ) {
+      for ( my $z = 0 ; $z < @layers ; $z++ ) {
         $n++;
 
         my $gray = $layers[$z][$x]->[$y];
 
         if ( $args{ridged} ) {
           $t += abs($gray);
-        } else {
+        }
+        else {
           $t += $gray;
         }
       }
 
-      $combined->[$x]->[$y] = $t/$n;
+      $combined->[$x]->[$y] = $t / $n;
     }
+    printRow($combined->[$x]);
   }
 
   return $combined;
@@ -667,7 +820,7 @@ sub pgel {
 
   %args = defaultArgs(%args);
 
-  return offset($grid,%args);
+  return offset( $grid, %args );
 }
 
 sub ridged {
@@ -698,16 +851,16 @@ sub refract {
 
   print "Applying fractal Z displacement...\n" if !$QUIET;
 
-  my $haveLength = scalar(@{ $grid });
+  my $haveLength = scalar( @{$grid} );
 
-  my $out = [ ];
+  my $out = [];
 
-  for ( my $x = 0; $x < $haveLength; $x++ ) {
-    $out->[$x] = [ ];
+  for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
+    $out->[$x] = [];
 
-    for ( my $y = 0; $y < $haveLength; $y++ ) {
+    for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
       my $color = $grid->[$x]->[$y] || 0;
-      my $srcY = ($color/255)*$haveLength;
+      my $srcY = ( $color / 255 ) * $haveLength;
       $srcY -= $haveLength if $srcY > $haveLength;
       $srcY += $haveLength if $srcY < 0;
 
@@ -722,29 +875,27 @@ sub smooth {
   my $grid = shift;
   my %args = @_;
 
-  my $haveLength = scalar(@{ $grid });
+  my $haveLength = scalar( @{$grid} );
 
-  my $smooth = [ ];
+  my $smooth = [];
 
-  for ( my $x = 0; $x < $haveLength; $x++ ) {
-    $smooth->[$x] = [ ];
+  for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
+    $smooth->[$x] = [];
 
-    for ( my $y = 0; $y < $haveLength; $y++ ) {
-      my $corners = (
-        noise($grid,$x-1,$y-1)
-         + noise($grid,$x+1,$y-1)
-         + noise($grid,$x-1,$y+1)
-         + noise($grid,$x+1,$y+1)
-      ) / 16;
+    for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
+      my $corners =
+        ( noise( $grid, $x - 1, $y - 1 ) +
+          noise( $grid, $x + 1, $y - 1 ) +
+          noise( $grid, $x - 1, $y + 1 ) +
+          noise( $grid, $x + 1, $y + 1 ) ) / 16;
 
-      my $sides = (
-        noise($grid,$x-1,$y)
-         + noise($grid,$x+1,$y)
-         + noise($grid,$x,$y-1)
-         + noise($grid,$x,$y+1)
-      ) / 8;
+      my $sides =
+        ( noise( $grid, $x - 1, $y ) +
+          noise( $grid, $x + 1, $y ) +
+          noise( $grid, $x,     $y - 1 ) +
+          noise( $grid, $x,     $y + 1 ) ) / 8;
 
-      my $center = noise($grid,$x,$y) / 4;
+      my $center = noise( $grid, $x, $y ) / 4;
 
       $smooth->[$x]->[$y] = $corners + $sides + $center;
     }
@@ -758,13 +909,13 @@ sub complex {
 
   print "Generating complex noise...\n" if !$QUIET;
 
-  $args{amp} = 1 if !defined $args{amp};
+  $args{amp}     = 1  if !defined $args{amp};
   $args{feather} = 75 if !defined $args{feather};
-  $args{layers}  ||= 4;
+  $args{layers} ||= 4;
 
   %args = defaultArgs(%args);
 
-  my $refGenerator = __complexGenerator($args{lbase});
+  my $refGenerator = __complexGenerator( $args{lbase} );
 
   my $reference = &$refGenerator(%args);
 
@@ -772,43 +923,45 @@ sub complex {
 
   do {
     my $biasOffset = .5;
-    my $bias = 0;
-    my $amp = $args{amp};
+    my $bias       = 0;
+    my $amp        = $args{amp};
 
-    for ( my $i = 0; $i < $args{layers}; $i++ ) {
+    for ( my $i = 0 ; $i < $args{layers} ; $i++ ) {
       print "---------------------------------------\n" if !$QUIET;
-      print "Complex layer $i ...\n" if !$QUIET;
+      print "Complex layer $i ...\n"                    if !$QUIET;
 
-      my $generator = __complexGenerator($args{ltype});
+      my $generator = __complexGenerator( $args{ltype} );
 
-      push @layers, &$generator(%args,
+      push @layers, &$generator(
+        %args,
+
         # amp  => $amp,
         bias => $bias,
       );
 
       $bias += $biasOffset;
       $biasOffset *= .5;
-      $amp *= .5;
+      $amp        *= .5;
     }
   };
 
-  my $out = [ ];
+  my $out = [];
 
   my $feather = $args{feather};
-  my $length = $args{len};
+  my $length  = $args{len};
 
-  for ( my $x = 0; $x < $length; $x++ ) {
-    $out->[$x] = [ ];
+  for ( my $x = 0 ; $x < $length ; $x++ ) {
+    $out->[$x] = [];
 
-    for ( my $y = 0; $y < $length; $y++ ) {
+    for ( my $y = 0 ; $y < $length ; $y++ ) {
       my $value = $reference->[$x]->[$y];
 
       $out->[$x]->[$y] = $value if !defined $out->[$x]->[$y];
 
-      my $level = 0;
+      my $level       = 0;
       my $levelOffset = 128;
 
-      for ( my $z = 0; $z < $args{layers}; $z++ ) {
+      for ( my $z = 0 ; $z < $args{layers} ; $z++ ) {
         my $diff = $level - $value;
 
         if ( $value >= $level ) {
@@ -818,10 +971,10 @@ sub complex {
           ##
           $out->[$x]->[$y] = $layers[$z][$x]->[$y];
 
-        } elsif (
-          ( ( $feather > 0 ) && $diff <= $feather )
-           || ( ( $feather < 0 ) && $diff <= $feather*-1 )
-        ) {
+        }
+        elsif ( ( ( $feather > 0 ) && $diff <= $feather )
+          || ( ( $feather < 0 ) && $diff <= $feather * -1 ) )
+        {
           my $fadeAmt = $diff / abs($feather);
 
           if ( $feather < 0 ) {
@@ -832,28 +985,23 @@ sub complex {
           ## Reference pixel value is less than current level,
           ## but within the feather range, so fade it
           ##
-          my $color = coslerp(
-            $layers[$z][$x]->[$y],
-            $out->[$x]->[$y],
-            $fadeAmt,
-          );
+          my $color =
+            coslerp( $layers[$z][$x]->[$y], $out->[$x]->[$y], $fadeAmt, );
 
           $out->[$x]->[$y] = $color;
         }
 
-        $out->[$x]->[$y] = coslerp(
-          $out->[$x]->[$y],
-          $value,
-          .25
-        );
+        $out->[$x]->[$y] = coslerp( $out->[$x]->[$y], $value, .25 );
 
         $level += $levelOffset;
         $levelOffset /= 2;
       }
     }
+    printRow($out->[$x]);
   }
 
   return $out;
+
   # return $args{smooth} ? smooth($out) : $out;
 }
 
@@ -864,49 +1012,38 @@ sub __complexGenerator {
 
   if ( $type eq 'white' ) {
     $generator = \&white;
-  } elsif ( $type eq 'square' ) {
+  }
+  elsif ( $type eq 'square' ) {
     $generator = \&square;
-  } elsif ( $type eq 'perlin' ) {
+  }
+  elsif ( $type eq 'perlin' ) {
     $generator = \&perlin;
-  } elsif ( $type eq 'ridged' ) {
+  }
+  elsif ( $type eq 'ridged' ) {
     $generator = \&ridged;
-  } elsif ( $type eq 'block' ) {
+  }
+  elsif ( $type eq 'block' ) {
     $generator = \&block;
-  } elsif ( $type eq 'gel' ) {
+  }
+  elsif ( $type eq 'gel' ) {
     $generator = \&gel;
-  } elsif ( $type eq 'sgel' ) {
+  }
+  elsif ( $type eq 'sgel' ) {
     $generator = \&sgel;
-  } elsif ( $type eq 'pgel' ) {
+  }
+  elsif ( $type eq 'pgel' ) {
     $generator = \&pgel;
-  } elsif ( $type eq 'rgel' ) {
+  }
+  elsif ( $type eq 'rgel' ) {
     $generator = \&rgel;
-  } elsif ( $type eq 'stars' ) {
+  }
+  elsif ( $type eq 'stars' ) {
     $generator = \&stars;
-  } elsif ( $type =~ /rand/ ) {
-    my $num = rand(10);
-
-    if ( int($num) == 0 ) {
-      $generator = \&white;
-    } elsif ( int($num) == 1 ) {
-      $generator = \&square;
-    } elsif ( int($num) == 2 ) {
-      $generator = \&perlin;
-    } elsif ( int($num) == 3 ) {
-      $generator = \&ridged;
-    } elsif ( int($num) == 4 ) {
-      $generator = \&block;
-    } elsif ( int($num) == 5 ) {
-      $generator = \&gel;
-    } elsif ( int($num) == 6 ) {
-      $generator = \&sgel;
-    } elsif ( int($num) == 7 ) {
-      $generator = \&pgel;
-    } elsif ( int($num) == 8 ) {
-      $generator = \&rgel;
-    } elsif ( int($num) == 9 ) {
-      $generator = \&stars;
-    }
-  } else {
+  }
+  elsif ( $type eq 'infile' ) {
+    $generator = \&infile;
+  }
+  else {
     usage("Unknown layer type specified");
   }
 
@@ -914,16 +1051,18 @@ sub __complexGenerator {
 }
 
 sub clamp {
-  my $val = shift;
-  my $max = shift || 255;
+  my $val    = shift;
+  my $max    = shift || 255;
   my $ridged = shift;
 
-  if ( $ridged ) {
+  if ($ridged) {
     $val = abs($val) if $val < 0;
-    $val = $max if $val > $max;
+    $val = $max      if $val > $max;
+
     # $val = $max - ($val-$max) if $val > $max;
-  } else {
-    $val = 0 if $val < 0;
+  }
+  else {
+    $val = 0    if $val < 0;
     $val = $max if $val > $max;
   }
 
@@ -932,16 +1071,16 @@ sub clamp {
 
 sub noise {
   my $noise = shift;
-  my $x = shift;
-  my $y = shift;
-  
-  my $length  = @{ $noise };
+  my $x     = shift;
+  my $y     = shift;
+
+  my $length = @{$noise};
 
   $x = $x % $length;
   $y = $y % $length;
 
   die "no data for $x,$y" if !defined $noise->[$x]->[$y];
-      
+
   return $noise->[$x]->[$y];
 }
 
@@ -950,7 +1089,7 @@ sub lerp {
   my $b = shift;
   my $x = shift;
 
-  return( $a * (1-$x) + $b*$x );
+  return ( $a * ( 1 - $x ) + $b * $x );
 }
 
 sub coslerp {
@@ -959,66 +1098,71 @@ sub coslerp {
   my $x = shift;
 
   my $ft = ( $x * 3.145927 );
-  my $f = ( 1 - cos($ft)) * .5;
+  my $f  = ( 1 - cos($ft) ) * .5;
 
-  return( $a * (1-$f) + $b*$f );
+  return ( $a * ( 1 - $f ) + $b * $f );
 }
 
 sub wavelet {
   my %args = @_;
 
+  print "Generating wavelet noise...\n" if !$QUIET;
+
   %args = defaultArgs(%args);
 
-  my $source = white(%args, len => $args{freq});
+  my $source = white( %args, len => $args{freq} );
 
-  my $down = shrink($source,%args,len => $args{freq}/2);
+  my $down = shrink( $source, %args, len => $args{freq} / 2 );
 
-  my $up = grow($down,%args,len => $args{freq});
+  my $up = grow( $down, %args, len => $args{freq} );
 
-  my $out = [ ];
+  my $out = [];
 
-  for ( my $x = 0; $x < $args{freq}; $x++ ) {
-    $out->[$x] = [ ];
-    for ( my $y = 0; $y < $args{freq}; $y++ ) {
+  for ( my $x = 0 ; $x < $args{freq} ; $x++ ) {
+    $out->[$x] = [];
+    for ( my $y = 0 ; $y < $args{freq} ; $y++ ) {
       $out->[$x]->[$y] = $source->[$x]->[$y] - $up->[$x]->[$y];
     }
+    printRow($out->[$x]);
   }
 
-  return grow($out,%args);
+  return grow( $out, %args );
 }
 
 sub gasket {
   my %args = @_;
+
+  print "Generating gasket...\n" if !$QUIET;
 
   $args{len} ||= 256;
   $args{freq} = $args{len} if !defined $args{freq};
   $args{amp} ||= 1;
 
   my $freq = $args{freq};
-  my $amp = $args{amp}*255;
+  my $amp  = $args{amp} * 255;
 
   %args = defaultArgs(%args);
 
-  my $grid = [ ];
+  my $grid = [];
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    $grid->[$x] = [ ];
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    $grid->[$x] = [];
 
-    for ( my $y = 0; $y < $freq; $y++ ) {
+    for ( my $y = 0 ; $y < $freq ; $y++ ) {
       $grid->[$x]->[$y] = 0;
     }
   }
 
-  my $f1 = sub { return($_[0]/2, $_[1]/2) };
-  my $f2 = sub { return(($_[0]+1)/2, $_[1]/2) };
-  my $f3 = sub { return($_[0]/2, ($_[1]+1)/2) };
+  my $f1 = sub { return ( $_[0] / 2, $_[1] / 2 ) };
+  my $f2 = sub { return ( ( $_[0] + 1 ) / 2, $_[1] / 2 ) };
+  my $f3 = sub { return ( $_[0] / 2, ( $_[1] + 1 ) / 2 ) };
 
-  my $iters = $args{maxiter} || $freq*$freq;
+  my $iters = $args{maxiter} || $freq * $freq;
 
   my $x = rand(1);
   my $y = rand(1);
 
-  for ( my $i = 0; $i < $iters; $i++ ) {
+  for ( my $i = 0 ; $i < $iters ; $i++ ) {
     if ( $i > 20 ) {
       my $thisX = ( $x * $freq ) % $freq;
       my $thisY = ( $y * $freq ) % $freq;
@@ -1027,107 +1171,231 @@ sub gasket {
 
     my $rand = rand(3);
     if ( $rand < 1 ) {
-      ($x,$y) = &$f1($x,$y);
-    } elsif ( $rand < 2 ) {
-      ($x,$y) = &$f2($x,$y);
-    } else {
-      ($x,$y) = &$f3($x,$y);
+      ( $x, $y ) = &$f1( $x, $y );
+    }
+    elsif ( $rand < 2 ) {
+      ( $x, $y ) = &$f2( $x, $y );
+    }
+    else {
+      ( $x, $y ) = &$f3( $x, $y );
     }
   }
 
   return $grid;
 }
 
-sub fern {
+sub flame {
   my %args = @_;
+
+  print "Generating fractal flame!\n" if !$QUIET;
 
   $args{len} ||= 256;
   $args{freq} = $args{len} if !defined $args{freq};
   $args{amp} ||= 1;
 
   my $freq = $args{freq};
-  my $amp = $args{amp}*255;
+  my $amp  = $args{amp} * 255;
 
   %args = defaultArgs(%args);
 
-  my $grid = [ ];
+  my $grid = grid(%args, len => $freq);
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    $grid->[$x] = [ ];
-
-    for ( my $y = 0; $y < $freq; $y++ ) {
-      $grid->[$x]->[$y] = 0;
-    }
-  }
-
-  my $steps = $freq*$freq*10;
+  my $steps = $freq * $freq * 100;
 
   my $x = 0;
   my $y = 0;
 
   my $scale = $args{zoom} || 1;
 
-  for ( my $n = 0; $n < $steps; $n++ ) {
-    my $gx = ($freq-( (($x*$scale)+2.1818)/4.8374*$freq )) % $freq;
-    my $gy = ($freq-( (($y*$scale)/9.95851)*$freq )) % $freq;
+  my $fn0 = sub { return @_ }; # linear
+  my $fn1 = sub { return sin($_[0])*3, sin($_[1])*3 }; # sinu
+  my $fn2 = sub { #sphere
+    my ($x,$y) = @_;
+    my $n = 1/(($x*$x)+($y+$y));
+    return $x*$n, $y*$n;
+  };
+  my $fn3 = sub { #swirl
+    my ($x,$y) = @_;
+    my $rsqrd = (($x*$x)+($y+$y));
 
-    $grid->[$gx]->[$gy] += sqrt(rand()*$amp);
+    return (
+      ($x*sin($rsqrd)) - ($y*cos($rsqrd)),
+      ($x*cos($rsqrd))+($y*sin($rsqrd))
+    );
+  };
+
+  my $aa = rand(.5)+.5;
+  my $bb = rand(.5)+.5;
+  my $c = rand(.5)+.5;
+  my $d = rand(.5)+.5;
+  my $e = rand(.5)+.5;
+  my $f = rand(.5)+.5;
+
+  for ( my $n = 0 ; $n < $steps ; $n++ ) {
+    do {
+      my $gx = ( ($x*($freq/6)) + ($freq/2) ) % $freq;
+      my $gy = ( ($y*($freq/6)) + ($freq/2) ) % $freq;
+
+      $grid->[$gx]->[$gy] ||= 0;
+      $grid->[$gx]->[$gy]++;
+    };
+    do {
+      my $gx = ( ($x*($freq)) + ($freq/2) ) % $freq;
+      my $gy = ( ($y*($freq)) + ($freq/2) ) % $freq;
+
+      $grid->[$gx]->[$gy] ||= 0;
+      $grid->[$gx]->[$gy]++;
+    };
+    do {
+      my $gx = ( ($x*($freq*6)) + ($freq/2) ) % $freq;
+      my $gy = ( ($y*($freq*6)) + ($freq/2) ) % $freq;
+
+      $grid->[$gx]->[$gy] ||= 0;
+      $grid->[$gx]->[$gy]++;
+    };
+
+    my $rand = rand();
+
+    if ( $rand <= 1/32 ) {
+      ( $x, $y ) = &$fn0( ($aa*$x)+($bb*$y)+$c,($d*$y)+($e*$y)+$f );
+    }
+    elsif ( $rand <= 2/16 ) {
+      ( $x, $y ) = &$fn1( ($aa*$x)+($bb*$y)+$c,($d*$y)+($e*$y)+$f );
+    }
+    elsif ( $rand <= 3/8 ) {
+      ( $x, $y ) = &$fn2( ($aa*$x)+($bb*$y)+$c,($d*$y)+($e*$y)+$f );
+    }
+    elsif ( $rand <= 4/4 ) {
+      ( $x, $y ) = &$fn3( ($aa*$x)+($bb*$y)+$c,($d*$y)+($e*$y)+$f );
+    }
+  }
+
+  my $colors = { };
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      $colors->{ $grid->[$x]->[$y] }++
+    }
+  }
+
+  my @colors = keys %{ $colors };
+
+  my $i = 0;
+  for ( sort { $a <=> $b } @colors ) {
+    $colors->{$_} = (($i/@colors)*255);
+
+    $i++;
+  }
+
+  for ( my $x = 0; $x < $freq; $x++ ) {
+    for ( my $y = 0; $y < $freq; $y++ ) {
+      $grid->[$x]->[$y] = $colors->{ $grid->[$x]->[$y] };
+    }
+  }
+
+print "$aa, $bb, $c, $d, $e, $f\n";
+
+  return glow( grow( $grid, %args ), %args);
+}
+
+sub fern {
+  my %args = @_;
+
+  print "Generating fern...\n" if !$QUIET;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+  $args{amp} ||= 1;
+
+  my $freq = $args{freq};
+  my $amp  = $args{amp} * 255;
+
+  %args = defaultArgs(%args);
+
+  my $grid = [];
+
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    $grid->[$x] = [];
+
+    for ( my $y = 0 ; $y < $freq ; $y++ ) {
+      $grid->[$x]->[$y] = 0;
+    }
+  }
+
+  my $steps = $freq * $freq * 10;
+
+  my $x = 0;
+  my $y = 0;
+
+  my $scale = $args{zoom} || 1;
+
+  for ( my $n = 0 ; $n < $steps ; $n++ ) {
+    my $gx =
+      ( $freq - ( ( ( $x * $scale ) + 2.1818 ) / 4.8374 * $freq ) ) % $freq;
+    my $gy = ( $freq - ( ( ( $y * $scale ) / 9.95851 ) * $freq ) ) % $freq;
+
+    $grid->[$gx]->[$gy] += sqrt( rand() * $amp );
 
     my $rand = rand();
 
     $grid->[$gx]->[$gy] ||= 0;
 
     if ( $rand <= .01 ) {
-      ($x, $y) = _fern1($x, $y);
-    } elsif ( $rand <= .08 ) {
-      ($x, $y) = _fern2($x, $y);
-    } elsif ( $rand <= .15 ) {
-      ($x, $y) = _fern3($x, $y);
-    } else {
-      ($x, $y) = _fern4($x, $y);
+      ( $x, $y ) = _fern1( $x, $y );
+    }
+    elsif ( $rand <= .08 ) {
+      ( $x, $y ) = _fern2( $x, $y );
+    }
+    elsif ( $rand <= .15 ) {
+      ( $x, $y ) = _fern3( $x, $y );
+    }
+    else {
+      ( $x, $y ) = _fern4( $x, $y );
     }
   }
 
-  return grow($grid,%args);
+  return grow( $grid, %args );
 }
 
 sub _fern1 {
   my $x = shift;
   my $y = shift;
 
-  return( 0, .16*$y );
+  return ( 0, .16 * $y );
 }
 
 sub _fern2 {
   my $x = shift;
   my $y = shift;
 
-  return( (.2*$x)-(.26)*$y, (.23*$x)+(.22*$y)+1.6 );
+  return ( ( .2 * $x ) - (.26) * $y, ( .23 * $x ) + ( .22 * $y ) + 1.6 );
 }
 
 sub _fern3 {
   my $x = shift;
   my $y = shift;
 
-  return( (-.15*$x)+(.28*$y), (.26*$x)+(.24*$y)+.44 );
+  return ( ( -.15 * $x ) + ( .28 * $y ), ( .26 * $x ) + ( .24 * $y ) + .44 );
 }
 
 sub _fern4 {
   my $x = shift;
   my $y = shift;
 
-  return( (.85*$x)+(.04*$y), (-.04*$x)+(.85*$y)+1.6 );
+  return ( ( .85 * $x ) + ( .04 * $y ), ( -.04 * $x ) + ( .85 * $y ) + 1.6 );
 }
 
 sub mandel {
   my %args = @_;
+
+  print "Generating Mandelbrot...\n" if !$QUIET;
 
   $args{len} ||= 256;
   $args{freq} = $args{len} if !defined $args{freq};
 
   %args = defaultArgs(%args);
 
-  my $grid = [ ];
+  my $grid = [];
 
   my $freq = $args{freq};
 
@@ -1135,38 +1403,124 @@ sub mandel {
 
   my $scale = $args{zoom} || 1;
 
-  for ( my $x = 0; $x < $freq; $x += 1 ) {
-    $grid->[$x] = [ ];
+  for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
+    $grid->[$x] = [];
 
-    my $cx = ($x/$freq)*2 - 1;
+    my $cx = ( $x / $freq ) * 2 - 1;
     $cx -= .5;
     $cx /= $scale;
 
-    for ( my $y = 0; $y < $freq; $y += 1 ) {
+    for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
       $grid->[$x]->[$y] ||= 0;
 
-      my $cy = ($y/$freq)*2 - 1;
+      my $cy = ( $y / $freq ) * 2 - 1;
       $cy /= $scale;
 
-      my $zx = 0; 
-      my $zy = 0; 
-      my $n = 0;
-      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
-        my $new_zx = $zx*$zx - $zy*$zy + $cx;
-        $zy = 2*$zx*$zy + $cy;
+      my $zx = 0;
+      my $zy = 0;
+      my $n  = 0;
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $iters ) {
+        my $new_zx = $zx * $zx - $zy * $zy + $cx;
+        $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
       }
 
-      $grid->[$x]->[$y] = 255 - (($n/$iters)*255);
+      $grid->[$x]->[$y] = 255 - ( ( $n / $iters ) * 255 );
+    }
+    printRow($grid->[$x]);
+  }
+
+  return grow( $grid, %args );
+}
+
+sub dmandel {
+  my %args = @_;
+
+  print "Generating Mandelbrot...\n" if !$QUIET;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $grid = [];
+
+  my $freq = $args{freq};
+
+  my $iters = $args{maxiter} || $freq * 4;
+
+  my $scale = $args{zoom} || 1;
+
+  my @interesting;
+
+  for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
+    my $cx = ( $x / $freq ) * 2 - 1;
+
+    for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
+      my $cy = ( $y / $freq ) * 2 - 1;
+
+      my $zx = 0;
+      my $zy = 0;
+      my $n  = 0;
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq ) {
+        my $new_zx = $zx * $zx - $zy * $zy + $cx;
+        $zy = 2 * $zx * $zy + $cy;
+        $zx = $new_zx;
+        $n++;
+      }
+
+      my $pct = ( $n / $freq );
+
+      if ( $pct > .7 && $pct < .9 ) {
+        push @interesting, [$cx, $cy];
+      }
     }
   }
 
-  return grow($grid,%args);
+  my $tuple = $interesting[rand(@interesting)];
+
+  $scale = rand(248)+8;
+
+  for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
+    $grid->[$x] = [ ];
+
+    my $cx = ( $x / $freq ) * 2 - 1;
+    $cx += $tuple->[0] * $scale;
+    $cx /= $scale;
+
+    for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
+      my $cy = ( $y / $freq ) * 2 - 1;
+      $cy += $tuple->[1] * $scale;;
+      $cy /= $scale;
+
+      my $zx = 0;
+      my $zy = 0;
+      my $n  = 0;
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $iters ) {
+        my $new_zx = $zx * $zx - $zy * $zy + $cx;
+        $zy = 2 * $zx * $zy + $cy;
+        $zx = $new_zx;
+        $n++;
+      }
+
+      my $color = ( ( $n / ($iters-1)) * 255 );
+
+$color = 0 if $color >= 255;
+
+      $grid->[$x]->[$y] = $color;
+    }
+
+    printRow($grid->[$x]);
+  }
+
+  return glow( grow( $grid, %args ) );
 }
 
 sub buddha {
   my %args = @_;
+
+  print "Generating Buddhabrot (this will take a while)...\n" if !$QUIET;
 
   $args{len} ||= 256;
   $args{freq} = $args{len} if !defined $args{freq};
@@ -1175,12 +1529,12 @@ sub buddha {
 
   my $freq = $args{freq};
 
-  my $grid = [ ];
+  my $grid = [];
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    $grid->[$x] = [ ];
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    $grid->[$x] = [];
 
-    for ( my $y = 0; $y < $freq; $y++ ) {
+    for ( my $y = 0 ; $y < $freq ; $y++ ) {
       $grid->[$x]->[$y] = 0;
     }
   }
@@ -1191,24 +1545,24 @@ sub buddha {
 
   my $scale = $args{zoom} || 1;
 
-  for ( my $x = 0; $x < $freq; $x++ ) {
-    for ( my $y = 0; $y < $freq; $y++ ) {
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    for ( my $y = 0 ; $y < $freq ; $y++ ) {
       next if rand() < $gap;
 
-      my $cx = ($x/$freq)*2 - 1;
+      my $cx = ( $x / $freq ) * 2 - 1;
       $cx -= .5;
 
-      my $cy = ($y/$freq)*2 - 1;
+      my $cy = ( $y / $freq ) * 2 - 1;
 
       $cx /= $scale;
       $cy /= $scale;
 
       my $zx = 0;
       my $zy = 0;
-      my $n = 0;
-      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
-        my $new_zx = $zx*$zx - $zy*$zy + $cx;
-        $zy = 2*$zx*$zy + $cy;
+      my $n  = 0;
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $iters ) {
+        my $new_zx = $zx * $zx - $zy * $zy + $cx;
+        $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
       }
@@ -1218,22 +1572,23 @@ sub buddha {
 
       $zx = 0;
       $zy = 0;
-      $n = 0;
-      while (($zx*$zx + $zy*$zy < $freq) && $n < $iters ) {
-        my $new_zx = $zx*$zx - $zy*$zy + $cx;
-        $zy = 2*$zx*$zy + $cy;
+      $n  = 0;
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $iters ) {
+        my $new_zx = $zx * $zx - $zy * $zy + $cx;
+        $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
 
-        my $thisX = ((($zx+1)/2)*$freq+($freq*.25)) % $freq;
-        my $thisY = (($zy+1)/2)*$freq % $freq;
+        my $thisX = ( ( ( $zx + 1 ) / 2 ) * $freq + ( $freq * .25 ) ) % $freq;
+        my $thisY = ( ( $zy + 1 ) / 2 ) * $freq % $freq;
 
         $grid->[$thisY]->[$thisX]++;
       }
     }
+    printRow($grid->[$x]);
   }
 
-  return grow($grid,%args);
+  return glow( grow( $grid, %args ), %args);
 }
 
 sub spheremap {
@@ -1242,65 +1597,63 @@ sub spheremap {
 
   print "Generating spheremap...\n" if !$QUIET;
 
-  my $len = $args{len};
-  my $offset = $len/2;
+  my $len    = $args{len};
+  my $offset = $len / 2;
 
-  my $out = [ ];
+  my $out = [];
 
-  my $srclen = scalar(@{$grid});
-  my $scale = $srclen/$len;
+  my $srclen = scalar( @{$grid} );
+  my $scale  = $srclen / $len;
 
   #
   # Polar regions
   #
-  for ( my $x = 0; $x < $len; $x++ ) {
-    for ( my $y = 0; $y < $len; $y++ ) {
-      my ($cartX, $cartY, $cartZ) = cartCoords($x,$y,$len,$scale);
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my ( $cartX, $cartY, $cartZ ) = cartCoords( $x, $y, $len, $scale );
 
       ### North Pole
-      $out->[$x]->[$y/2] = noise($grid,
-        ($srclen-$cartX)/2, $cartY/2
-      );
+      $out->[$x]->[ $y / 2 ] =
+        noise( $grid, ( $srclen - $cartX ) / 2, $cartY / 2 );
 
       ### South Pole
-      $out->[$x]->[$len-($y/2)] = noise($grid,
-        $cartX/2, ($offset*$scale)+($cartY/2)
-      );
+      $out->[$x]->[ $len - ( $y / 2 ) ] =
+        noise( $grid, $cartX / 2, ( $offset * $scale ) + ( $cartY / 2 ) );
     }
   }
 
   #
   # Equator
   #
-  for ( my $x = 0; $x < $len; $x++ ) {
-    for ( my $y = 0; $y < $len; $y++ ) {
-      my $diff = abs($offset - $y);
-      my $pct = $diff/$offset;
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $diff = abs( $offset - $y );
+      my $pct  = $diff / $offset;
 
-      my $srcY = $scale * $y / 2; # Stretch Y*2 to avoid smooshed equator
-                                  # when viewing texture on a real sphere
-      #
-      # Scale to size of input image
-      #
-      $srcY += ($offset/2) * $scale;
+      my $srcY = $scale * $y / 2;    # Stretch Y*2 to avoid smooshed equator
+                                     # when viewing texture on a real sphere
+                                     #
+                                     # Scale to size of input image
+                                     #
+      $srcY += ( $offset / 2 ) * $scale;
       $srcY -= $srclen if $srcY > $srclen;
 
-      my $source = noise($grid, $scale*$x, $srcY);
+      my $source = noise( $grid, $scale * $x, $srcY );
 
       my $target = $out->[$x]->[$y] || 0;
 
-      $out->[$x]->[$y] = coslerp($source, $target, $pct);
+      $out->[$x]->[$y] = coslerp( $source, $target, $pct );
     }
   }
 
   # return $out;
-  return $args{smooth} ? smooth($out,%args) : $out;
+  return $args{smooth} ? smooth( $out, %args ) : $out;
 }
 
 sub cartCoords {
-  my $x = shift;
-  my $y = shift;
-  my $len = shift;
+  my $x     = shift;
+  my $y     = shift;
+  my $len   = shift;
   my $scale = shift || 1;
 
   my $thisLen = $len * $scale;
@@ -1312,16 +1665,16 @@ sub cartCoords {
   $x += $thisLen if $x < 0;
   $y += $thisLen if $y < 0;
 
-  my $theta = deg2rad( ($x/$thisLen)*360 );
-  my $phi   = deg2rad( ($y/$thisLen)*90 );
+  my $theta = deg2rad( ( $x / $thisLen ) * 360 );
+  my $phi   = deg2rad( ( $y / $thisLen ) * 90 );
 
-  my ($cartX, $cartY, $cartZ) = spherical_to_cartesian(Rho, $theta, $phi);
+  my ( $cartX, $cartY, $cartZ ) = spherical_to_cartesian( Rho, $theta, $phi );
 
-  $cartX = int( (($cartX+1)/2)*$thisLen );
-  $cartY = int( (($cartY+1)/2)*$thisLen );
-  $cartZ = int( (($cartZ+1)/2)*$thisLen );
+  $cartX = int( ( ( $cartX + 1 ) / 2 ) * $thisLen );
+  $cartY = int( ( ( $cartY + 1 ) / 2 ) * $thisLen );
+  $cartZ = int( ( ( $cartZ + 1 ) / 2 ) * $thisLen );
 
-  return($cartX, $cartY, $cartZ);
+  return ( $cartX, $cartY, $cartZ );
 }
 
 ##
@@ -1334,12 +1687,12 @@ sub vertclut {
   print "Applying vertical CLUT...\n";
 
   my $palette = Imager->new;
-  $palette->read(file => $args{clut}) || die $palette->errstr;
+  $palette->read( file => $args{clut} ) || die $palette->errstr;
 
   my $srcHeight = $palette->getheight();
   my $srcWidth  = $palette->getwidth();
 
-  my $len = scalar(@{$grid});
+  my $len = scalar( @{$grid} );
 
   my $out = Imager->new(
     xsize => $len,
@@ -1349,8 +1702,8 @@ sub vertclut {
   #
   # Polar regions
   #
-  for ( my $x = 0; $x < $len; $x++ ) {
-    for ( my $y = 0; $y < $len; $y++ ) {
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $gray = $grid->[$x]->[$y];
 
       my $srcY;
@@ -1359,23 +1712,21 @@ sub vertclut {
         ##
         ## Vertical displacement
         ##
-        $srcY = $y/$len;
-      } else {
+        $srcY = $y / $len;
+      }
+      else {
         ##
         ## Fractal displacement
         ##
-        $srcY = noise($grid,
-          $len/2,
-          ($gray/255)*$len
-        )/255;
+        $srcY = noise( $grid, $len / 2, ( $gray / 255 ) * $len ) / 255;
       }
 
       $out->setpixel(
-        x => $x,
-        y => $y,
+        x     => $x,
+        y     => $y,
         color => $palette->getpixel(
-          x => clamp(($gray/255)*($srcWidth-1), $srcWidth-1),
-          y => clamp($srcY*($srcHeight-1), $srcHeight-1),
+          x => clamp( ( $gray / 255 ) * ( $srcWidth - 1 ), $srcWidth - 1 ),
+          y => clamp( $srcY * ( $srcHeight - 1 ), $srcHeight - 1 ),
         )
       );
     }
@@ -1394,28 +1745,28 @@ sub hypoclut {
   print "Applying hypotenuse (corner-to-corner) CLUT...\n";
 
   my $palette = Imager->new;
-  $palette->read(file => $args{clut}) || die $palette->errstr;
+  $palette->read( file => $args{clut} ) || die $palette->errstr;
 
   my $srcHeight = $palette->getheight();
   my $srcWidth  = $palette->getwidth();
 
-  my $len = scalar(@{$grid});
+  my $len = scalar( @{$grid} );
 
   my $out = Imager->new(
     xsize => $len,
     ysize => $len,
   );
 
-  for ( my $x = 0; $x < $len; $x++ ) {
-    for ( my $y = 0; $y < $len; $y++ ) {
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $gray = $grid->[$x]->[$y];
 
       $out->setpixel(
-        x => $x,
-        y => $y,
+        x     => $x,
+        y     => $y,
         color => $palette->getpixel(
-          y => clamp($gray)/255*($srcHeight-1),
-          x => clamp($gray)/255*($srcWidth-1),
+          y => clamp($gray) / 255 * ( $srcHeight - 1 ),
+          x => clamp($gray) / 255 * ( $srcWidth - 1 ),
         )
       );
     }
@@ -1424,8 +1775,328 @@ sub hypoclut {
   return $out;
 }
 
+sub spiral {
+  my %args = @_;
+
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $len = $args{freq};
+
+  my $coils = $args{freq};
+  my $sides = $args{maxiter} || 65536;
+
+  my $grid = grid(%args, len => $len, bias => 0);
+
+  my $half = $len/2;
+
+  my $radius = $half;
+
+for ( my $n = 0; $n < 32; $n++ ) {
+  my $centerX = rand($len);
+  my $centerY = rand($len);
+
+  # my $aroundStep = $coils/$sides;
+  my $aroundStep = .2;
+
+  my $aroundRads = $aroundStep * 2 * (22/7);
+
+  # $rotation *= 2 * 22/7;
+
+  my @points;
+
+  $args{amp} ||= .5;
+
+  my $bias = $args{bias}*255;
+  # my $amp = $args{amp}*255;
+  my $amp = $args{amp}*255;
+  my $rand = sub { ( rand() >= .5 ) ? 1 : -1 };
+
+  my $rotation = 0;
+
+  $grid->[$centerX]->[$centerY] = 255;
+  # $grid->[$centerX]->[$centerY] = $amp;
+
+  for ( my $i = 1; $i <= $sides; $i++ ) {
+    my $away = $radius ** ( $i/$sides);
+
+    my $around = $i * $aroundRads + $rotation;
+
+    my $x = ( $centerX + cos($around) * $away ) % $len;
+    my $y = ( $centerY + sin($around) * $away ) % $len;
+
+    my $color = 255 - (($i/$sides)*255);
+    $grid->[$x]->[$y] = ($grid->[$x]->[$y] > $color)
+      ? $grid->[$x]->[$y] : $color;
+
+    # $grid->[$x]->[$y] = (sqrt($i/$sides))*255;
+  }
+}
+
+  return grow($grid,%args);
+}
+
+sub diffusion {
+  my %args = @_;
+
+  $args{bias} ||= .5;
+  $args{amp} ||= .5;
+  $args{len} ||= 256;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $amp = $args{amp}*255;
+
+  my $len = $args{freq};
+
+  my $grid = grid(%args, bias => 0, len => $len);
+
+  my @points;
+
+  # my $branches = sqrt($len);
+  my $branches = $len*$len/4;
+
+  my $startX = rand($len);
+  my $startY = rand($len);
+
+  $grid->[$startX]->[$startY]++;
+
+  for ( my $i = 0; $i < $branches; $i++ ) {
+    push @points, [ rand($len), rand($len) ];
+  }
+
+  my $prev = 0;
+
+  while(@points) {
+    my $color = ( @points/$branches ) * 255;
+
+print scalar(@points) ."\n" if $prev != @points;
+    $prev = scalar(@points);
+
+    my @newPoints;
+
+    for ( my $i = 0; $i < @points; $i++ ) {
+      my $x = $points[$i]->[0] % $len;
+      my $y = $points[$i]->[1] % $len;
+
+      if ( 
+        ( $grid->[$x]->[$y] )
+        || ( $grid->[ ($x + 1) % $len ]->[$y] )
+        || ( $grid->[ ($x - 1) % $len ]->[$y] )
+        || ( $grid->[ $x ]->[ ($y + 1) % $len ] )
+        || ( $grid->[ $x ]->[ ($y - 1) % $len ] )
+        || ( $grid->[ ($x + 1) % $len ]->[ ($y + 1) % $len ] )
+        || ( $grid->[ ($x + 1) % $len ]->[ ($y - 1) % $len ] )
+        || ( $grid->[ ($x - 1) % $len ]->[ ($y - 1) % $len ] )
+        || ( $grid->[ ($x - 1) % $len ]->[ ($y + 1) % $len ] )
+      ) {
+        $grid->[$x]->[$y] = $color;
+      } else {
+        push @newPoints, [ $x, $y ];
+      }
+    }
+
+    @points = @newPoints;
+
+    last if !@points;
+
+
+    for ( my $i = 0; $i < @points; $i++ ) {
+      my $x = $points[$i]->[0] % $len;
+      my $y = $points[$i]->[1] % $len;
+
+      my $offset = rand(3);
+      $offset *= -1 if rand() >= .5;
+      $points[$i]->[0] = $x + $offset % $len;
+
+      $offset = rand(3);
+      $offset *= -1 if rand() >= .5;
+      $points[$i]->[1] = $y + $offset % $len;
+
+      # $grid->[$x]->[$y] ++;
+    }
+  }
+
+  return glow( grow( $grid, %args ), %args);
+}
+
+sub glow {
+  my $grid = shift;
+  my %args = @_;
+
+  my $smoothed = smooth($grid, %args);
+  $smoothed = smooth($smoothed, %args);
+  $smoothed = smooth($smoothed, %args);
+  $smoothed = smooth($smoothed, %args);
+
+  my $len = scalar @{$grid};
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      $smoothed->[$x]->[$y] *= 4;
+      $smoothed->[$x]->[$y] += $grid->[$x]->[$y];
+    }
+  }
+
+  return $smoothed;
+}
+
+
+#
+# Translate X and Y coordinates according to heading by N units
+#
+sub translate {
+  my $x = shift;
+  my $y = shift;
+  my $heading = shift; # Euler angle
+  my $units = shift;   # Pixels
+
+  #
+  #   A
+  #   |\
+  # b | \ c
+  #   |  \
+  #   |___\
+  #  C  a  B
+  #
+  #
+  #         0
+  #    3/NW | 0/NE
+  #         |
+  # 270 ----+---- 90
+  #         |
+  #    2/SW | 1/SE
+  #        180
+  #
+
+  my $quadrant = 0; # 0 NE, 1 SE, 2 SW, 3 NW
+
+  my $relativeHeading = $heading % 360;
+
+  if ( $relativeHeading == 0 ) {
+    return $x, $y - $units;
+  } elsif ( $relativeHeading == 90 ) {
+    return $x + $units, $y;
+  } elsif ( $relativeHeading == 180 ) {
+    return $x, $y + $units;
+  } elsif ( $relativeHeading == 270 ) {
+    return $x - $units, $y;
+  }
+
+  until ( $relativeHeading < 90 ) {
+    $relativeHeading -= 90;
+
+    $quadrant += 1;
+    $quadrant = 0 if $quadrant > 3;
+  }
+
+  my $c = $units;
+  my ( $b, $a );
+
+  my $A = $relativeHeading;
+  my $C = 90;
+  my $B = 180 - 90 - $heading;
+
+  my $rad = deg2rad($A);
+  $a = sin($rad) * $c;
+  $b = cos($rad) * $c;
+
+  if ( $quadrant == 0 ) {
+    $x += $a;
+    $y -= $b;
+  } elsif ( $quadrant == 1 ) {
+    $x += $b;
+    $y += $a;
+  } elsif ( $quadrant == 2 ) {
+    $x -= $a;
+    $y += $b;
+  } else {
+    $x -= $b;
+    $y -= $a;
+  }
+
+  return $x, $y;
+}
+
+my @chars = (' ', '.', ',', ':', ';', '!', 'v', 'V', '=', '#', '0');
+sub printRow {
+  return if $QUIET;
+
+  my $row = shift;
+
+  my $len = scalar(@{ $row });
+
+  for my $i ( 0..71 ) {
+    my $pct = $i/71;
+    my $rowI = $pct * ($len-1);
+    my $val = $row->[$rowI];
+
+    my $valPct = clamp($val)/255;
+    my $char = $chars[$valPct*(@chars-1)];
+
+    print $char;
+  }
+
+  print "\n";
+}
+
+sub spamConsole {
+  my %args = @_;
+
+  my $fmtstr = '%-10s %-10s %-10s %-10s %-4s %-4s %-4s %-4s %-4s';
+
+  printf($fmtstr,
+    qw| type lbase ltype stype bias amp freq oct len |
+  );
+  print "\n";
+
+  if ( $args{type} eq 'complex' ) {
+    printf($fmtstr,
+      $args{type} || "",
+      $args{lbase} || "",
+      $args{ltype} || "",
+      $args{stype} || "",
+      $args{bias} || "",
+      $args{amp} || "",
+      $args{freq} || "",
+      $args{octaves} || "",
+      $args{len} || ""
+    );
+  } elsif ( $args{type} =~ /perlin|ridged|block|pgel|rgel/ ) {
+    printf($fmtstr,
+      $args{type} || "",
+      "n/a",
+      "n/a",
+      $args{stype} || "",
+      $args{bias} || "",
+      $args{amp} || "",
+      $args{freq} || "",
+      $args{octaves} || "",
+      $args{len} || ""
+    );
+  } else {
+    printf($fmtstr,
+      $args{type} || "",
+      "n/a",
+      "n/a",
+      "n/a",
+      $args{bias} || "",
+      $args{amp} || "",
+      $args{freq} || "",
+      "n/a",
+      $args{len} || ""
+    );
+  }
+
+  print "\n";
+}
+
 1;
 __END__
+
 =pod
 
 =head1 NAME
@@ -1434,7 +2105,7 @@ Acme::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.009 of Acme::Noisemaker.
+This document is for version 0.010 of Acme::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -1512,7 +2183,7 @@ Returns the resulting dataset, as well as the L<Imager> object which
 was created from it and filename used.
 
 In addition to any argument appropriate to the type of noise being
-generated, C<make> accepts the following arguments:
+generated, C<make> accepts the following args in hash key form:
 
 =over 4
 
@@ -1547,12 +2218,16 @@ This feature is a work in progress.
 
 =item * clutdir => <0|1|2>
 
-0: Hypotenuse lookup (corner to corner, so it doesn't matter if the input table is oriented horizontally or vertically). This is the default.
+0: Hypotenuse lookup (corner to corner, so it doesn't matter if the
+input table is oriented horizontally or vertically). This is the
+default. Best for seamless tiling.
 
 1: Vertical lookup, good for generating maps which have ice caps
-at the poles and tropical looking colors at the equator.
+at the poles and tropical looking colors at the equator. Output
+will have color seams at the poles unless viewed on a spheroid.
 
-2: Fractal lookup, uses the same methodology as C<refract>
+2: Fractal lookup, uses the same methodology as C<refract>. Also
+good for seamless tiling.
 
 This feature is a work in progress.
 
@@ -1613,22 +2288,39 @@ Diamond-Square noise with XY offset; see GEL TYPES
 
 White noise generated with extreme gappiness
 
+=item * diffusion(%args)
+
+Diffusion noise, recipe inspired by Fractint's fractal type of the
+same name. Has a branched and biomimetic look.
+
+Lengths greater than 256 may not complete within your lifetime.
+
 =item * mandel(%args)
 
 Fractal type - Mandelbrot fractal set. Not currently very useful,
 this is a work in progress.
 
+=item * dmandel(%args)
+
+Fractal type - Deep Mandelbrot. Picks a random "interesting" location
+in the set (some point with a value which neither hovers near 0 nor
+flies off into infinity), zooms in a bit, and embellishes the palette.
+
 =item * buddha(%args)
 
-Fractal type - "Buddhabrot" Mandelbrot variant. Not currently very
-useful, this is a work in progress.
+Fractal type - "Buddhabrot" Mandelbrot variant. Work in progress.
 
-This is a very, very slow function.
+=item * flame(%args)
+
+IFS type - "Fractal Flame". Work in progress. Neat.
 
 =item * fern(%args)
 
-Fractal type - Barnsley's fern. Not currently very useful, this is
-a proof of concept for future IFS noise types.
+IFS type - Barnsley's fern. Included as a demo.
+  
+=item * gasket(%args)
+
+IFS type - Sierpinski's triangle/gasket. Included as a demo.
   
 =back
 
