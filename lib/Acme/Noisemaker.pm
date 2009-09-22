@@ -14,7 +14,7 @@ use base qw| Exporter |;
 
 our @NOISE_TYPES = qw|
   white wavelet square perlin ridged block complex gel sgel pgel rgel stars
-  spiral voronoi diffusion flame mandel dmandel buddha fern gasket
+  spiral voronoi diffusion flame mandel dmandel buddha fern gasket fur
   |;
 
 our @EXPORT_OK = (
@@ -55,6 +55,7 @@ sub usage {
   print "  block           ### unsmoothed Perlin\n";
   print "  pgel            ### self-displaced Perlin\n";
   print "  rgel            ### self-displaced ridged\n";
+  print "  fur             ### Perlin wormholes\n";
   print "  complex         ### multi-layer multi-res\n";
   print "\n";
   print "* - Simple type, may be used as a Perlin slice type (stype)\n";
@@ -221,6 +222,9 @@ sub make {
   }
   elsif ( $args{type} eq 'wavelet' ) {
     $grid = wavelet(%args);
+  }
+  elsif ( $args{type} eq 'fur' ) {
+    $grid = fur(%args);
   }
   elsif ( $args{type} eq 'stars' ) {
     $grid = stars(%args);
@@ -728,6 +732,9 @@ sub perlin {
     elsif ( $args{stype} eq 'stars' ) {
       $generator = \&stars;
     }
+    elsif ( $args{stype} eq 'fur' ) {
+      $generator = \&fur;
+    }
     elsif ( $args{stype} eq 'mandel' ) {
       $generator = \&mandel;
     }
@@ -1049,6 +1056,9 @@ sub __complexGenerator {
   }
   elsif ( $type eq 'stars' ) {
     $generator = \&stars;
+  }
+  elsif ( $type eq 'fur' ) {
+    $generator = \&fur;
   }
   elsif ( $type eq 'infile' ) {
     $generator = \&infile;
@@ -1999,6 +2009,48 @@ sub glow {
   return $smoothed;
 }
 
+sub fur {
+  my %args = @_;
+
+  my $len = $args{len} || 256;
+
+  my @worms;
+
+  for ( my $i = 0; $i < $len*$len; $i++ ) {
+    my $worm = [ rand($len), rand($len) ];
+
+    push @worms, $worm;
+  }
+
+  my $perlin = perlin(%args, amp => 1, bias => 0);
+  my $grid = grid(%args);
+
+  for ( my $i = 0; $i < sqrt($len); $i++ ) {
+    my @newWorms;
+
+    while ( my $worm = shift @worms ) {
+      my $x = $worm->[0];
+      my $y = $worm->[1];
+
+      $grid->[$x]->[$y]++;
+
+      my $heading = ($perlin->[$x]->[$y]/255)*360;
+
+      ($x,$y) = translate($x,$y,$heading,1);
+      $x = ($x*100) % ($len*100);
+      $y = ($y*100) % ($len*100);
+      $worm->[0] = $x/100;
+      $worm->[1] = $y/100;
+
+      push @newWorms, $worm;
+    }
+
+    @worms = @newWorms;
+  }
+
+  return densemap($grid,%args);
+
+}
 
 #
 # Translate X and Y coordinates according to heading by N units
@@ -2488,6 +2540,10 @@ Perlin noise with an XY offset; see GEL TYPES
 Ridged multifractal noise with an XY offset; see GEL TYPES
 
   make(type => 'rgel', stype => ...);
+
+=item * fur(%args)
+
+Fur-lin noise; traced paths of worms guided by Perlin noise
 
 =back
 
