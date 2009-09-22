@@ -1841,7 +1841,7 @@ sub spiral {
     my ( $coils, $arms, $steps );
 
     if ( $voronoi ) {
-      $coils = 360;
+      $coils = $len;
       $arms  = 1;
       $steps = $len*$len*2;
     } else {
