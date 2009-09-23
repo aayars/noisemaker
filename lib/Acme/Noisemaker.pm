@@ -12,10 +12,16 @@ use constant Rho => 1;
 
 use base qw| Exporter |;
 
-our @NOISE_TYPES = qw|
-  white wavelet square perlin ridged block complex gel sgel pgel rgel stars
-  spiral voronoi diffusion flame mandel dmandel buddha fern gasket fur
-  |;
+our @SIMPLE_TYPES = qw|
+  white wavelet square gel sgel stars spirals voronoi diffusion flame
+  mandel dmandel buddha fern gasket infile
+|;
+
+our @PERLIN_TYPES = qw|
+  perlin ridged block pgel rgel fur tesla
+|;
+
+our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex | );
 
 our @EXPORT_OK = (
   qw|
@@ -55,7 +61,8 @@ sub usage {
   print "  block           ### unsmoothed Perlin\n";
   print "  pgel            ### self-displaced Perlin\n";
   print "  rgel            ### self-displaced ridged\n";
-  print "  fur             ### Perlin wormholes\n";
+  print "  fur             ### Perlin guided threads\n";
+  print "  tesla           ### long clumpy threads\n";
   print "  complex         ### multi-layer multi-res\n";
   print "\n";
   print "* - Simple type, may be used as a Perlin slice type (stype)\n";
@@ -84,6 +91,8 @@ sub usage {
   print "  [-zoom <num>] \\             ## mag for fractals\n";
   print "  [-maxiter <num>] \\          ## iter limit for fractals\n";
   print "  [-in <filename>] \\          ## input filename for infile\n";
+  print "  [-shadow <0..1>] \\          ## shadow amount\n";
+  print "  [-emboss <0|1>] \\           ## emboss output\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  [-out <filename>]           ## Output file (foo.bmp)\n";
   print "\n";
@@ -124,17 +133,19 @@ sub make {
     elsif ( $arg =~ /clut$/ )     { $args{clut} = shift; }
     elsif ( $arg =~ /clutdir$/ )  { $args{clutdir} = shift; }
     elsif ( $arg =~ /limit/ )     { $args{auto} = shift() ? 0 : 1; }
-    elsif ( $arg =~ /zoom/ )    { $args{zoom}    = shift; }
-    elsif ( $arg =~ /maxiter/ ) { $args{maxiter} = shift; }
-    elsif ( $arg =~ /in/ )      { $args{in} = shift; }
-    elsif ( $arg =~ /quiet/ )   { $QUIET         = shift; }
-    else                        { usage("Unknown argument: $arg") }
+    elsif ( $arg =~ /zoom/ )      { $args{zoom}    = shift; }
+    elsif ( $arg =~ /maxiter/ )   { $args{maxiter} = shift; }
+    elsif ( $arg =~ /shadow/ )    { $args{shadow} = shift; }
+    elsif ( $arg =~ /emboss/ )    { $args{emboss} = shift; }
+    elsif ( $arg =~ /in/ )        { $args{in} = shift; }
+    elsif ( $arg =~ /quiet/ )     { $QUIET         = shift; }
+    else                          { usage("Unknown argument: $arg") }
   }
 
   usage("Specified CLUT file not found") if $args{clut} && !-e $args{clut};
 
   $args{type}  ||= 'perlin';
-  $args{stype} ||= 'white';
+  $args{stype} ||= 'wavelet';
   $args{lbase} ||= 'perlin';
   $args{ltype} ||= 'perlin';
 
@@ -158,10 +169,25 @@ sub make {
 
   if ( !$args{out} ) {
     if ( $args{type} eq 'complex' ) {
-      $args{out} = "$args{lbase}-$args{ltype}-$args{stype}.bmp";
+      #
+      #
+      #
+      if ( grep {
+        ( $_ eq $args{ltype} ) || $_ eq $args{lbase}
+      } @PERLIN_TYPES ) {
+        $args{out} = join("-",
+          "complex", $args{lbase}, $args{ltype}, $args{stype}
+        ) .".bmp";
+      } else {
+        $args{out} = join("-",
+          "complex", $args{lbase}, $args{ltype}
+        ) .".bmp";
+      }
     }
-    elsif ( $args{type} =~ /perlin|ridged|block|pgel|rgel/ ) {
-      $args{out} = "$args{type}-$args{stype}.bmp";
+    elsif ( grep { $_ eq $args{type} } @PERLIN_TYPES ) {
+      $args{out} = join("-",
+        $args{type}, $args{stype}
+      ) .".bmp";
     }
     else {
       $args{out} = "$args{type}.bmp";
@@ -172,77 +198,22 @@ sub make {
   # return if -e $args{out};
 
   my $grid;
-  if ( $args{type} eq 'white' ) {
-    $grid = white(%args);
+
+  for my $type ( @NOISE_TYPES ) {
+    if ( $args{type} eq $type ) {
+      my $sub;
+
+      do {
+        no strict 'refs';
+        $sub = \&{"Acme::Noisemaker::$type"};
+      };
+      
+      $grid = &$sub(%args);
+    }
   }
-  elsif ( $args{type} eq 'square' ) {
-    $grid = square(%args);
-  }
-  elsif ( $args{type} eq 'perlin' ) {
-    $grid = perlin(%args);
-  }
-  elsif ( $args{type} eq 'ridged' ) {
-    $grid = ridged(%args);
-  }
-  elsif ( $args{type} eq 'block' ) {
-    $grid = block(%args);
-  }
-  elsif ( $args{type} eq 'complex' ) {
-    $grid = complex(%args);
-  }
-  elsif ( $args{type} eq 'gel' ) {
-    $grid = gel(%args);
-  }
-  elsif ( $args{type} eq 'sgel' ) {
-    $grid = sgel(%args);
-  }
-  elsif ( $args{type} eq 'pgel' ) {
-    $grid = pgel(%args);
-  }
-  elsif ( $args{type} eq 'rgel' ) {
-    $grid = rgel(%args);
-  }
-  elsif ( $args{type} eq 'mandel' ) {
-    $grid = mandel(%args);
-  }
-  elsif ( $args{type} eq 'dmandel' ) {
-    $grid = dmandel(%args);
-  }
-  elsif ( $args{type} eq 'buddha' ) {
-    $grid = buddha(%args);
-  }
-  elsif ( $args{type} eq 'fern' ) {
-    $grid = fern(%args);
-  }
-  elsif ( $args{type} eq 'flame' ) {
-    $grid = flame(%args);
-  }
-  elsif ( $args{type} eq 'gasket' ) {
-    $grid = gasket(%args);
-  }
-  elsif ( $args{type} eq 'wavelet' ) {
-    $grid = wavelet(%args);
-  }
-  elsif ( $args{type} eq 'fur' ) {
-    $grid = fur(%args);
-  }
-  elsif ( $args{type} eq 'stars' ) {
-    $grid = stars(%args);
-  }
-  elsif ( $args{type} eq 'spirals' ) {
-    $grid = spirals(%args);
-  }
-  elsif ( $args{type} eq 'voronoi' ) {
-    $grid = voronoi(%args);
-  }
-  elsif ( $args{type} eq 'diffusion' ) {
-    $grid = diffusion(%args);
-  }
-  elsif ( $args{type} eq 'infile' ) {
-    $grid = infile(%args);
-  }
-  else {
-    usage("Unknown noise type");
+
+  if ( !$grid ) {
+    usage("Unknown noise type '$args{type}' specified");
   }
 
   if ( $args{refract} ) {
@@ -348,21 +319,59 @@ sub img {
   }
 
   if ( $args{clut} && $args{clutdir} ) {
-    return vertclut( $scaledGrid, %args );
+    $img = vertclut( $scaledGrid, %args );
   } elsif ( $args{clut} ) {
-    return hypoclut( $scaledGrid, %args );
+    $img = hypoclut( $scaledGrid, %args );
+  } else {
+    if ( $args{emboss} && !$args{shadow} ) {
+      $scaledGrid = emboss($scaledGrid, %args);
+      $scaledGrid = smooth($scaledGrid,%args);
+      $scaledGrid = glow($scaledGrid,%args);
+      $scaledGrid = densemap($scaledGrid,%args);
+    }
+
+    for ( my $x = 0 ; $x < $length ; $x++ ) {
+      for ( my $y = 0 ; $y < $length ; $y++ ) {
+        my $gray = $scaledGrid->[$x]->[$y];
+        $img->setpixel(
+          x     => $x,
+          y     => $y,
+          color => [ $gray, $gray, $gray ],
+        );
+      }
+      printRow($scaledGrid->[$x]);
+    }
   }
 
-  for ( my $x = 0 ; $x < $length ; $x++ ) {
-    for ( my $y = 0 ; $y < $length ; $y++ ) {
-      my $gray = $scaledGrid->[$x]->[$y];
-      $img->setpixel(
-        x     => $x,
-        y     => $y,
-        color => [ $gray, $gray, $gray ],
-      );
+  if ( $args{shadow} && !$args{emboss} ) {
+    my $embossed = emboss($scaledGrid,%args);
+    $embossed = smooth($embossed,%args);
+    $embossed = glow($embossed,%args);
+    $embossed = densemap($embossed,%args);
+
+    my $shadow = $args{shadow};
+
+    for ( my $x = 0 ; $x < $length ; $x++ ) {
+      for ( my $y = 0 ; $y < $length ; $y++ ) {
+        my $color = $img->getpixel(x => $x, y => $y);
+        my ( $r, $g, $b ) = $color->rgba;
+
+        my $light = clamp($embossed->[$x]->[$y]);
+
+        my $amt = (1-($light/255)) * $shadow;
+
+        $img->setpixel(
+          x => $x,
+          y => $y,
+          color => [
+            coslerp($r,0,$amt),
+            coslerp($g,0,$amt),
+            coslerp($b,0,$amt),
+          ]
+        );
+      }
+      printRow($embossed->[$x]);
     }
-    printRow($scaledGrid->[$x]);
   }
 
   return $img;
@@ -535,7 +544,7 @@ sub stars {
   $args{amp}  = .5;
   $args{gap}  = .995;
 
-  my $grid = white(%args);
+  my $grid = wavelet(%args);
 
   return smooth( $grid, %args );
 }
@@ -550,7 +559,7 @@ sub gel {
 
   %args = defaultArgs(%args);
 
-  my $grid = white(%args);
+  my $grid = wavelet(%args);
 
   return offset( $grid, %args );
 }
@@ -598,7 +607,7 @@ sub square {
 
   $amp = .5 if !defined $amp;
 
-  my $grid = white( %args, len => $freq * 2 );
+  my $grid = wavelet( %args, len => $freq * 2 );
 
   my $haveLength = $freq * 2;
   my $baseOffset = 255 * $amp;
@@ -694,10 +703,10 @@ sub perlin {
 
   print "Generating Perlin noise...\n" if !$QUIET;
 
-  %args = defaultArgs(%args);
-
-  $args{amp} ||= .5;
+  $args{amp} = .5 if !defined $args{amp};
   $args{amp} *= $args{octaves};
+
+  %args = defaultArgs(%args);
 
   my $length  = $args{len};
   my $amp     = $args{amp};
@@ -717,56 +726,17 @@ sub perlin {
 
     my $generator;
 
-    if ( $args{stype} eq 'white' ) {
-      $generator = \&white;
+    for my $type ( @SIMPLE_TYPES ) {
+      if ( $args{stype} eq $type ) {
+        do {
+          no strict 'refs';
+          $generator = \&{"Acme::Noisemaker::$type"};
+        };
+      }
     }
-    elsif ( $args{stype} eq 'square' ) {
-      $generator = \&square;
-    }
-    elsif ( $args{stype} eq 'gel' ) {
-      $generator = \&gel;
-    }
-    elsif ( $args{stype} eq 'sgel' ) {
-      $generator = \&sgel;
-    }
-    elsif ( $args{stype} eq 'stars' ) {
-      $generator = \&stars;
-    }
-    elsif ( $args{stype} eq 'fur' ) {
-      $generator = \&fur;
-    }
-    elsif ( $args{stype} eq 'mandel' ) {
-      $generator = \&mandel;
-    }
-    elsif ( $args{stype} eq 'dmandel' ) {
-      $generator = \&dmandel;
-    }
-    elsif ( $args{stype} eq 'buddha' ) {
-      $generator = \&buddha;
-    }
-    elsif ( $args{stype} eq 'wavelet' ) {
-      $generator = \&wavelet;
-    }
-    elsif ( $args{stype} eq 'fern' ) {
-      $generator = \&fern;
-    }
-    elsif ( $args{stype} eq 'infile' ) {
-      $generator = \&infile;
-    }
-    elsif ( $args{stype} eq 'voronoi' ) {
-      $generator = \&voronoi;
-    }
-    elsif ( $args{stype} eq 'spirals' ) {
-      $generator = \&spirals;
-    }
-    elsif ( $args{stype} eq 'flame' ) {
-      $generator = \&flame;
-    }
-    elsif ( $args{stype} eq 'diffusion' ) {
-      $generator = \&diffusion;
-    }
-    else {
-      usage("Unknown layer type specified");
+
+    if ( !$generator ) {
+      usage("Unknown slice type '$args{stype}' specified");
     }
 
     push @layers,
@@ -1027,65 +997,17 @@ sub __complexGenerator {
 
   my $generator;
 
-  if ( $type eq 'white' ) {
-    $generator = \&white;
+  for my $ltype ( @SIMPLE_TYPES, @PERLIN_TYPES ) {
+    if ( $type eq $ltype ) {
+      do {
+        no strict 'refs';
+        $generator = \&{"Acme::Noisemaker::$type"};
+      };
+    }
   }
-  elsif ( $type eq 'square' ) {
-    $generator = \&square;
-  }
-  elsif ( $type eq 'perlin' ) {
-    $generator = \&perlin;
-  }
-  elsif ( $type eq 'ridged' ) {
-    $generator = \&ridged;
-  }
-  elsif ( $type eq 'block' ) {
-    $generator = \&block;
-  }
-  elsif ( $type eq 'gel' ) {
-    $generator = \&gel;
-  }
-  elsif ( $type eq 'sgel' ) {
-    $generator = \&sgel;
-  }
-  elsif ( $type eq 'pgel' ) {
-    $generator = \&pgel;
-  }
-  elsif ( $type eq 'rgel' ) {
-    $generator = \&rgel;
-  }
-  elsif ( $type eq 'stars' ) {
-    $generator = \&stars;
-  }
-  elsif ( $type eq 'fur' ) {
-    $generator = \&fur;
-  }
-  elsif ( $type eq 'infile' ) {
-    $generator = \&infile;
-  }
-  elsif ( $type eq 'diffusion' ) {
-    $generator = \&diffusion;
-  }
-  elsif ( $type eq 'mandel' ) {
-    $generator = \&mandel;
-  }
-  elsif ( $type eq 'dmandel' ) {
-    $generator = \&dmandel;
-  }
-  elsif ( $type eq 'buddha' ) {
-    $generator = \&buddha;
-  }
-  elsif ( $type eq 'flame' ) {
-    $generator = \&flame;
-  }
-  elsif ( $type eq 'spirals' ) {
-    $generator = \&spirals;
-  }
-  elsif ( $type eq 'voronoi' ) {
-    $generator = \&voronoi;
-  }
-  else {
-    usage("Unknown layer type specified");
+
+  if ( !$generator ) {
+    usage("Unknown complex layer type '$type' specified");
   }
 
   return $generator;
@@ -1184,7 +1106,7 @@ sub gasket {
 
   %args = defaultArgs(%args);
 
-  my $grid = [];
+  my $grid = grid(%args, len => $args{freq});
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
     $grid->[$x] = [];
@@ -1222,7 +1144,7 @@ sub gasket {
     }
   }
 
-  return $grid;
+  return grow( $grid, %args);
 }
 
 sub flame {
@@ -1582,7 +1504,7 @@ sub buddha {
     }
   }
 
-  my $iters = $args{maxiter} || 1024;
+  my $iters = $args{maxiter} || 4096;
 
   my $gap = $args{gap};
 
@@ -1631,7 +1553,11 @@ sub buddha {
     printRow($grid->[$x]);
   }
 
-  return glow( grow( $grid, %args ), %args);
+  $grid = densemap($grid,%args);
+
+  $grid = grow($grid,%args);
+
+  return $grid;
 }
 
 sub spheremap {
@@ -1815,8 +1741,8 @@ sub hypoclut {
         x     => $x,
         y     => $y,
         color => $palette->getpixel(
-          y => clamp($gray) / 255 * ( $srcHeight - 1 ),
-          x => clamp($gray) / 255 * ( $srcWidth - 1 ),
+          y => $srcHeight - 1 - ( clamp($gray) / 255 * ( $srcHeight - 1 )),
+          x => ( clamp($gray) / 255 * ( $srcWidth - 1 )),
         )
       );
     }
@@ -1826,7 +1752,7 @@ sub hypoclut {
 }
 
 sub voronoi {
-  return spirals(@_, voronoi => 1);
+  return smooth( spirals(@_, voronoi => 1), @_ );
 }
 
 sub spirals {
@@ -1847,11 +1773,16 @@ sub spirals {
   my $radius = $half;
   my $rand = sub { ( rand() >= .5 ) ? 1 : -1 };
 
+  $args{amp} = .5 if !defined $args{amp};
+
+  my $bias = $args{bias} * 255;
+  my $amp  = $args{amp} * 255;
+
   for ( my $n = 0; $n < sqrt($len)*2; $n++ ) {
     my ( $coils, $arms, $steps );
 
     if ( $voronoi ) {
-      $coils = $len;
+      $coils = 360;
       $arms  = 1;
       $steps = $len*$len*2;
     } else {
@@ -2001,7 +1932,6 @@ sub glow {
 
   for ( my $x = 0; $x < $len; $x++ ) {
     for ( my $y = 0; $y < $len; $y++ ) {
-      $smoothed->[$x]->[$y] *= 4;
       $smoothed->[$x]->[$y] += $grid->[$x]->[$y];
     }
   }
@@ -2009,32 +1939,58 @@ sub glow {
   return $smoothed;
 }
 
+sub tesla {
+  return fur(@_, tesla => 1);
+}
+
 sub fur {
   my %args = @_;
 
+  $args{octaves} = 4 if !defined $args{octaves};
+  $args{freq} = 8 if !defined $args{octaves};
+
   my $len = $args{len} || 256;
+
+  %args = defaultArgs(%args);
 
   my @worms;
 
-  for ( my $i = 0; $i < $len*$len; $i++ ) {
+  my ( $numWorms, $threadLen );
+
+  if ( $args{tesla} ) {
+    $numWorms = $len;
+    $threadLen = $len;
+  } else {
+    $numWorms = $len*$len;
+    $threadLen = sqrt($len);
+  }
+
+  for ( my $i = 0; $i < $numWorms; $i++ ) {
     my $worm = [ rand($len), rand($len) ];
 
     push @worms, $worm;
   }
 
-  my $perlin = perlin(%args, amp => 1, bias => 0);
+  my $perlin = ridged(%args, amp => 1, bias => 0);
   my $grid = grid(%args);
 
-  for ( my $i = 0; $i < sqrt($len); $i++ ) {
-    my @newWorms;
+  for ( my $i = 0; $i < $threadLen; $i++ ) {
+    my $w = 0;
 
-    while ( my $worm = shift @worms ) {
+    for my $worm ( @worms ) {
       my $x = $worm->[0];
       my $y = $worm->[1];
 
-      $grid->[$x]->[$y]++;
-
       my $heading = ($perlin->[$x]->[$y]/255)*360;
+
+      if ( $args{tesla} ) {
+        ### kink it up
+        $heading += ( $w/$numWorms ) * 45;
+        $grid->[$x]->[$y] += 1 - (abs($i-($threadLen/2))/($threadLen/2));
+      } else {
+        $grid->[$x]->[$y] += 1 - (abs($i-($threadLen/2))/($threadLen/2));
+        # $grid->[$x]->[$y]++;
+      }
 
       ($x,$y) = translate($x,$y,$heading,1);
       $x = ($x*100) % ($len*100);
@@ -2042,14 +1998,54 @@ sub fur {
       $worm->[0] = $x/100;
       $worm->[1] = $y/100;
 
-      push @newWorms, $worm;
+      $w++;
     }
-
-    @worms = @newWorms;
   }
 
-  return densemap($grid,%args);
+  # for ( my $x = 0; $x < $len; $x++ ) {
+    # for ( my $y = 0; $y < $len; $y++ ) {
+      # $grid->[$x]->[$y] = lerp($grid->[$x]->[$y], $perlin->[$x]->[$y], .0125);
+    # }
+  # }
 
+  $grid = densemap($grid,%args);
+
+  if ( $args{tesla} ) {
+    $grid = glow($grid,%args);
+  }
+
+  return $grid;
+}
+
+sub emboss {
+  my $grid = shift;
+  my %args = @_;
+
+  my $len = $args{len};
+
+  print "Generating light map\n" if !$QUIET;
+
+  my $lightmap = [ ];
+
+  my $angle = 15 - rand(30);
+
+  for ( my $x = 0; $x < $len; $x += 1 ) {
+    $lightmap->[$x] = [ ];
+
+    for ( my $y = 0; $y < $len; $y += 1 ) {
+      my $value;
+
+      my ( $neighborX, $neighborY ) = translate($x,$y,$angle,1);
+
+      my $neighbor = noise($grid,$neighborX,$neighborY);
+
+      my $diff = $grid->[$x]->[$y] - $neighbor;
+
+      $lightmap->[$x]->[$y] = 255 - $diff;
+    }
+  }
+
+  return $lightmap;
 }
 
 #
@@ -2362,6 +2358,14 @@ generated.
 
   make(out => "oot.bmp");
 
+=item * shadow => $float
+
+Amount of self-shadowing to apply, between 0 and 1.
+
+=item * emboss => <0|1>
+
+Render lightmap only
+
 =back
 
 =head1 NOISE TYPES
@@ -2507,7 +2511,7 @@ amplitudes.
 The slice type used for generating Perlin noise may be controlled
 with the C<stype> argument. Any simple type may be specified.
 
-The default slice type is smoothed C<white> noise.
+The default slice type is smoothed C<wavelet> noise.
 
 =over 4
 
@@ -2543,7 +2547,12 @@ Ridged multifractal noise with an XY offset; see GEL TYPES
 
 =item * fur(%args)
 
-Fur-lin noise; traced paths of worms guided by Perlin noise
+Fur-lin noise; traced paths of worms with Perlin input.
+
+=item * tesla(%args)
+
+Long, clumpy threads. Paths use Perlin input plus another random
+offset.
 
 =back
 
@@ -2566,7 +2575,7 @@ Higher generally looks nicer.
 
 =item * stype => $simpleType
 
-Perlin slice type, defaults to C<white>. Any simple type may be
+Perlin slice type, defaults to C<wavelet>. Any simple type may be
 specified.
 
   my $grid = make(stype => 'gel');
@@ -2695,7 +2704,7 @@ contains pre-populated random values. Turns out, this works fine.
 =item * lerp($a, $b, $x)
 
 Linear interpolate from $a to $b, by $x percent. $x is between 0
-and 1. Not currently used, but it's there.
+and 1.
 
 =item * coslerp($a, $b, $x)
 

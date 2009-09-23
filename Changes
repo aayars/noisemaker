@@ -1,5 +1,5 @@
 .010
-  - Added dmandel, diffusion, flame, infile, spiral, voronoi functions
+  - Added fur, dmandel, diffusion, flame, infile, spiral, voronoi functions
   - Even more futzing with spheremaps, poles conform better now
 
 .009
