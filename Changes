@@ -1,6 +1,9 @@
 .010
-  - Added fur, dmandel, diffusion, flame, infile, spiral, voronoi functions
+  - Added fur, dmandel, diffusion, flame, infile, intile,
+    spiral, voronoi, moire, textile types
   - Even more futzing with spheremaps, poles conform better now
+  - Smoothed input for gel noise
+  - Code cleanup
 
 .009
   - Added wavelet, mandel, buddha, fern functions
