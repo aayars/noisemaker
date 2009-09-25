@@ -2043,7 +2043,11 @@ sub glow {
 }
 
 sub tesla {
-  return fur( @_, tesla => 1 );
+  my %args = @_;
+
+  $args{freq} ||= 8;
+
+  return fur( %args, tesla => 1 );
 }
 
 sub fur {
