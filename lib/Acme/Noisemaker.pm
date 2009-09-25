@@ -12,11 +12,11 @@ use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi diffusion flame
-  mandel dmandel buddha fern gasket infile intile moire textile
+  mandel dmandel buddha fern gasket infile intile moire textile sparkle
   |;
 
 our @PERLIN_TYPES = qw|
-  perlin ridged block pgel rgel fur tesla
+  perlin ridged block pgel rgel fur tesla delta
   |;
 
 our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex | );
@@ -74,6 +74,7 @@ sub showTypes {
   print "  * textile         ## random high-freq moire\n";
   print "  * infile          ## image file named by 'in' arg\n";
   print "  * intile          ## input file + blends edges\n";
+  print "  * sparkle         ## stylized stars\n";
   print "\n";
   print "  ! perlin          ## multi-resolution\n";
   print "  ! ridged          ## ridged multifractal\n";
@@ -82,12 +83,18 @@ sub showTypes {
   print "  ! rgel            ## self-displaced ridged\n";
   print "  ! fur             ## based on \"Perlin Worms\"\n";
   print "  ! tesla           ## worms/fur variant\n";
+  print " !! delta           ## difference noise\n";
+  print "!!! complex         ## multi-layer multi-res\n";
   print "\n";
-  print "  > complex         ## multi-layer multi-res\n";
+  print "Legend:";
   print "\n";
-  print "* - Simple type, may be used as a Perlin slice type (stype)\n";
-  print "! - Multi-resolution type, hybridize via 'stype' arg\n";
-  print "> - Hybridize via 'lbase', 'ltype', 'stype' args\n";
+  print "  * simple type: may be used as a Perlin slice type (stype)\n";
+  print "  ! control basis func via 'stype'\n";
+  print " !! control basis funcs via 'ltype' and 'stype'\n";
+  print "!!! control basis funcs via 'lbase', 'ltype' and 'stype'\n";
+  print "\n";
+  print "perldoc Acme::Noisemaker for more help.\n";
+  print "\n";
 }
 
 sub usage {
@@ -185,15 +192,21 @@ sub make {
   $args{lbase} ||= $defaultLayerBase;
   $args{ltype} ||= $defaultLayerType;
 
-  if ( ( $args{lbase} =~ /[prs]gel/ )
-    || ( $args{ltype} =~ /[prs]gel/ )
-    || $args{stype} =~ /[prs]gel/ )
+  if (
+    ( $args{type} eq 'complex' )
+    && ( ( $args{lbase} =~ /[prs]gel/ )
+      || ( $args{ltype} =~ /[prs]gel/ )
+      || $args{stype} =~ /[prs]gel/ )
+    )
   {
     $args{freq}   ||= 2;
     $args{offset} ||= .125;
-  } elsif ( ( $args{lbase} eq 'gel' )
-    || ( $args{ltype} eq 'gel' )
-    || $args{stype} eq 'gel' )
+  } elsif (
+    ( $args{type} eq 'complex' )
+    && ( ( $args{lbase} eq 'gel' )
+      || ( $args{ltype} eq 'gel' )
+      || $args{stype} eq 'gel' )
+    )
   {
     $args{freq}   ||= 4;
     $args{offset} ||= .5;
@@ -202,7 +215,15 @@ sub make {
   }
 
   if ( !$args{out} ) {
-    if ( $args{type} eq 'complex' ) {
+    if ( $args{type} eq 'delta' ) {
+      if ( grep { $_ eq $args{ltype} } @PERLIN_TYPES ) {
+        $args{out} =
+          join( "-", $args{type}, $args{ltype}, $args{stype} ) . ".bmp";
+
+      } else {
+        $args{out} = join( "-", $args{type}, $args{ltype} ) . ".bmp";
+      }
+    } elsif ( $args{type} eq 'complex' ) {
 
       #
       #
@@ -405,6 +426,10 @@ sub img {
     }
   }
 
+  if ( $args{sphere} ) {
+    return $img->scale( scalefactor => .5 );
+  }
+
   return $img;
 }
 
@@ -551,6 +576,8 @@ sub white {
 
   spamConsole(%args) if !$QUIET;
 
+  my $stars = $args{stars};
+
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
     $grid->[$x] = [];
 
@@ -562,7 +589,9 @@ sub white {
 
       my $randAmp = rand($ampVal);
 
-      $randAmp *= -1 if rand(1) >= .5;
+      if ( !$stars ) {
+        $randAmp *= -1 if rand(1) >= .5;
+      }
 
       $grid->[$x]->[$y] = $randAmp + $biasVal;
     }
@@ -577,13 +606,15 @@ sub stars {
 
   print "Generating stars...\n" if !$QUIET;
 
-  $args{bias} = .5;
-  $args{amp}  = .5;
-  $args{gap}  = .995;
+  $args{bias} = 0;
+  $args{amp} ||= .5;
+  $args{gap} ||= .995;
 
-  my $grid = wavelet(%args);
+  my $grid = white( %args, stars => 1 );
 
-  return smooth( $grid, %args );
+  %args = defaultArgs(%args);
+
+  return $args{smooth} ? smooth( $grid, %args ) : $grid;
 }
 
 sub gel {
@@ -605,7 +636,7 @@ sub offset {
   my $grid = shift;
   my %args = @_;
 
-  print "Applying fractal XY displacement...\n" if !$QUIET;
+  print "Applying self-displacement...\n" if !$QUIET;
 
   my $out = [];
 
@@ -895,6 +926,45 @@ sub refract {
   return $out;
 }
 
+sub lsmooth {
+  my $grid = shift;
+  my %args = @_;
+
+  my $len = scalar( @{$grid} );
+
+  my $smooth = [];
+
+  my $dirs  = 6;
+  my $angle = rand(360);
+
+  my $dirAngle = 360 / $dirs;
+  my $angle360 = 360 + $angle;
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    $smooth->[$x] = [];
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      $smooth->[$x]->[$y] += $grid->[$x]->[$y] / $dirs;
+
+      for ( my $a = $angle ; $a < $angle360 ; $a += $dirAngle ) {
+        my $rad = 6;
+
+        for ( my $d = 1 ; $d <= $rad ; $d++ ) {    # distance
+          my ( $tx, $ty ) = translate( $x, $y, $a, $d );
+          $tx = $tx % $len;
+          $ty = $ty % $len;
+
+          # print "$x, $y: $tx, $ty\n";
+
+          $smooth->[$x]->[$y] += $grid->[$tx]->[$ty] * (1-($d/$rad));
+        }
+      }
+    }
+  }
+
+  return $smooth;
+}
+
 sub smooth {
   my $grid = shift;
   my %args = @_;
@@ -1104,6 +1174,10 @@ sub wavelet {
 
   print "Generating wavelet noise...\n" if !$QUIET;
 
+  $args{amp} = .5 if !defined $args{amp};
+  $args{len} ||= $defaultLen;
+  $args{freq} = $args{len} if !defined $args{freq};
+
   %args = defaultArgs(%args);
 
   my $source = white( %args, len => $args{freq} );
@@ -1117,7 +1191,8 @@ sub wavelet {
   for ( my $x = 0 ; $x < $args{freq} ; $x++ ) {
     $out->[$x] = [];
     for ( my $y = 0 ; $y < $args{freq} ; $y++ ) {
-      $out->[$x]->[$y] = $source->[$x]->[$y] - $up->[$x]->[$y];
+      $out->[$x]->[$y] =
+        ( $args{bias} * $maxColor ) + $source->[$x]->[$y] - $up->[$x]->[$y];
     }
     printRow( $out->[$x] );
   }
@@ -1647,7 +1722,7 @@ sub spheremap {
     }
   }
 
-  return shrink( $out, %args, len => $len / 2 );
+  return $out;
 }
 
 sub cartCoords {
@@ -1974,8 +2049,8 @@ sub tesla {
 sub fur {
   my %args = @_;
 
-  $args{octaves} = 4 if !defined $args{octaves};
-  $args{freq}    = 8 if !defined $args{octaves};
+  # $args{octaves} = 4 if !defined $args{octaves};
+  $args{freq} = 2 if !defined $args{freq};
 
   my $perlin = perlin( %args, amp => 1, bias => 0 );
   my $grid = grid(%args);
@@ -2113,7 +2188,7 @@ sub tile {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      my $thisX = $x - ( $len / 2 ) % $len;
+      my $thisX = $x - ( $len / 4 ) % $len;
       my $thisY = $y - ( $len / 2 ) % $len;
 
       my $blend = 1;
@@ -2215,8 +2290,6 @@ sub translate {
   return $x, $y;
 }
 
-# inspired by mathmap
-# http://www.complang.tuwien.ac.at/schani/mathmap/stills.html
 sub moire {
   my %args = @_;
 
@@ -2251,6 +2324,63 @@ sub moire {
 
 sub textile {
   return smooth( moire( @_, freq => ( ( 1024 + rand(1024) ) * 2 ) + 1 ), @_ );
+}
+
+sub sparkle {
+  my %args = @_;
+
+  $args{len} ||= $defaultLen;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  my $stars = stars(%args);
+  $stars = lsmooth( $stars, %args);
+
+  my $stars0 = stars(%args, amp => .25);
+
+  %args = defaultArgs(%args);
+
+  my $clouds = sgel( %args, freq => 8, bias => 0, amp => .025, stars => 1 );
+
+  my $shadow = emboss($clouds,%args);
+  my $dust = sgel( %args, freq => 16, amp => .5, stars => 1 );
+  $dust = densemap($dust);
+
+  my $out = grid(%args);
+
+  my $len  = $args{len};
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $cv = $clouds->[$x]->[$y] + $stars0->[$x]->[$y];
+      my $dv = $dust->[$x]->[$y] + $shadow->[$x]->[$y];
+      my $fv = lerp( 0, $cv, $dv/$maxColor );
+      my $sv = $stars->[$x]->[$y];
+
+      $out->[$x]->[$y] = $sv + $fv;
+    }
+  }
+
+  return glow($out, %args);
+}
+
+sub delta {
+  my %args = defaultArgs(@_);
+
+  my $generator = __generator( $args{ltype} );
+
+  my $p1 = &$generator(%args);
+  my $p2 = &$generator(%args);
+
+  my $len  = $args{len};
+  my $grid = grid(%args);
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      $grid->[$x]->[$y] = abs( $p1->[$x]->[$y] - $p2->[$x]->[$y] );
+    }
+  }
+
+  return $grid;
 }
 
 sub _test {
@@ -2345,11 +2475,9 @@ This document is for version 0.010 of Acme::Noisemaker.
 
   use Acme::Noisemaker qw| :all |;
 
-  make;
+Save some noise to an output file:
 
-A wrapper script, C<make-noise>, is included with this distribution.
-
-  make-noise --help
+  make();
 
 Noise sets are just 2D arrays:
 
@@ -2374,15 +2502,21 @@ L<Imager> can take care of further post-processing.
 
   $img->write(file => "oot.png");
 
+A wrapper script, C<make-noise>, is included with this distribution.
+
+  make-noise --help
+
+  make-noise --help types
+
 =head1 DESCRIPTION
 
 Acme::Noisemaker provides a simple functional interface for generating
-various types of 2D noise.
+2D tiles from various flavors of fractal (and non-fractal) inputs.
 
-As long as the provided side length is a power of the noise's base
-frequency, this module will produce seamless tiles. For example, a base
-frequency of 2 would work fine for an image with a side length of 256
-(256x256).
+As long as the specified side length is a power of the noise's
+frequency, this module will produce seamless tiles (with the exception
+of a few noise types).  For example, a base frequency of 4 would
+work fine for an image with a side length of 256 (256x256).
 
 =head1 FUNCTION
 
@@ -2416,6 +2550,8 @@ this function.
 Returns the resulting dataset, as well as the L<Imager> object which
 was created from it and filename used.
 
+=head2 MAKE ARGS
+
 In addition to any argument appropriate to the type of noise being
 generated, C<make> accepts the following args in hash key form:
 
@@ -2431,7 +2567,11 @@ The type of noise to generate, defaults to Perlin. Specify any type.
 
 Generate a pseudo-spheremap from the resulting noise.
 
-This feature is a work in progress.
+When specifying C<sphere>, the output image will be 50% of the
+C<len> you asked for. This is done to avoid aliasing. Multiply the
+supplied C<len> argument by 2 to work around this.
+
+See C<spheremap>.
 
   make(sphere => 1);
 
@@ -2456,14 +2596,14 @@ This feature is a work in progress.
 input table is oriented horizontally or vertically). This is the
 default. Best for seamless tiling.
 
-1: Vertical lookup, good for generating maps which have ice caps
-at the poles and tropical looking colors at the equator. Output
-will have color seams at the poles unless viewed on a spheroid.
+1: Vertical lookup, good for generating maps which have ice caps at
+the poles and tropical looking colors at the equator. Output will
+have color seams at the poles unless viewed on a spheroid. This
+lookup method produces output which resembles a reflection map, if
+a photograph is used for the C<clut>.
 
 2: Fractal lookup, uses the same methodology as C<refract>. Also
 good for seamless tiling.
-
-This feature is a work in progress.
 
   make(clut => $filename, clutdir => 1);
 
@@ -2502,7 +2642,7 @@ Render lightmap only
 
 =head2 SIMPLE NOISE
 
-Simple noise types are generated from a single noise source.
+Simple noise types may be specified as Perlin slice types (C<stype>)
 
 =over 4
 
@@ -2512,7 +2652,7 @@ Each non-smoothed pixel contains a pseudo-random value
 
 =item * wavelet(%args)
 
-Basis function for sharper Perlin slices, invented by Pixar
+Basis function for sharper Perlin slices
 
 =item * square(%args)
 
@@ -2520,11 +2660,11 @@ Diamond-Square
 
 =item * gel(%args)
 
-Low-frequency smooth white noise with XY offset; see GEL TYPES
+Self-displaced white noise; see GEL TYPES
 
 =item * sgel(%args)
 
-Diamond-Square noise with XY offset; see GEL TYPES
+Self-displaced Diamond-Square noise; see GEL TYPES
 
 =item * diffusion(%args)
 
@@ -2535,8 +2675,7 @@ Lengths greater than 256 may not complete within your lifetime.
 
 =item * mandel(%args)
 
-Fractal type - Mandelbrot fractal set. Not currently very useful,
-this is a work in progress.
+Fractal type - Mandelbrot. Included as a demo.
 
 =item * dmandel(%args)
 
@@ -2562,7 +2701,7 @@ IFS type - Sierpinski's triangle/gasket. Included as a demo.
 
 =item * stars(%args)
 
-White noise generated with extreme gappiness
+White noise generated with extreme gappiness and smoothed
 
 =item * spirals(%args)
 
@@ -2570,15 +2709,17 @@ Tiny logarithmic spirals
 
 =item * voronoi(%args)
 
-Ridged Voronoi cells
+Ridged Voronoi cells.
   
 =item * moire(%args)
 
-Square interference patterns
+Interference pattern with blended image seams.
+
+Appearance of output is heavily influenced by the C<freq> arg.
 
 =item * textile(%args)
 
-Moire noise with a randomized high frequency
+Moire noise with a randomized and large C<freq> arg.
 
 =item * infile(%args)
 
@@ -2596,6 +2737,10 @@ Calls C<infile>, and makes a seamless repeating tile from the image.
   my $grid = intile(
     in => "dirt.bmp"
   );
+
+=item * sparkle
+
+Stylized starfield
 
 =back
 
@@ -2690,13 +2835,13 @@ Unsmoothed Perlin
 
 =item * pgel(%args)
 
-Perlin noise with an XY offset; see GEL TYPES
+Self-displaced Perlin noise; see GEL TYPES
 
   make(type => 'pgel', stype => ...);
 
 =item * rgel(%args)
 
-Ridged multifractal noise with an XY offset; see GEL TYPES
+Self-displaced ridged multifractal; see GEL TYPES
 
   make(type => 'rgel', stype => ...);
 
@@ -2806,8 +2951,8 @@ except for C<complex> may be used.
 
 =head2 GEL TYPES
 
-The simple and Perlin "gel" types - C<gel>, C<sgel>, C<pgel> and
-C<rgel>, accept the following additional arguments:
+The simple and Perlin "gel" types (C<gel>, C<sgel>, C<pgel> and
+C<rgel>) accept the following additional arguments:
 
 =over 4
 
@@ -2910,8 +3055,9 @@ See MAKE ARGS
 
 =item * offset($grid,%args)
 
-Return a new grid containing XY offset values from the original,
-by a factor of the received C<offset> argument.
+Use the received grid as its own displacement map; returns a new grid.
+
+The amount of displacement is controlled by the C<offset> arg.
 
 See GEL TYPES
 
@@ -2923,7 +3069,8 @@ L<Imager>, L<Math::Trig>
 
 Acme::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
 
-Uses adapted pseudocode from:
+Noisemaker borrows inspiration and/or pseudocode from these notable
+sources.
 
   - http://freespace.virgin.net/hugo.elias/models/m_perlin.htm
     Perlin
@@ -2932,7 +3079,16 @@ Uses adapted pseudocode from:
     Diamond-Square
 
   - http://graphics.pixar.com/library/WaveletNoise/paper.pdf
-    Wavelet
+    Wavelet (Pixar)
+
+  - http://spanky.triumf.ca/www/fractint/diffusion.html
+    Diffusion (Fractint)
+
+  - http://www.complang.tuwien.ac.at/schani/mathmap/stills.html
+    Moire (MathMap)
+
+  - http://libnoise.sourceforge.net/
+    Libnoise is pro
 
 =head1 AUTHOR
 
