@@ -11,12 +11,12 @@ use Math::Trig qw| :radial deg2rad |;
 use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
-  white wavelet square gel sgel stars spirals voronoi diffusion flame
+  white wavelet square gel sgel stars spirals voronoi dla flame
   mandel dmandel buddha fern gasket infile intile moire textile sparkle
   |;
 
 our @PERLIN_TYPES = qw|
-  perlin ridged block pgel rgel fur tesla delta
+  perlin ridged block pgel fur tesla delta chiral
   |;
 
 our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex | );
@@ -66,7 +66,7 @@ sub showTypes {
   print "  * flame           ## IFS flame\n";
   print "  * fern            ## IFS fern (demo)\n";
   print "  * gasket          ## IFS gasket (demo)\n";
-  print "  * diffusion       ## diffusion fractal\n";
+  print "  * dla             ## diffusion-limited aggregation\n";
   print "  * stars           ## starfield\n";
   print "  * spirals         ## tiny logspirals\n";
   print "  * voronoi         ## ridged voronoi cells\n";
@@ -80,10 +80,10 @@ sub showTypes {
   print "  ! ridged          ## ridged multifractal\n";
   print "  ! block           ## unsmoothed multi-res\n";
   print "  ! pgel            ## self-displaced multi-res\n";
-  print "  ! rgel            ## self-displaced ridged\n";
   print "  ! fur             ## based on \"Perlin Worms\"\n";
   print "  ! tesla           ## worms/fur variant\n";
   print " !! delta           ## difference noise\n";
+  print " !! chiral          ## joined noise\n";
   print "!!! complex         ## multi-layer multi-res\n";
   print "\n";
   print "Legend:";
@@ -215,7 +215,7 @@ sub make {
   }
 
   if ( !$args{out} ) {
-    if ( $args{type} eq 'delta' ) {
+    if ( $args{type} =~ /delta|chiral/ ) {
       if ( grep { $_ eq $args{ltype} } @PERLIN_TYPES ) {
         $args{out} =
           join( "-", $args{type}, $args{ltype}, $args{stype} ) . ".bmp";
@@ -304,6 +304,8 @@ sub defaultArgs {
   $args{freq}    ||= 8;
   $args{len}     ||= $defaultLen;
   $args{octaves} ||= 6;
+
+  $args{amp}     = .5 if !defined $args{amp};
 
   return %args;
 }
@@ -888,16 +890,6 @@ sub ridged {
   $args{amp}  ||= 1;
 
   return perlin(%args);
-}
-
-sub rgel {
-  my %args = @_;
-
-  print "Generating ridged multifractal gel noise...\n" if !$QUIET;
-
-  $args{ridged} = 1;
-
-  return pgel(%args);
 }
 
 sub refract {
@@ -1935,7 +1927,7 @@ sub spirals {
   return grow( $grid, %args );
 }
 
-sub diffusion {
+sub dla {
   my %args = @_;
 
   $args{bias} ||= .5;
@@ -1949,7 +1941,7 @@ sub diffusion {
 
   my $len = $args{freq};
 
-  my $grid = grid( %args, bias => 0, len => $len );
+  my $grid = stars( %args, bias => 0, len => $len, gap => .99975 );
 
   my @points;
 
@@ -1959,7 +1951,7 @@ sub diffusion {
   my $startX = rand($len);
   my $startY = rand($len);
 
-  $grid->[$startX]->[$startY]++;
+  # $grid->[$startX]->[$startY]++;
 
   for ( my $i = 0 ; $i < $branches ; $i++ ) {
     push @points, [ rand($len), rand($len) ];
@@ -2192,7 +2184,7 @@ sub tile {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      my $thisX = $x - ( $len / 4 ) % $len;
+      my $thisX = $args{square} ? $x : $x - ( $len / 4 ) % $len;
       my $thisY = $y - ( $len / 2 ) % $len;
 
       my $blend = 1;
@@ -2327,7 +2319,14 @@ sub moire {
 }
 
 sub textile {
-  return smooth( moire( @_, freq => ( ( 1024 + rand(1024) ) * 2 ) + 1 ), @_ );
+  my %args = defaultArgs(@_);
+
+  my $grid = moire( %args,
+    freq => ( ( 1024 + rand(1024) ) * 2 ) + 1,
+    square => 1,
+  );
+
+  return smooth( $grid, %args );
 }
 
 sub sparkle {
@@ -2381,6 +2380,33 @@ sub delta {
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       $grid->[$x]->[$y] = abs( $p1->[$x]->[$y] - $p2->[$x]->[$y] );
+    }
+  }
+
+  return $grid;
+}
+
+sub chiral {
+  my %args = defaultArgs(@_);
+
+  my $generator = __generator( $args{ltype} );
+
+  my $p1 = &$generator(%args);
+  my $p2 = &$generator(%args);
+
+  my $len  = $args{len};
+  my $grid = grid(%args);
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $c1 = $p1->[$x]->[$y];
+      my $c2 = $p1->[$x]->[$y];
+
+      if ( $c1 > $c2 ) {
+        $grid->[$x]->[$y] = $c1;
+      } else {
+        $grid->[$x]->[$y] = $c2;
+      }
     }
   }
 
@@ -2670,12 +2696,9 @@ Self-displaced white noise; see GEL TYPES
 
 Self-displaced Diamond-Square noise; see GEL TYPES
 
-=item * diffusion(%args)
+=item * dla(%args)
 
-Diffusion noise, recipe inspired by Fractint's fractal type of the
-same name. Has a branched and biomimetic look.
-
-Lengths greater than 256 may not complete within your lifetime.
+Diffusion-limited aggregation, seeded from multiple random points.
 
 =item * mandel(%args)
 
@@ -2843,12 +2866,6 @@ Self-displaced Perlin noise; see GEL TYPES
 
   make(type => 'pgel', stype => ...);
 
-=item * rgel(%args)
-
-Self-displaced ridged multifractal; see GEL TYPES
-
-  make(type => 'rgel', stype => ...);
-
 =item * fur(%args)
 
 Fur-lin noise; traced paths of worms with Perlin input.
@@ -2955,8 +2972,8 @@ except for C<complex> may be used.
 
 =head2 GEL TYPES
 
-The simple and Perlin "gel" types (C<gel>, C<sgel>, C<pgel> and
-C<rgel>) accept the following additional arguments:
+The simple and Perlin "gel" types (C<gel>, C<sgel>, C<pgel>)
+accept the following additional arguments:
 
 =over 4
 
@@ -3084,9 +3101,6 @@ sources.
 
   - http://graphics.pixar.com/library/WaveletNoise/paper.pdf
     Wavelet (Pixar)
-
-  - http://spanky.triumf.ca/www/fractint/diffusion.html
-    Diffusion (Fractint)
 
   - http://www.complang.tuwien.ac.at/schani/mathmap/stills.html
     Moire (MathMap)
