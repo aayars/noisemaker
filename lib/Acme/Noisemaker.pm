@@ -2872,8 +2872,34 @@ Fur-lin noise; traced paths of worms with Perlin input.
 
 =item * tesla(%args)
 
-Long, clumpy threads. Paths use Perlin input plus another random
-offset.
+Long, fiberous worm paths with random skew.
+
+=item * delta(%args)
+
+Difference noise; output contains absolute values of subtracting
+two noise sets.
+
+  make( type => "delta" );
+
+Use C<ltype> to specify any simple or perlin layer type.
+
+  make(
+    type => "delta",
+    ltype => "gel"
+  );
+
+=item * chiral(%args)
+
+Twin noise; output contains the lightest values of two noise sets.
+
+  make( type => "chiral" );
+
+Use C<ltype> to specify any simple or perlin layer type.
+
+  make(
+    type => "chiral",
+    ltype => "tesla"
+  );
 
 =back
 

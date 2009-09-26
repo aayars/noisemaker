@@ -1,6 +1,7 @@
 .010
   - Added fur, dmandel, diffusion, flame, infile, intile,
-    spiral, voronoi, moire, textile types
+    spiral, voronoi, moire, textile, delta, chiral types
+  - Removed rgel, it was too close to pgel
   - Even more futzing with spheremaps, poles conform better now
   - Smoothed input for gel noise
   - Code cleanup
