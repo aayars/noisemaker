@@ -3140,6 +3140,9 @@ sources.
   - http://libnoise.sourceforge.net/
     Libnoise is pro
 
+  - http://flam3.com/flame.pdf
+    Fractal Flame
+
 =head1 AUTHOR
 
   Alex Ayars <pause@nodekit.org>
