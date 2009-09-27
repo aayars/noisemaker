@@ -1,4 +1,4 @@
-package Acme::Noisemaker;
+package Fractal::Noisemaker;
 
 our $VERSION = '0.010';
 
@@ -23,12 +23,12 @@ our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex | );
 
 our @EXPORT_OK = (
   qw|
-    make img smooth offset clamp noise lerp coslerp spheremap
+    make img smooth displace clamp noise lerp coslerp spheremap
     |, @NOISE_TYPES
 );
 
 our %EXPORT_TAGS = (
-  'flavors' => [ ( qw| make spheremap img smooth offset |, @NOISE_TYPES ) ],
+  'flavors' => [ ( qw| make spheremap img smooth displace |, @NOISE_TYPES ) ],
 
   'all' => \@EXPORT_OK,
 );
@@ -93,7 +93,7 @@ sub showTypes {
   print " !! control basis funcs via 'ltype' and 'stype'\n";
   print "!!! control basis funcs via 'lbase', 'ltype' and 'stype'\n";
   print "\n";
-  print "perldoc Acme::Noisemaker for more help.\n";
+  print "perldoc Fractal::Noisemaker for more help.\n";
   print "\n";
 }
 
@@ -118,7 +118,7 @@ sub usage {
   print "  [-smooth <0|1>] \\           ## anti-aliasing off/on\n";
   print "  [-sphere <0|1>] \\           ## make fake spheremap\n";
   print "  [-refract <0|1>] \\          ## refractive noise\n";
-  print "  [-offset <num>] \\           ## fractal pixel offset (eg .25)\n";
+  print "  [-displace <num>] \\         ## self-displacement (eg .25)\n";
   print "  [-clut <filename>] \\        ## color table (ex.bmp)\n";
   print "  [-clutdir 0|1|2] \\          ## displace hyp|vert|fract\n";
   print "  [-limit 0|1] \\              ## scale|clip pixel values\n";
@@ -134,7 +134,7 @@ sub usage {
   print "\n";
   print "  $0 --help types\n";
   print "\n";
-  print "perldoc Acme::Noisemaker for more help.\n";
+  print "perldoc Fractal::Noisemaker for more help.\n";
   print "\n";
 
   my $warning = shift;
@@ -172,7 +172,7 @@ sub make {
     elsif ( $arg =~ /out/ )       { $args{out}     = shift; }
     elsif ( $arg =~ /sphere/ )    { $args{sphere}  = shift; }
     elsif ( $arg =~ /refract/ )   { $args{refract} = shift; }
-    elsif ( $arg =~ /offset/ )    { $args{offset}  = shift; }
+    elsif ( $arg =~ /displace/ )  { $args{displace} = shift; }
     elsif ( $arg =~ /clut$/ )     { $args{clut}    = shift; }
     elsif ( $arg =~ /clutdir$/ )  { $args{clutdir} = shift; }
     elsif ( $arg =~ /limit/ )     { $args{auto}    = shift() ? 0 : 1; }
@@ -200,7 +200,7 @@ sub make {
     )
   {
     $args{freq}   ||= 2;
-    $args{offset} ||= .125;
+    $args{displace} ||= .125;
   } elsif (
     ( $args{type} eq 'complex' )
     && ( ( $args{lbase} eq 'gel' )
@@ -209,7 +209,7 @@ sub make {
     )
   {
     $args{freq}   ||= 4;
-    $args{offset} ||= .5;
+    $args{displace} ||= .5;
   } else {
     $args{octaves} ||= 8;
   }
@@ -260,7 +260,7 @@ sub make {
 
       do {
         no strict 'refs';
-        $sub = \&{"Acme::Noisemaker::$type"};
+        $sub = \&{"Fractal::Noisemaker::$type"};
       };
 
       $grid = &$sub(%args);
@@ -580,12 +580,18 @@ sub white {
 
   my $stars = $args{stars};
 
+  my $offX = rand($freq);
+  my $offY = rand($freq);
+
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    $grid->[$x] = [];
+    my $thisX = ( $x + $offX ) % $freq;
+    $grid->[$thisX] = [];
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
+      my $thisY = ( $y + $offY ) % $freq;
+
       if ( rand() < $gap ) {
-        $grid->[$x]->[$y] = 0;
+        $grid->[$thisX]->[$thisY] = 0;
         next;
       }
 
@@ -595,9 +601,9 @@ sub white {
         $randAmp *= -1 if rand(1) >= .5;
       }
 
-      $grid->[$x]->[$y] = $randAmp + $biasVal;
+      $grid->[$thisX]->[$thisY] = $randAmp + $biasVal;
     }
-    printRow( $grid->[$x] );
+    printRow( $grid->[$thisX] );
   }
 
   return grow( $grid, %args );
@@ -624,17 +630,17 @@ sub gel {
 
   print "Generating gel noise...\n" if !$QUIET;
 
-  $args{offset} = 4 if !defined $args{offset};
+  $args{displace} = 4 if !defined $args{displace};
   $args{freq}   = 8 if !defined $args{freq};
 
   %args = defaultArgs(%args);
 
   my $grid = wavelet(%args);
 
-  return offset( $grid, %args );
+  return displace( $grid, %args );
 }
 
-sub offset {
+sub displace {
   my $grid = shift;
   my %args = @_;
 
@@ -643,12 +649,12 @@ sub offset {
   my $out = [];
 
   my $length = $args{len};
-  my $offset = $args{offset};
+  my $displace = $args{displace};
 
-  $offset = .5 if !defined $offset;
+  $displace = .5 if !defined $displace;
 
-  $offset =
-    ( $offset / 1 ) * ( $length / $defaultLen )
+  $displace =
+    ( $displace / 1 ) * ( $length / $defaultLen )
     ;    # Same visual offset for diff size imgs
 
   $grid = smooth( $grid, %args );
@@ -657,11 +663,11 @@ sub offset {
     $out->[$x] = [];
 
     for ( my $y = 0 ; $y < $length ; $y++ ) {
-      my $offsetX = noise( $grid, $x,           $y ) * $offset;
-      my $offsetY = noise( $grid, $length - $x, $length - $y ) * $offset;
+      my $displaceX = noise( $grid, $x,           $y ) * $displace;
+      my $displaceY = noise( $grid, $length - $x, $length - $y ) * $displace;
 
       $out->[$x]->[$y] =
-        noise( $grid, int( $x + $offsetX ), int( $y + $offsetY ) );
+        noise( $grid, int( $x + $displaceX ), int( $y + $displaceY ) );
     }
   }
 
@@ -801,7 +807,7 @@ sub perlin {
       if ( $args{stype} eq $type ) {
         do {
           no strict 'refs';
-          $generator = \&{"Acme::Noisemaker::$type"};
+          $generator = \&{"Fractal::Noisemaker::$type"};
         };
       }
     }
@@ -1099,7 +1105,7 @@ sub __generator {
     if ( $type eq $ltype ) {
       do {
         no strict 'refs';
-        $generator = \&{"Acme::Noisemaker::$type"};
+        $generator = \&{"Fractal::Noisemaker::$type"};
       };
     }
   }
@@ -2495,15 +2501,15 @@ __END__
 
 =head1 NAME
 
-Acme::Noisemaker - Visual noise generator
+Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.010 of Acme::Noisemaker.
+This document is for version 0.010 of Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
-  use Acme::Noisemaker qw| :all |;
+  use Fractal::Noisemaker qw| :all |;
 
 Save some noise to an output file:
 
@@ -2511,7 +2517,7 @@ Save some noise to an output file:
 
 Noise sets are just 2D arrays:
 
-  use Acme::Noisemaker qw| :flavors |;
+  use Fractal::Noisemaker qw| :flavors |;
 
   my $grid = square(%args);
 
@@ -2540,7 +2546,7 @@ A wrapper script, C<make-noise>, is included with this distribution.
 
 =head1 DESCRIPTION
 
-Acme::Noisemaker provides a simple functional interface for generating
+Fractal::Noisemaker provides a simple functional interface for generating
 2D tiles from various flavors of fractal (and non-fractal) inputs.
 
 As long as the specified side length is a power of the noise's
@@ -3044,7 +3050,7 @@ Returns the same "random" value each time it is called with the same
 arguments (makes it more like a key hashing function a la memcached
 doesn't it? Not very random, if you ask me).
 
-Acme::Noisemaker diverges from most Perlin implementations in that its
+Fractal::Noisemaker diverges from most Perlin implementations in that its
 noise function simply utilizes a lookup table. The lookup table
 contains pre-populated random values. Turns out, this works fine.
 
@@ -3114,7 +3120,7 @@ See GEL TYPES
 
 L<Imager>, L<Math::Trig>
 
-Acme::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
+Fractal::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
 
 Noisemaker borrows inspiration and/or pseudocode from these notable
 sources.
@@ -3140,7 +3146,7 @@ sources.
 
 =head1 COPYRIGHT
 
-  File: Acme/Noisemaker.pm
+  File: Fractal/Noisemaker.pm
  
   Copyright (c) 2009 Alex Ayars
  

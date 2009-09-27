@@ -3,7 +3,7 @@ use warnings;
 
 use Test::More qw| no_plan |;
 
-use_ok("Acme::Noisemaker");
+use_ok("Fractal::Noisemaker");
 
 my %args = (
   len => 64,
@@ -12,76 +12,7 @@ my %args = (
 );
 
 ### Test all simple
-for my $type ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-  ok(Acme::Noisemaker::make(type => $type, %args));
-}
-
-__END__
-#######
-####### This gets a little out of control, need to find a better way
-#######
-
-### Test all perlin + simple
-for my $type ( @Acme::Noisemaker::PERLIN_TYPES ) {
-  for my $stype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-    ok(Acme::Noisemaker::make(type => $type, stype => $stype, %args));
-  }
-}
-
-### Test all complex simple + simple
-for my $lbase ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-  for my $ltype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-    ok(Acme::Noisemaker::make(
-      type => 'complex',
-      lbase => $lbase,
-      ltype => $ltype,
-      %args
-    ));
-  }
-}
-
-### Test all complex simple + perlin + simple
-for my $lbase ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-  for my $ltype ( @Acme::Noisemaker::PERLIN_TYPES ) {
-    for my $stype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-      ok(Acme::Noisemaker::make(
-        type => 'complex',
-        lbase => $lbase,
-        ltype => $ltype,
-        stype => $stype,
-        %args
-      ));
-    }
-  }
-}
-
-### Test all complex perlin + perlin + simple
-for my $lbase ( @Acme::Noisemaker::PERLIN_TYPES ) {
-  for my $ltype ( @Acme::Noisemaker::PERLIN_TYPES ) {
-    for my $stype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-      ok(Acme::Noisemaker::make(
-        type => 'complex',
-        lbase => $lbase,
-        ltype => $ltype,
-        stype => $stype,
-        %args
-      ));
-    }
-  }
-}
-
-### Test all complex perlin + simple + simple
-for my $lbase ( @Acme::Noisemaker::PERLIN_TYPES ) {
-  for my $ltype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-    for my $stype ( @Acme::Noisemaker::SIMPLE_TYPES ) {
-      ok(Acme::Noisemaker::make(
-        type => 'complex',
-        lbase => $lbase,
-        ltype => $ltype,
-        stype => $stype,
-        %args
-      ));
-    }
-  }
+for my $type ( @Fractal::Noisemaker::NOISE_TYPES ) {
+  ok(Fractal::Noisemaker::make(type => $type, %args));
 }
 

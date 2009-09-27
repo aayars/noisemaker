@@ -7,9 +7,9 @@ my $prereqs = {
 };
 
 WriteMakefile(
-  ABSTRACT_FROM => 'lib/Acme/Noisemaker.pm',
-  VERSION_FROM  => 'lib/Acme/Noisemaker.pm',
-  NAME          => 'Acme::Noisemaker',
+  ABSTRACT_FROM => 'lib/Fractal/Noisemaker.pm',
+  VERSION_FROM  => 'lib/Fractal/Noisemaker.pm',
+  NAME          => 'Fractal::Noisemaker',
   PREREQ_PM     => $prereqs,
   LICENSE       => 'open_source',
   AUTHOR        => 'Alex Ayars <pause@nodekit.org>',

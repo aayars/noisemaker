@@ -3,7 +3,7 @@ Changes
 cpl1.0.txt
 ex/make-samples
 INSTALL
-lib/Acme/Noisemaker.pm
+lib/Fractal/Noisemaker.pm
 Makefile.PL
 MANIFEST
 README

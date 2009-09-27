@@ -6,6 +6,6 @@ This is old sandbox code written before I discovered the glory of
 libnoise. It still has entertainment and educational value for me,
 so I've tidied it up a bit and am releasing it to CPAN.
 
-See lib/Acme/Noisemaker.pm for perldoc.
+See lib/Fractal/Noisemaker.pm for perldoc.
 
 --aayars
