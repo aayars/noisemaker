@@ -13,4 +13,5 @@ WriteMakefile(
   PREREQ_PM     => $prereqs,
   LICENSE       => 'open_source',
   AUTHOR        => 'Alex Ayars <pause@nodekit.org>',
+  EXE_FILES     => ['bin/make-noise'],
 );

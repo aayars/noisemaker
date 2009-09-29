@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use Imager;
-use Math::Trig qw| :radial deg2rad |;
+use Math::Trig qw| :radial deg2rad tan |;
 
 use base qw| Exporter |;
 
@@ -44,6 +44,8 @@ our $maxColor = 255;
 our $defaultRho = 1;
 
 our $QUIET;
+
+use constant Pi => 22/7;
 
 sub showVersion {
   print "Noisemaker $VERSION\n";
@@ -127,6 +129,7 @@ sub usage {
   print "  [-in <filename>] \\          ## input filename for infile\n";
   print "  [-shadow <0..1>] \\          ## shadow amount\n";
   print "  [-emboss <0|1>] \\           ## emboss output\n";
+  print "  [-zshift <-1..1>] \\         ## final z offset for ridged\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  [-out <filename>]           ## Output file (foo.bmp)\n";
   print "\n";
@@ -181,6 +184,7 @@ sub make {
     elsif ( $arg =~ /shadow/ )    { $args{shadow}  = shift; }
     elsif ( $arg =~ /emboss/ )    { $args{emboss}  = shift; }
     elsif ( $arg =~ /(^|-)in$/ )  { $args{in}      = shift; }
+    elsif ( $arg =~ /zshift/ )    { $args{zshift}  = shift; }
     elsif ( $arg =~ /quiet/ )     { $QUIET         = shift; }
     else                          { usage("Unknown argument: $arg") }
   }
@@ -331,15 +335,10 @@ sub img {
   ###
   my ( $min, $max, $range );
 
-  if ( $args{auto} || $args{type} eq 'ridged' ) {
+  if ( $args{auto} ) {
     for ( my $x = 0 ; $x < $length ; $x++ ) {
       for ( my $y = 0 ; $y < $length ; $y++ ) {
         my $gray = $grid->[$x]->[$y];
-
-        if ( $args{type} eq 'ridged' && $gray < 0 ) {
-          $gray = abs($gray);
-          $grid->[$x]->[$y] = $gray;
-        }
 
         $min = $gray if !defined $min;
         $max = $gray if !defined $max;
@@ -410,18 +409,16 @@ sub img {
         my $color = $img->getpixel( x => $x, y => $y );
         my ( $r, $g, $b ) = $color->rgba;
 
-        my $light = clamp( $embossed->[$x]->[$y] );
+        my $amt = ( 1 - ( $embossed->[$x]->[$y] / $maxColor ) ) * $shadow;
 
-        my $amt = ( 1 - ( $light / $maxColor ) ) * $shadow;
+        $r = coslerp( $r, 0, $amt );
+        $g = coslerp( $g, 0, $amt );
+        $b = coslerp( $b, 0, $amt );
 
         $img->setpixel(
           x     => $x,
           y     => $y,
-          color => [
-            coslerp( $r, 0, $amt ),
-            coslerp( $g, 0, $amt ),
-            coslerp( $b, 0, $amt ),
-          ]
+          color => [ $r, $g, $b ]
         );
       }
       printRow( $embossed->[$x] );
@@ -773,7 +770,7 @@ sub sgel {
 
   my $grid = square(%args);
 
-  return offset( $grid, %args );
+  return displace( $grid, %args );
 }
 
 sub perlin {
@@ -829,7 +826,19 @@ sub perlin {
     $freq *= 2;
   }
 
+  #
+  # Restore orig values
+  #
+  $amp = $args{amp};
+  $freq = $args{freq};
+
   my $combined = [];
+
+  my $zshift;
+  if ( $args{ridged} ) {
+    $args{zshift} = $amp if !defined $args{zshift};
+    $zshift = $args{zshift}*$maxColor;
+  }
 
   for ( my $x = 0 ; $x < $length ; $x++ ) {
     $combined->[$x] = [];
@@ -851,7 +860,7 @@ sub perlin {
       }
 
       if ( $args{ridged} ) {
-        $combined->[$x]->[$y] = $maxColor - ( $t / $n );
+        $combined->[$x]->[$y] = ($zshift) - ( $t / $n );
       } else {
         $combined->[$x]->[$y] = $t / $n;
       }
@@ -883,7 +892,7 @@ sub pgel {
 
   %args = defaultArgs(%args);
 
-  return offset( $grid, %args );
+  return displace( $grid, %args );
 }
 
 sub ridged {
@@ -891,11 +900,10 @@ sub ridged {
 
   print "Generating ridged multifractal noise...\n" if !$QUIET;
 
-  $args{ridged} = 1;
-  $args{bias} ||= 0;
-  $args{amp}  ||= 1;
+  $args{bias} = 0 if !defined $args{bias};
+  $args{amp}  = 1 if !defined $args{amp};
 
-  return perlin(%args);
+  return perlin(%args, ridged => 1);
 }
 
 sub refract {
@@ -1120,15 +1128,9 @@ sub __generator {
 sub clamp {
   my $val    = shift;
   my $max    = shift || $maxColor;
-  my $ridged = shift;
 
-  if ($ridged) {
-    $val = abs($val) if $val < 0;
-    $val = $max      if $val > $max;
-  } else {
-    $val = 0    if $val < 0;
-    $val = $max if $val > $max;
-  }
+  $val = 0    if $val < 0;
+  $val = $max if $val > $max;
 
   return $val;
 }
@@ -1161,7 +1163,7 @@ sub coslerp {
   my $b = shift;
   my $x = shift;
 
-  my $ft = ( $x * 3.145927 );
+  my $ft = ( $x * Pi );
   my $f  = ( 1 - cos($ft) ) * .5;
 
   return ( $a * ( 1 - $f ) + $b * $f );
@@ -1251,8 +1253,56 @@ sub gasket {
   return grow( $grid, %args );
 }
 
+#
+# Set up IFS flame functions once
+#
+my @flameFns;
+
+do {
+  push @flameFns, sub { return @_ }; # linear
+  push @flameFns, sub { # sinu
+    my ( $x, $y ) = @_;
+    return sin( $x ) * 3, sin( $y ) * 3
+  };
+  push @flameFns, sub { # sphere
+    my ( $x, $y ) = @_;
+    my $n = 1 / ( ( $x * $x ) + ( $y + $y ) );
+    return $x * $n, $y * $n;
+  };
+  push @flameFns, sub { # swirl
+    my ( $x, $y ) = @_;
+    my $rsqrd = ( ( $x * $x ) + ( $y + $y ) );
+    return (
+      ( $x * sin($rsqrd) ) - ( $y * cos($rsqrd) ),
+      ( $x * cos($rsqrd) ) + ( $y * sin($rsqrd) )
+    );
+  };
+  push @flameFns, sub { # horseshoe
+    my ( $x, $y ) = @_;
+    my $r = sqrt( ($x*$x)+($y*$y) );
+    my $rf = 1/($r*$r);
+    return (
+      $rf * ($x - $y) * ($x + $y),
+      $rf * 2 * $x * $y
+    );
+  };
+  push @flameFns, sub { # popcorn
+    my ( $x, $y, $c, $f ) = @_;
+    return (
+      $x + ( $c * sin(tan(3 * $y)) ),
+      $y + ( $f * sin(tan(3 * $x)) ),
+    );
+  };
+};
+
 sub flame {
   my %args = @_;
+
+  my @fns;
+
+  for ( my $i = 0; $i < @flameFns*2; $i++ ) {
+    push @fns, $flameFns[rand(@flameFns)];
+  }
 
   print "Generating fractal flame!\n" if !$QUIET;
 
@@ -1269,59 +1319,56 @@ sub flame {
 
   my $steps = $freq * $freq * 100;
 
-  my $x = 0;
-  my $y = 0;
-
-  my $scale = $args{zoom} || 1;
-
-  my $fn0 = sub { return @_ };                                    # linear
-  my $fn1 = sub { return sin( $_[0] ) * 3, sin( $_[1] ) * 3 };    # sinu
-  my $fn2 = sub {                                                 #sphere
-    my ( $x, $y ) = @_;
-    my $n = 1 / ( ( $x * $x ) + ( $y + $y ) );
-    return $x * $n, $y * $n;
-  };
-  my $fn3 = sub {                                                 #swirl
-    my ( $x, $y ) = @_;
-    my $rsqrd = ( ( $x * $x ) + ( $y + $y ) );
-
-    return (
-      ( $x * sin($rsqrd) ) - ( $y * cos($rsqrd) ),
-      ( $x * cos($rsqrd) ) + ( $y * sin($rsqrd) )
-    );
-  };
-
-  my $aa = rand(.5) + .5;
-  my $bb = rand(.5) + .5;
+  my $A = rand(.5) + .5;
+  my $B = rand(.5) + .5;
   my $c  = rand(.5) + .5;
   my $d  = rand(.5) + .5;
   my $e  = rand(.5) + .5;
   my $f  = rand(.5) + .5;
 
+  # my $A = 1;
+  # my $B = .95;
+  # my $c  = 1;
+  # my $d  = .95;
+  # my $e  = 1;
+  # my $f  = .95;
+
+  my $scale = $args{zoom} || 1;
+
+  my $x = 0;
+  my $y = 0;
+
+  my $semifreq = $freq/2;
+
+  my $finalX = rand($freq);
+  my $finalY = rand($freq);
+  # my $postX = rand(10);
+  # my $postY = rand(10);
+  my $postX = rand($freq);
+  my $postY = rand($freq);
+
   for ( my $n = 0 ; $n < $steps ; $n++ ) {
     do {
-      my $gx = ( ( $x * ( $freq / 6 ) ) + ( $freq / 2 ) ) % $freq;
-      my $gy = ( ( $y * ( $freq / 6 ) ) + ( $freq / 2 ) ) % $freq;
+      my $gx = ( ( $x * $freq ) + $finalX ) % $freq;
+      my $gy = ( ( $y * $freq ) + $finalY ) % $freq;
 
-      $grid->[$gx]->[$gy] ||= 0;
-      $grid->[$gx]->[$gy]++;
+      if ( $n >= 20 ) {
+        $grid->[$gx]->[$gy] ||= 0;
+        $grid->[$gx]->[$gy]++;
+      }
     };
 
-    my $rand = rand();
+    my $i = rand(@fns);
 
-    if ( $rand <= 1 / 32 ) {
-      ( $x, $y ) = &$fn0( ( $aa * $x ) + ( $bb * $y ) + $c,
-        ( $d * $y ) + ( $e * $y ) + $f );
-    } elsif ( $rand <= 2 / 16 ) {
-      ( $x, $y ) = &$fn1( ( $aa * $x ) + ( $bb * $y ) + $c,
-        ( $d * $y ) + ( $e * $y ) + $f );
-    } elsif ( $rand <= 3 / 8 ) {
-      ( $x, $y ) = &$fn2( ( $aa * $x ) + ( $bb * $y ) + $c,
-        ( $d * $y ) + ( $e * $y ) + $f );
-    } elsif ( $rand <= 4 / 4 ) {
-      ( $x, $y ) = &$fn3( ( $aa * $x ) + ( $bb * $y ) + $c,
-        ( $d * $y ) + ( $e * $y ) + $f );
-    }
+    do {
+      my $fn = $fns[$i];
+
+      my $thisX = ( $A * $x ) + ( $B * $y ) + $c;
+      my $thisY = ( $d * $y ) + ( $e * $y ) + $f;
+
+      ( $x, $y ) = &$fn( $thisX, $thisY, $c, $f );
+    };
+
   }
 
   $grid = densemap($grid);
@@ -2129,7 +2176,7 @@ sub emboss {
 
   my $lightmap = [];
 
-  my $angle = 15 - rand(30);
+  my $angle = rand(360);
 
   for ( my $x = 0 ; $x < $len ; $x += 1 ) {
     $lightmap->[$x] = [];
@@ -2137,7 +2184,7 @@ sub emboss {
     for ( my $y = 0 ; $y < $len ; $y += 1 ) {
       my $value;
 
-      my ( $neighborX, $neighborY ) = translate( $x, $y, $angle, 1 );
+      my ( $neighborX, $neighborY ) = translate( $x, $y, $angle, 1.5 );
 
       my $neighbor = noise( $grid, $neighborX, $neighborY );
 
@@ -2305,15 +2352,13 @@ sub moire {
 
   my $grid = grid( %args, len => $len );
 
-  my $pi = 22 / 7;
-
   # Magic number is magic
   my $scale = ( .842 * ( $len / $freq ) ) / 4;
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       $grid->[$x]->[$y] =
-        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * $pi ) * $args{bias};
+        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * Pi ) * $args{bias};
     }
   }
 
@@ -2852,13 +2897,13 @@ The default slice type is smoothed C<wavelet> noise.
 
 Perlin
 
-  make(type => 'perlin', stype => 'wavelet');
+  make(type => 'perlin', stype => '...');
 
 =item * ridged(%args)
 
-Ridged multifractal
+Ridged multifractal - provide C<zshift> arg to specify a post-processing bias.
 
-  make(type => 'ridged', stype => 'wavelet');
+  make(type => 'ridged', stype => '...', zshift => .5 );
 
 =item * block(%args)
 
@@ -3106,11 +3151,11 @@ enhance the "fractal" appearance of noise.
 
 See MAKE ARGS
 
-=item * offset($grid,%args)
+=item * displace($grid,%args)
 
 Use the received grid as its own displacement map; returns a new grid.
 
-The amount of displacement is controlled by the C<offset> arg.
+The amount of displacement is controlled by the C<displace> arg.
 
 See GEL TYPES
 
