@@ -1,6 +1,6 @@
 package Fractal::Noisemaker;
 
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use strict;
 use warnings;
@@ -16,10 +16,10 @@ our @SIMPLE_TYPES = qw|
   |;
 
 our @PERLIN_TYPES = qw|
-  perlin ridged block pgel fur tesla delta chiral
+  perlin ridged block pgel fur tesla
   |;
 
-our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex | );
+our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex delta chiral | );
 
 our @EXPORT_OK = (
   qw|
@@ -2550,7 +2550,7 @@ Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.010 of Fractal::Noisemaker.
+This document is for version 0.011 of Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -2772,7 +2772,7 @@ IFS type - "Fractal Flame". Work in progress. Neat.
 =item * fern(%args)
 
 IFS type - Barnsley's fern. Included as a demo.
-  
+
 =item * gasket(%args)
 
 IFS type - Sierpinski's triangle/gasket. Included as a demo.
@@ -2788,7 +2788,7 @@ Tiny logarithmic spirals
 =item * voronoi(%args)
 
 Ridged Voronoi cells.
-  
+
 =item * moire(%args)
 
 Interference pattern with blended image seams.
@@ -2986,7 +2986,9 @@ specified.
 
 =item * complex
 
-B<Complex layered noise>
+Complex layered noise
+
+  make(type => "complex");
 
 Complex noise is a homebrew noise recipe inspired by (but not using)
 I<libnoise>.
@@ -3187,6 +3189,8 @@ sources.
 
   - http://flam3.com/flame.pdf
     Fractal Flame
+
+... and a host of others.
 
 =head1 AUTHOR
 

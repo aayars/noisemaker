@@ -1,3 +1,6 @@
+.011
+  - Fixes for ridged, shadow, displace
+
 .010
   - Added fur, dmandel, diffusion, flame, infile, intile,
     spiral, voronoi, moire, textile, delta, chiral types
