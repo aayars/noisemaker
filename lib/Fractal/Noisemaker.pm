@@ -1,6 +1,6 @@
 package Fractal::Noisemaker;
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 use strict;
 use warnings;
@@ -11,7 +11,7 @@ use Math::Trig qw| :radial deg2rad tan |;
 use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
-  white wavelet square gel sgel stars spirals voronoi dla flame
+  white wavelet square gel sgel stars spirals voronoi dla fflame
   mandel dmandel buddha fern gasket infile intile moire textile sparkle
   |;
 
@@ -19,7 +19,11 @@ our @PERLIN_TYPES = qw|
   perlin ridged block pgel fur tesla
   |;
 
-our @NOISE_TYPES = ( @SIMPLE_TYPES, @PERLIN_TYPES, qw| complex delta chiral | );
+our @NOISE_TYPES = (
+  @SIMPLE_TYPES, @PERLIN_TYPES, qw|
+    complex delta chiral stereo
+    |
+);
 
 our @EXPORT_OK = (
   qw|
@@ -45,7 +49,7 @@ our $defaultRho = 1;
 
 our $QUIET;
 
-use constant Pi => 22/7;
+use constant Pi => 22 / 7;
 
 sub showVersion {
   print "Noisemaker $VERSION\n";
@@ -62,10 +66,10 @@ sub showTypes {
   print "  * square          ## diamond-square algorithm\n";
   print "  * gel             ## self-displaced smooth\n";
   print "  * sgel            ## self-displaced diamond-square\n";
-  print "  * mandel          ## Mandelbrot\n";
+  print "  * mandel          ## Mandelbrot (demo)\n";
   print "  * dmandel         ## \"deep\" mandel\n";
   print "  * buddha          ## buddhabrot\n";
-  print "  * flame           ## IFS flame\n";
+  print "  * fflame          ## IFS fractal flame\n";
   print "  * fern            ## IFS fern (demo)\n";
   print "  * gasket          ## IFS gasket (demo)\n";
   print "  * dla             ## diffusion-limited aggregation\n";
@@ -84,16 +88,19 @@ sub showTypes {
   print "  ! pgel            ## self-displaced multi-res\n";
   print "  ! fur             ## based on \"Perlin Worms\"\n";
   print "  ! tesla           ## worms/fur variant\n";
+  print "\n";
   print " !! delta           ## difference noise\n";
   print " !! chiral          ## joined noise\n";
+  print " !! stereo          ## stereoscopic depthmap\n";
+  print "\n";
   print "!!! complex         ## multi-layer multi-res\n";
   print "\n";
   print "Legend:";
   print "\n";
   print "  * simple type: may be used as a Perlin slice type (stype)\n";
   print "  ! control basis func via 'stype'\n";
-  print " !! control basis funcs via 'ltype' and 'stype'\n";
-  print "!!! control basis funcs via 'lbase', 'ltype' and 'stype'\n";
+  print " !! control basis funcs via 'ltype' and/or 'stype'\n";
+  print "!!! control basis funcs via 'lbase', 'ltype' and/or 'stype'\n";
   print "\n";
   print "perldoc Fractal::Noisemaker for more help.\n";
   print "\n";
@@ -159,33 +166,33 @@ sub make {
       }
     }
 
-    if    ( $arg =~ /(^|-)type/ ) { $args{type}    = shift; }
-    elsif ( $arg =~ /stype/ )     { $args{stype}   = shift; }
-    elsif ( $arg =~ /lbase/ )     { $args{lbase}   = shift; }
-    elsif ( $arg =~ /ltype/ )     { $args{ltype}   = shift; }
-    elsif ( $arg =~ /amp/ )       { $args{amp}     = shift; }
-    elsif ( $arg =~ /freq/ )      { $args{freq}    = shift; }
-    elsif ( $arg =~ /len/ )       { $args{len}     = shift; }
-    elsif ( $arg =~ /octaves/ )   { $args{octaves} = shift; }
-    elsif ( $arg =~ /bias/ )      { $args{bias}    = shift; }
-    elsif ( $arg =~ /gap/ )       { $args{gap}     = shift; }
-    elsif ( $arg =~ /feather/ )   { $args{feather} = shift; }
-    elsif ( $arg =~ /layers/ )    { $args{layers}  = shift; }
-    elsif ( $arg =~ /smooth/ )    { $args{smooth}  = shift; }
-    elsif ( $arg =~ /out/ )       { $args{out}     = shift; }
-    elsif ( $arg =~ /sphere/ )    { $args{sphere}  = shift; }
-    elsif ( $arg =~ /refract/ )   { $args{refract} = shift; }
+    if    ( $arg =~ /(^|-)type/ ) { $args{type}     = shift; }
+    elsif ( $arg =~ /stype/ )     { $args{stype}    = shift; }
+    elsif ( $arg =~ /lbase/ )     { $args{lbase}    = shift; }
+    elsif ( $arg =~ /ltype/ )     { $args{ltype}    = shift; }
+    elsif ( $arg =~ /amp/ )       { $args{amp}      = shift; }
+    elsif ( $arg =~ /freq/ )      { $args{freq}     = shift; }
+    elsif ( $arg =~ /len/ )       { $args{len}      = shift; }
+    elsif ( $arg =~ /octaves/ )   { $args{octaves}  = shift; }
+    elsif ( $arg =~ /bias/ )      { $args{bias}     = shift; }
+    elsif ( $arg =~ /gap/ )       { $args{gap}      = shift; }
+    elsif ( $arg =~ /feather/ )   { $args{feather}  = shift; }
+    elsif ( $arg =~ /layers/ )    { $args{layers}   = shift; }
+    elsif ( $arg =~ /smooth/ )    { $args{smooth}   = shift; }
+    elsif ( $arg =~ /out/ )       { $args{out}      = shift; }
+    elsif ( $arg =~ /sphere/ )    { $args{sphere}   = shift; }
+    elsif ( $arg =~ /refract/ )   { $args{refract}  = shift; }
     elsif ( $arg =~ /displace/ )  { $args{displace} = shift; }
-    elsif ( $arg =~ /clut$/ )     { $args{clut}    = shift; }
-    elsif ( $arg =~ /clutdir$/ )  { $args{clutdir} = shift; }
-    elsif ( $arg =~ /limit/ )     { $args{auto}    = shift() ? 0 : 1; }
-    elsif ( $arg =~ /zoom/ )      { $args{zoom}    = shift; }
-    elsif ( $arg =~ /maxiter/ )   { $args{maxiter} = shift; }
-    elsif ( $arg =~ /shadow/ )    { $args{shadow}  = shift; }
-    elsif ( $arg =~ /emboss/ )    { $args{emboss}  = shift; }
-    elsif ( $arg =~ /(^|-)in$/ )  { $args{in}      = shift; }
-    elsif ( $arg =~ /zshift/ )    { $args{zshift}  = shift; }
-    elsif ( $arg =~ /quiet/ )     { $QUIET         = shift; }
+    elsif ( $arg =~ /clut$/ )     { $args{clut}     = shift; }
+    elsif ( $arg =~ /clutdir$/ )  { $args{clutdir}  = shift; }
+    elsif ( $arg =~ /limit/ )     { $args{auto}     = shift() ? 0 : 1; }
+    elsif ( $arg =~ /zoom/ )      { $args{zoom}     = shift; }
+    elsif ( $arg =~ /maxiter/ )   { $args{maxiter}  = shift; }
+    elsif ( $arg =~ /shadow/ )    { $args{shadow}   = shift; }
+    elsif ( $arg =~ /emboss/ )    { $args{emboss}   = shift; }
+    elsif ( $arg =~ /(^|-)in$/ )  { $args{in}       = shift; }
+    elsif ( $arg =~ /zshift/ )    { $args{zshift}   = shift; }
+    elsif ( $arg =~ /quiet/ )     { $QUIET          = shift; }
     else                          { usage("Unknown argument: $arg") }
   }
 
@@ -196,6 +203,10 @@ sub make {
   $args{lbase} ||= $defaultLayerBase;
   $args{ltype} ||= $defaultLayerType;
 
+  if ( $args{shadow} && $args{emboss} ) {
+    delete $args{shadow};
+  }
+
   if (
     ( $args{type} eq 'complex' )
     && ( ( $args{lbase} =~ /[prs]gel/ )
@@ -203,7 +214,7 @@ sub make {
       || $args{stype} =~ /[prs]gel/ )
     )
   {
-    $args{freq}   ||= 2;
+    $args{freq}     ||= 2;
     $args{displace} ||= .125;
   } elsif (
     ( $args{type} eq 'complex' )
@@ -212,14 +223,14 @@ sub make {
       || $args{stype} eq 'gel' )
     )
   {
-    $args{freq}   ||= 4;
+    $args{freq}     ||= 4;
     $args{displace} ||= .5;
   } else {
     $args{octaves} ||= 8;
   }
 
   if ( !$args{out} ) {
-    if ( $args{type} =~ /delta|chiral/ ) {
+    if ( $args{type} =~ /delta|chiral|stereo/ ) {
       if ( grep { $_ eq $args{ltype} } @PERLIN_TYPES ) {
         $args{out} =
           join( "-", $args{type}, $args{ltype}, $args{stype} ) . ".bmp";
@@ -309,7 +320,7 @@ sub defaultArgs {
   $args{len}     ||= $defaultLen;
   $args{octaves} ||= 6;
 
-  $args{amp}     = .5 if !defined $args{amp};
+  $args{amp} = .5 if !defined $args{amp};
 
   return %args;
 }
@@ -628,7 +639,7 @@ sub gel {
   print "Generating gel noise...\n" if !$QUIET;
 
   $args{displace} = 4 if !defined $args{displace};
-  $args{freq}   = 8 if !defined $args{freq};
+  $args{freq}     = 8 if !defined $args{freq};
 
   %args = defaultArgs(%args);
 
@@ -645,7 +656,7 @@ sub displace {
 
   my $out = [];
 
-  my $length = $args{len};
+  my $length   = $args{len};
   my $displace = $args{displace};
 
   $displace = .5 if !defined $displace;
@@ -829,7 +840,7 @@ sub perlin {
   #
   # Restore orig values
   #
-  $amp = $args{amp};
+  $amp  = $args{amp};
   $freq = $args{freq};
 
   my $combined = [];
@@ -837,7 +848,7 @@ sub perlin {
   my $zshift;
   if ( $args{ridged} ) {
     $args{zshift} = $amp if !defined $args{zshift};
-    $zshift = $args{zshift}*$maxColor;
+    $zshift = $args{zshift} * $maxColor;
   }
 
   for ( my $x = 0 ; $x < $length ; $x++ ) {
@@ -903,7 +914,7 @@ sub ridged {
   $args{bias} = 0 if !defined $args{bias};
   $args{amp}  = 1 if !defined $args{amp};
 
-  return perlin(%args, ridged => 1);
+  return perlin( %args, ridged => 1 );
 }
 
 sub refract {
@@ -962,7 +973,7 @@ sub lsmooth {
 
           # print "$x, $y: $tx, $ty\n";
 
-          $smooth->[$x]->[$y] += $grid->[$tx]->[$ty] * (1-($d/$rad));
+          $smooth->[$x]->[$y] += $grid->[$tx]->[$ty] * ( 1 - ( $d / $rad ) );
         }
       }
     }
@@ -1126,8 +1137,8 @@ sub __generator {
 }
 
 sub clamp {
-  my $val    = shift;
-  my $max    = shift || $maxColor;
+  my $val = shift;
+  my $max = shift || $maxColor;
 
   $val = 0    if $val < 0;
   $val = $max if $val > $max;
@@ -1259,17 +1270,17 @@ sub gasket {
 my @flameFns;
 
 do {
-  push @flameFns, sub { return @_ }; # linear
-  push @flameFns, sub { # sinu
+  push @flameFns, sub { return @_ };    # linear
+  push @flameFns, sub {                 # sinu
     my ( $x, $y ) = @_;
-    return sin( $x ) * 3, sin( $y ) * 3
+    return sin($x) * 3, sin($y) * 3;
   };
-  push @flameFns, sub { # sphere
+  push @flameFns, sub {                 # sphere
     my ( $x, $y ) = @_;
     my $n = 1 / ( ( $x * $x ) + ( $y + $y ) );
     return $x * $n, $y * $n;
   };
-  push @flameFns, sub { # swirl
+  push @flameFns, sub {                 # swirl
     my ( $x, $y ) = @_;
     my $rsqrd = ( ( $x * $x ) + ( $y + $y ) );
     return (
@@ -1277,31 +1288,28 @@ do {
       ( $x * cos($rsqrd) ) + ( $y * sin($rsqrd) )
     );
   };
-  push @flameFns, sub { # horseshoe
+  push @flameFns, sub {                 # horseshoe
     my ( $x, $y ) = @_;
-    my $r = sqrt( ($x*$x)+($y*$y) );
-    my $rf = 1/($r*$r);
-    return (
-      $rf * ($x - $y) * ($x + $y),
-      $rf * 2 * $x * $y
-    );
+    my $r = sqrt( ( $x * $x ) + ( $y * $y ) );
+    my $rf = 1 / ( $r * $r );
+    return ( $rf * ( $x - $y ) * ( $x + $y ), $rf * 2 * $x * $y );
   };
-  push @flameFns, sub { # popcorn
+  push @flameFns, sub {                 # popcorn
     my ( $x, $y, $c, $f ) = @_;
     return (
-      $x + ( $c * sin(tan(3 * $y)) ),
-      $y + ( $f * sin(tan(3 * $x)) ),
+      $x + ( $c * sin( tan( 3 * $y ) ) ),
+      $y + ( $f * sin( tan( 3 * $x ) ) ),
     );
   };
 };
 
-sub flame {
+sub fflame {
   my %args = @_;
 
   my @fns;
 
-  for ( my $i = 0; $i < @flameFns*2; $i++ ) {
-    push @fns, $flameFns[rand(@flameFns)];
+  for ( my $i = 0 ; $i < @flameFns * 2 ; $i++ ) {
+    push @fns, $flameFns[ rand(@flameFns) ];
   }
 
   print "Generating fractal flame!\n" if !$QUIET;
@@ -1319,12 +1327,12 @@ sub flame {
 
   my $steps = $freq * $freq * 100;
 
-  my $A = rand(.5) + .5;
-  my $B = rand(.5) + .5;
-  my $c  = rand(.5) + .5;
-  my $d  = rand(.5) + .5;
-  my $e  = rand(.5) + .5;
-  my $f  = rand(.5) + .5;
+  my $A = rand(.125) + .25;
+  my $B = rand(.125) + .25;
+  my $c = rand(.125) + .25;
+  my $d = rand(.125) + .25;
+  my $e = rand(.125) + .25;
+  my $f = rand(.125) + .25;
 
   # my $A = 1;
   # my $B = .95;
@@ -1338,10 +1346,11 @@ sub flame {
   my $x = 0;
   my $y = 0;
 
-  my $semifreq = $freq/2;
+  my $semifreq = $freq / 2;
 
   my $finalX = rand($freq);
   my $finalY = rand($freq);
+
   # my $postX = rand(10);
   # my $postY = rand(10);
   my $postX = rand($freq);
@@ -1994,7 +2003,7 @@ sub dla {
 
   my $len = $args{freq};
 
-  my $grid = stars( %args, bias => 0, len => $len, gap => .99975 );
+  my $grid = stars( %args, bias => 0, len => $len, gap => .99995 );
 
   my @points;
 
@@ -2372,7 +2381,8 @@ sub moire {
 sub textile {
   my %args = defaultArgs(@_);
 
-  my $grid = moire( %args,
+  my $grid = moire(
+    %args,
     freq => ( ( 1024 + rand(1024) ) * 2 ) + 1,
     square => 1,
   );
@@ -2387,34 +2397,34 @@ sub sparkle {
   $args{freq} = $args{len} if !defined $args{freq};
 
   my $stars = stars(%args);
-  $stars = lsmooth( $stars, %args);
+  $stars = lsmooth( $stars, %args );
 
-  my $stars0 = stars(%args, amp => .25);
+  my $stars0 = stars( %args, amp => .25 );
 
   %args = defaultArgs(%args);
 
   my $clouds = sgel( %args, freq => 8, bias => 0, amp => .025, stars => 1 );
 
-  my $shadow = emboss($clouds,%args);
+  my $shadow = emboss( $clouds, %args );
   my $dust = sgel( %args, freq => 16, amp => .5, stars => 1 );
   $dust = densemap($dust);
 
   my $out = grid(%args);
 
-  my $len  = $args{len};
+  my $len = $args{len};
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $cv = $clouds->[$x]->[$y] + $stars0->[$x]->[$y];
       my $dv = $dust->[$x]->[$y] + $shadow->[$x]->[$y];
-      my $fv = lerp( 0, $cv, $dv/$maxColor );
+      my $fv = lerp( 0, $cv, $dv / $maxColor );
       my $sv = $stars->[$x]->[$y];
 
       $out->[$x]->[$y] = $sv + $fv;
     }
   }
 
-  return glow($out, %args);
+  return glow( $out, %args );
 }
 
 sub delta {
@@ -2462,6 +2472,32 @@ sub chiral {
   }
 
   return $grid;
+}
+
+sub stereo {
+  my %args = defaultArgs(@_);
+
+  my $len = $args{len};
+
+  my $sqrt = sqrt($len);
+
+  my $generator = __generator( $args{ltype} );
+  my $left      = &$generator(%args);
+  my $map       = densemap( $left, %args );
+  my $out       = grid(%args);
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    $out->[ $x / 2 ] ||= [];
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $offset = ( $map->[$x]->[$y] / $maxColor ) * 16;
+
+      $out->[ $x / 2 ]->[$y] += noise( $left, $x - $offset, $y ) / 2;
+      $out->[ ( $x + $len ) / 2 ]->[$y] += noise( $left, $x + $offset, $y ) / 2;
+    }
+  }
+
+  return glow( $out, %args );
 }
 
 sub _test {
@@ -2550,17 +2586,45 @@ Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.011 of Fractal::Noisemaker.
+This document is for version 0.012 of Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
   use Fractal::Noisemaker qw| :all |;
 
-Save some noise to an output file:
-
+  #
+  # use defaults
+  #
   make();
 
-Noise sets are just 2D arrays:
+  #
+  # override defaults
+  #
+  make(type => 'gel',
+    # ...
+  );
+
+A wrapper script, C<make-noise>, is included with this distribution.
+
+  #
+  # use defaults
+  #
+  make-noise
+
+  #
+  # override defaults
+  #
+  make-noise -type gel
+
+  #
+  # usage
+  #
+  make-noise --help
+
+  make-noise --help types
+
+Noise sets are just 2D arrays, which may be generated directly using
+named functions.
 
   use Fractal::Noisemaker qw| :flavors |;
 
@@ -2582,12 +2646,6 @@ L<Imager> can take care of further post-processing.
   #
 
   $img->write(file => "oot.png");
-
-A wrapper script, C<make-noise>, is included with this distribution.
-
-  make-noise --help
-
-  make-noise --help types
 
 =head1 DESCRIPTION
 
@@ -2765,7 +2823,7 @@ flies off into infinity), zooms in a bit, and embellishes the palette.
 
 Fractal type - "Buddhabrot" Mandelbrot variant. Work in progress.
 
-=item * flame(%args)
+=item * fflame(%args)
 
 IFS type - "Fractal Flame". Work in progress. Neat.
 
@@ -2951,6 +3009,12 @@ Use C<ltype> to specify any simple or perlin layer type.
     type => "chiral",
     ltype => "tesla"
   );
+
+=item * stereo(%args)
+
+Stereoscopic depth map.
+
+Use C<ltype> to specify any simple or perlin layer type.
 
 =back
 
