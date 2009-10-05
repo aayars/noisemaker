@@ -3,6 +3,6 @@
 use strict;
 use warnings;
 
-use Fractal::Noisemaker;
+use Math::Fractal::Noisemaker;
 
-Fractal::Noisemaker::make(@ARGV);
+Math::Fractal::Noisemaker::make(@ARGV);
