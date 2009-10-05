@@ -2,6 +2,9 @@
   - Rename flame to fflame, tweaked function
   - Tidied code+docs, update SYNOPSIS
   - Add stereo map (thx jhewitt)
+  - mandel + dmandel output is now supersampled
+  - Tweaked dmandel interestingness criteria
+  - Rename to Math::Fractal::Noisemaker
 
 .011
   - Fixes for ridged, shadow, displace

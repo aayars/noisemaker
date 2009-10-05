@@ -1334,13 +1334,6 @@ sub fflame {
   my $e = rand(.125) + .25;
   my $f = rand(.125) + .25;
 
-  # my $A = 1;
-  # my $B = .95;
-  # my $c  = 1;
-  # my $d  = .95;
-  # my $e  = 1;
-  # my $f  = .95;
-
   my $scale = $args{zoom} || 1;
 
   my $x = 0;
@@ -1358,8 +1351,8 @@ sub fflame {
 
   for ( my $n = 0 ; $n < $steps ; $n++ ) {
     do {
-      my $gx = ( ( $x * $freq ) + $finalX ) % $freq;
-      my $gy = ( ( $y * $freq ) + $finalY ) % $freq;
+      my $gx = ( ( $x * $scale * $freq ) + $finalX ) % $freq;
+      my $gy = ( ( $y * $scale * $freq ) + $finalY ) % $freq;
 
       if ( $n >= 20 ) {
         $grid->[$gx]->[$gy] ||= 0;
@@ -1521,6 +1514,8 @@ sub mandel {
 
   my $scale = $args{zoom} || 1;
 
+  $freq *= 2;
+
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     $grid->[$x] = [];
 
@@ -1528,8 +1523,9 @@ sub mandel {
     $cx -= .5;
     $cx /= $scale;
 
-    for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
+    for ( my $y = 0 ; $y < $freq/2 ; $y += 1 ) {
       $grid->[$x]->[$y] ||= 0;
+      $grid->[$x]->[$freq-1-$y] ||= 0;
 
       my $cy = ( $y / $freq ) * 2 - 1;
       $cy /= $scale;
@@ -1545,11 +1541,16 @@ sub mandel {
       }
 
       $grid->[$x]->[$y] = $maxColor - ( ( $n / $iters ) * $maxColor );
+      $grid->[$x]->[$freq-1-$y] = $maxColor - ( ( $n / $iters ) * $maxColor );
     }
     printRow( $grid->[$x] );
   }
 
-  return grow( $grid, %args );
+  $grid = shrink( $grid, %args );
+
+  $grid = grow( $grid, %args );
+
+  return $grid;
 }
 
 sub dmandel {
@@ -1562,35 +1563,30 @@ sub dmandel {
 
   %args = defaultArgs(%args);
 
-  my $grid = [];
-
   my $freq = $args{freq};
-
-  my $iters = $args{maxiter} || $freq * 4;
-
-  my $scale = $args{zoom} || 1;
+  my $iters = $args{maxiter} || $maxColor;
 
   my @interesting;
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     my $cx = ( $x / $freq ) * 2 - 1;
 
-    for ( my $y = 0 ; $y < $freq ; $y += 1 ) {
+    for ( my $y = 0 ; $y < $freq/2 ; $y += 1 ) {
       my $cy = ( $y / $freq ) * 2 - 1;
 
       my $zx = 0;
       my $zy = 0;
       my $n  = 0;
-      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq ) {
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq/2 ) {
         my $new_zx = $zx * $zx - $zy * $zy + $cx;
         $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
       }
 
-      my $pct = ( $n / $freq );
+      my $pct = ( $n / ($freq/2) );
 
-      if ( $pct > .7 && $pct < .9 ) {
+      if ( $pct > .99 && $pct < 1 ) {
         push @interesting, [ $cx, $cy ];
       }
     }
@@ -1598,11 +1594,13 @@ sub dmandel {
 
   my $tuple = $interesting[ rand(@interesting) ];
 
-  $scale = rand(248) + 8;
+  my $scale = $args{zoom} || 1024 + rand(1024);
+
+  $freq *= 2;
+
+  my $grid = grid(%args, freq => $freq);
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
-    $grid->[$x] = [];
-
     my $cx = ( $x / $freq ) * 2 - 1;
     $cx += $tuple->[0] * $scale;
     $cx /= $scale;
@@ -1626,17 +1624,17 @@ sub dmandel {
         $n++;
       }
 
-      my $color = ( ( $n / ( $iters - 1 ) ) * $maxColor );
+      my $color = $maxColor - ( ( $n / ( $iters - 1 ) ) * $maxColor );
 
-      $color = 0 if $color >= $maxColor;
+      # $color = 0 if $color >= $maxColor;
 
-      $grid->[$x]->[$y] += $color;
+      $grid->[$x]->[$y] = $color;
     }
 
     printRow( $grid->[$x] );
   }
 
-  return glow( grow( $grid, %args ) );
+  return shrink($grid,%args);
 }
 
 sub buddha {
@@ -1651,24 +1649,19 @@ sub buddha {
 
   my $freq = $args{freq};
 
-  my $grid = [];
-
-  for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    $grid->[$x] = [];
-
-    for ( my $y = 0 ; $y < $freq ; $y++ ) {
-      $grid->[$x]->[$y] = 0;
-    }
-  }
-
   my $iters = $args{maxiter} || 4096;
 
   my $gap = $args{gap};
 
+  my $grid = grid(%args, len => $freq, bias => 0);
+
+  #
+  # Zooming in just makes buddhabrots disappear
+  #
   my $scale = $args{zoom} || 1;
 
-  for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    for ( my $y = 0 ; $y < $freq ; $y++ ) {
+  for ( my $x = 0 ; $x < $freq; $x++ ) {
+    for ( my $y = 0 ; $y < $freq/2; $y++ ) {
       next if rand() < $gap;
 
       my $cx = ( $x / $freq ) * 2 - 1;
@@ -1704,7 +1697,8 @@ sub buddha {
         my $thisX = ( ( ( $zx + 1 ) / 2 ) * $freq + ( $freq * .25 ) ) % $freq;
         my $thisY = ( ( $zy + 1 ) / 2 ) * $freq % $freq;
 
-        $grid->[$thisY]->[$thisX] += 10;
+        $grid->[$thisY]->[$thisX] += 25;
+        $grid->[$freq-1-$thisY]->[$thisX] += 25;
       }
     }
     printRow( $grid->[$x] );
@@ -2428,12 +2422,14 @@ sub sparkle {
 }
 
 sub delta {
-  my %args = defaultArgs(@_);
+  my %args = @_;
 
   my $generator = __generator( $args{ltype} );
 
   my $p1 = &$generator(%args);
   my $p2 = &$generator(%args);
+
+  %args = defaultArgs(%args);
 
   my $len  = $args{len};
   my $grid = grid(%args);
@@ -2475,14 +2471,17 @@ sub chiral {
 }
 
 sub stereo {
-  my %args = defaultArgs(@_);
+  my %args = @_;
 
-  my $len = $args{len};
+  my $len = $args{len} || $defaultLen;
 
   my $sqrt = sqrt($len);
 
   my $generator = __generator( $args{ltype} );
   my $left      = &$generator(%args);
+
+  %args = defaultArgs(%args);
+
   my $map       = densemap( $left, %args );
   my $out       = grid(%args);
 
@@ -2516,7 +2515,8 @@ sub _test {
   return $grid;
 }
 
-our @chars = ( " ", ".", "-", "+", "=", "/", ">", "X", "#", "@" );
+# our @chars = ( " ", ".", "-", "+", "=", "/", ">", "X", "#", "@" );
+our @chars = ( " ", ".", ".", ":", ":", "-", "-", "+", "+", "=", "=", "#" );
 
 sub printRow {
   return if $QUIET;
@@ -2817,7 +2817,8 @@ Fractal type - Mandelbrot. Included as a demo.
 
 Fractal type - Deep Mandelbrot. Picks a random "interesting" location
 in the set (some point with a value which neither hovers near 0 nor
-flies off into infinity), zooms in a bit, and embellishes the palette.
+flies off into infinity), zooms in a random amount, and embellishes
+the palette.
 
 =item * buddha(%args)
 
@@ -2924,7 +2925,7 @@ Enable/disable noise smoothing. 1 is default/recommended
 
 Used for fractal types only. Magnifaction factor.
 
-  make(type => 'buddha', zoom => 2);
+  make(type => 'mandel', zoom => 2);
 
 =item * maxiter => $int
 
