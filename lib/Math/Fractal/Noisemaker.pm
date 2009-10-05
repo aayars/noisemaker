@@ -1,4 +1,4 @@
-package Fractal::Noisemaker;
+package Math::Fractal::Noisemaker;
 
 our $VERSION = '0.012';
 
@@ -102,7 +102,7 @@ sub showTypes {
   print " !! control basis funcs via 'ltype' and/or 'stype'\n";
   print "!!! control basis funcs via 'lbase', 'ltype' and/or 'stype'\n";
   print "\n";
-  print "perldoc Fractal::Noisemaker for more help.\n";
+  print "perldoc Math::Fractal::Noisemaker for more help.\n";
   print "\n";
 }
 
@@ -144,7 +144,7 @@ sub usage {
   print "\n";
   print "  $0 --help types\n";
   print "\n";
-  print "perldoc Fractal::Noisemaker for more help.\n";
+  print "perldoc Math::Fractal::Noisemaker for more help.\n";
   print "\n";
 
   my $warning = shift;
@@ -275,7 +275,7 @@ sub make {
 
       do {
         no strict 'refs';
-        $sub = \&{"Fractal::Noisemaker::$type"};
+        $sub = \&{"Math::Fractal::Noisemaker::$type"};
       };
 
       $grid = &$sub(%args);
@@ -815,7 +815,7 @@ sub perlin {
       if ( $args{stype} eq $type ) {
         do {
           no strict 'refs';
-          $generator = \&{"Fractal::Noisemaker::$type"};
+          $generator = \&{"Math::Fractal::Noisemaker::$type"};
         };
       }
     }
@@ -1124,7 +1124,7 @@ sub __generator {
     if ( $type eq $ltype ) {
       do {
         no strict 'refs';
-        $generator = \&{"Fractal::Noisemaker::$type"};
+        $generator = \&{"Math::Fractal::Noisemaker::$type"};
       };
     }
   }
@@ -2582,15 +2582,15 @@ __END__
 
 =head1 NAME
 
-Fractal::Noisemaker - Visual noise generator
+Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.012 of Fractal::Noisemaker.
+This document is for version 0.012 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
-  use Fractal::Noisemaker qw| :all |;
+  use Math::Fractal::Noisemaker qw| :all |;
 
   #
   # use defaults
@@ -2626,7 +2626,7 @@ A wrapper script, C<make-noise>, is included with this distribution.
 Noise sets are just 2D arrays, which may be generated directly using
 named functions.
 
-  use Fractal::Noisemaker qw| :flavors |;
+  use Math::Fractal::Noisemaker qw| :flavors |;
 
   my $grid = square(%args);
 
@@ -2649,8 +2649,9 @@ L<Imager> can take care of further post-processing.
 
 =head1 DESCRIPTION
 
-Fractal::Noisemaker provides a simple functional interface for generating
-2D tiles from various flavors of fractal (and non-fractal) inputs.
+Math::Fractal::Noisemaker provides a simple functional interface
+for generating 2D tiles from various flavors of fractal (and
+non-fractal) inputs.
 
 As long as the specified side length is a power of the noise's
 frequency, this module will produce seamless tiles (with the exception
@@ -3162,9 +3163,10 @@ Returns the same "random" value each time it is called with the same
 arguments (makes it more like a key hashing function a la memcached
 doesn't it? Not very random, if you ask me).
 
-Fractal::Noisemaker diverges from most Perlin implementations in that its
-noise function simply utilizes a lookup table. The lookup table
-contains pre-populated random values. Turns out, this works fine.
+Math::Fractal::Noisemaker diverges from most Perlin implementations
+in that its noise function simply utilizes a lookup table. The
+lookup table contains pre-populated random values. Turns out, this
+works fine.
 
 =item * lerp($a, $b, $x)
 
@@ -3232,7 +3234,7 @@ See GEL TYPES
 
 L<Imager>, L<Math::Trig>
 
-Fractal::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
+Math::Fractal::Noisemaker is on GitHub: http://github.com/aayars/noisemaker
 
 Noisemaker borrows inspiration and/or pseudocode from these notable
 sources.
