@@ -5,6 +5,8 @@
   - mandel + dmandel output is now supersampled
   - Tweaked dmandel interestingness criteria
   - Rename to Math::Fractal::Noisemaker
+  - Tweak DLA seeding
+  - Re-wrote ex/make-samples as t/Noisemaker.t; accepts args
 
 .011
   - Fixes for ridged, shadow, displace

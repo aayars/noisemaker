@@ -135,6 +135,8 @@ sub usage {
   print "  [-shadow <0..1>] \\          ## shadow amount\n";
   print "  [-emboss <0|1>] \\           ## emboss output\n";
   print "  [-zshift <-1..1>] \\         ## final z offset for ridged\n";
+  print "  [-format <type>] \\          ## file type (default bmp)\n";
+  print "  [-workdir <dir>] \\          ## output dir (eg \"mynoise/\")\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  [-out <filename>]           ## Output file (foo.bmp)\n";
   print "\n";
@@ -191,6 +193,8 @@ sub make {
     elsif ( $arg =~ /(^|-)in$/ )  { $args{in}       = shift; }
     elsif ( $arg =~ /zshift/ )    { $args{zshift}   = shift; }
     elsif ( $arg =~ /quiet/ )     { $QUIET          = shift; }
+    elsif ( $arg =~ /format/ )    { $args{format}   = shift; }
+    elsif ( $arg =~ /workdir/ )   { $args{workdir}  = shift; }
     else                          { usage("Unknown argument: $arg") }
   }
 
@@ -227,14 +231,22 @@ sub make {
     $args{octaves} ||= 8;
   }
 
+  my $format = $args{format} || "bmp";
+
+  if ( !$Imager::formats{$format} ) {
+    my $formats = join(",", sort keys %Imager::formats);
+
+    usage("Unsupported format: $format (choose: $formats)");
+  }
+
   if ( !$args{out} ) {
     if ( $args{type} =~ /delta|chiral|stereo/ ) {
       if ( grep { $_ eq $args{ltype} } @PERLIN_TYPES ) {
         $args{out} =
-          join( "-", $args{type}, $args{ltype}, $args{stype} ) . ".bmp";
+          join( "-", $args{type}, $args{ltype}, $args{stype} ) . ".$format";
 
       } else {
-        $args{out} = join( "-", $args{type}, $args{ltype} ) . ".bmp";
+        $args{out} = join( "-", $args{type}, $args{ltype} ) . ".$format";
       }
     } elsif ( $args{type} eq 'complex' ) {
 
@@ -245,10 +257,10 @@ sub make {
       {
         $args{out} =
           join( "-", "complex", $args{lbase}, $args{ltype}, $args{stype} )
-          . ".bmp";
+          . ".$format";
       } else {
         $args{out} =
-          join( "-", "complex", $args{lbase}, $args{ltype} ) . ".bmp";
+          join( "-", "complex", $args{lbase}, $args{ltype} ) . ".$format";
       }
     } elsif (
       grep {
@@ -256,10 +268,16 @@ sub make {
       } @PERLIN_TYPES
       )
     {
-      $args{out} = join( "-", $args{type}, $args{stype} ) . ".bmp";
+      $args{out} = join( "-", $args{type}, $args{stype} ) . ".$format";
     } else {
-      $args{out} = "$args{type}.bmp";
+      $args{out} = "$args{type}.$format";
     }
+  }
+
+  if ( $args{workdir} ) {
+    usage("workdir does not exist") if !-e $args{workdir};
+
+    $args{out} = join("/", $args{workdir}, $args{out});
   }
 
   # XXX
@@ -1557,23 +1575,25 @@ sub dmandel {
 
   my @interesting;
 
-  for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
-    my $cx = ( $x / $freq ) * 2 - 1;
+  my $prefreq = 256;
 
-    for ( my $y = 0 ; $y < $freq / 2 ; $y += 1 ) {
-      my $cy = ( $y / $freq ) * 2 - 1;
+  for ( my $x = 0 ; $x < $prefreq ; $x += 1 ) {
+    my $cx = ( $x / $prefreq ) * 2 - 1;
+
+    for ( my $y = 0 ; $y < $prefreq / 2 ; $y += 1 ) {
+      my $cy = ( $y / $prefreq ) * 2 - 1;
 
       my $zx = 0;
       my $zy = 0;
       my $n  = 0;
-      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq / 2 ) {
+      while ( ( $zx * $zx + $zy * $zy < $prefreq ) && $n < $prefreq / 2 ) {
         my $new_zx = $zx * $zx - $zy * $zy + $cx;
         $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
       }
 
-      my $pct = ( $n / ( $freq / 2 ) );
+      my $pct = ( $n / ( $prefreq / 2 ) );
 
       if ( $pct > .99 && $pct < 1 ) {
         push @interesting, [ $cx, $cy ];
@@ -1986,17 +2006,16 @@ sub dla {
 
   my $len = $args{freq};
 
-  my $grid = stars( %args, bias => 0, len => $len, gap => .99995 );
+  my $grid = grid(%args, bias => 0);
+
+  for ( my $i = 0; $i <= sqrt($len); $i++ ) {
+    $grid->[rand($len)]->[rand($len)] = $maxColor;
+  }
 
   my @points;
 
   # my $branches = sqrt($len);
   my $branches = $len * $len / 4;
-
-  my $startX = rand($len);
-  my $startY = rand($len);
-
-  # $grid->[$startX]->[$startY]++;
 
   for ( my $i = 0 ; $i < $branches ; $i++ ) {
     push @points, [ rand($len), rand($len) ];

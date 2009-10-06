@@ -1,18 +1,47 @@
+package Math::Fractal::Noisemaker;
+
+our @NOISE_TYPES;
+
+package main;
+
 use strict;
 use warnings;
 
 use Test::More qw| no_plan |;
 
-use_ok("Fractal::Noisemaker");
+use File::Tempdir;
+
+use vars qw| $tempdir $path $nofs %args |;
+
+BEGIN {
+  $tempdir = File::Tempdir->new;
+
+  $path = $tempdir->name;
+
+  if ( !-d $path ) {
+    $nofs = "Couldn't find usable tempdir for testing";
+  }
+}
+
+use_ok("Math::Fractal::Noisemaker");
 
 my %args = (
-  len => 64,
-  in => "testimage.bmp",
+  len   => 32,
+  in    => "testimage.bmp",
   quiet => 1,
 );
 
-### Test all simple
-for my $type ( @Fractal::Noisemaker::NOISE_TYPES ) {
-  ok(Fractal::Noisemaker::make(type => $type, %args));
+while ( my $arg = shift @ARGV ) {
+  if    ( $arg =~ /workdir/ ) { $args{workdir} = shift @ARGV }
+  elsif ( $arg =~ /format/ )  { $args{format}  = shift @ARGV }
+  elsif ( $arg =~ /len/ )     { $args{len}     = shift @ARGV }
+  elsif ( $arg =~ /quiet/ )   { $args{quiet}   = shift @ARGV }
 }
 
+SKIP: {
+  ### Test all
+  for my $type (@Math::Fractal::Noisemaker::NOISE_TYPES) {
+    skip( $nofs, 1 ) if $nofs;
+    ok( Math::Fractal::Noisemaker::make( type => $type, %args ), $type );
+  }
+}
