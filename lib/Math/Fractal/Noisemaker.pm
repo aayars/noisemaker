@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use Imager;
-use Math::Trig qw| :radial deg2rad tan |;
+use Math::Trig qw| :radial deg2rad tan pi |;
 
 use base qw| Exporter |;
 
@@ -48,8 +48,6 @@ our $maxColor = 255;
 our $defaultRho = 1;
 
 our $QUIET;
-
-use constant Pi => 22 / 7;
 
 sub showVersion {
   print "Noisemaker $VERSION\n";
@@ -526,7 +524,7 @@ sub grid {
 sub infile {
   my %args = defaultArgs(@_);
 
-  my $grid = [];
+  my $grid = grid(%args);
 
   print "Loading image...\n" if !$QUIET;
 
@@ -540,8 +538,6 @@ sub infile {
   my $height = $img->getheight();
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
-    $grid->[$x] = [];
-
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $color = $img->getpixel(
         x => ( $x / ( $len / 1 ) ) * ( $width - 1 ),
@@ -574,7 +570,7 @@ sub white {
 
   %args = defaultArgs(%args);
 
-  my $grid = [];
+  my $grid = grid(%args);
 
   my $freq = $args{freq};
   my $gap  = $args{gap};
@@ -593,7 +589,6 @@ sub white {
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
     my $thisX = ( $x + $offX ) % $freq;
-    $grid->[$thisX] = [];
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
       my $thisY = ( $y + $offY ) % $freq;
@@ -1174,7 +1169,7 @@ sub coslerp {
   my $b = shift;
   my $x = shift;
 
-  my $ft = ( $x * Pi );
+  my $ft = ( $x * pi );
   my $f  = ( 1 - cos($ft) ) * .5;
 
   return ( $a * ( 1 - $f ) + $b * $f );
@@ -1426,11 +1421,9 @@ sub fern {
 
   %args = defaultArgs(%args);
 
-  my $grid = [];
+  my $grid = grid(%args);
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    $grid->[$x] = [];
-
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
       $grid->[$x]->[$y] = 0;
     }
@@ -1506,7 +1499,7 @@ sub mandel {
 
   %args = defaultArgs(%args);
 
-  my $grid = [];
+  my $grid = grid(%args);
 
   my $freq = $args{freq};
 
@@ -1517,16 +1510,11 @@ sub mandel {
   $freq *= 2;
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
-    $grid->[$x] = [];
-
     my $cx = ( $x / $freq ) * 2 - 1;
     $cx -= .5;
     $cx /= $scale;
 
-    for ( my $y = 0 ; $y < $freq/2 ; $y += 1 ) {
-      $grid->[$x]->[$y] ||= 0;
-      $grid->[$x]->[$freq-1-$y] ||= 0;
-
+    for ( my $y = 0 ; $y < $freq / 2 ; $y += 1 ) {
       my $cy = ( $y / $freq ) * 2 - 1;
       $cy /= $scale;
 
@@ -1541,7 +1529,8 @@ sub mandel {
       }
 
       $grid->[$x]->[$y] = $maxColor - ( ( $n / $iters ) * $maxColor );
-      $grid->[$x]->[$freq-1-$y] = $maxColor - ( ( $n / $iters ) * $maxColor );
+      $grid->[$x]->[ $freq - 1 - $y ] =
+        $maxColor - ( ( $n / $iters ) * $maxColor );
     }
     printRow( $grid->[$x] );
   }
@@ -1571,20 +1560,20 @@ sub dmandel {
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     my $cx = ( $x / $freq ) * 2 - 1;
 
-    for ( my $y = 0 ; $y < $freq/2 ; $y += 1 ) {
+    for ( my $y = 0 ; $y < $freq / 2 ; $y += 1 ) {
       my $cy = ( $y / $freq ) * 2 - 1;
 
       my $zx = 0;
       my $zy = 0;
       my $n  = 0;
-      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq/2 ) {
+      while ( ( $zx * $zx + $zy * $zy < $freq ) && $n < $freq / 2 ) {
         my $new_zx = $zx * $zx - $zy * $zy + $cx;
         $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
         $n++;
       }
 
-      my $pct = ( $n / ($freq/2) );
+      my $pct = ( $n / ( $freq / 2 ) );
 
       if ( $pct > .99 && $pct < 1 ) {
         push @interesting, [ $cx, $cy ];
@@ -1598,7 +1587,7 @@ sub dmandel {
 
   $freq *= 2;
 
-  my $grid = grid(%args, freq => $freq);
+  my $grid = grid( %args, freq => $freq );
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     my $cx = ( $x / $freq ) * 2 - 1;
@@ -1634,7 +1623,7 @@ sub dmandel {
     printRow( $grid->[$x] );
   }
 
-  return shrink($grid,%args);
+  return shrink( $grid, %args );
 }
 
 sub buddha {
@@ -1653,15 +1642,15 @@ sub buddha {
 
   my $gap = $args{gap};
 
-  my $grid = grid(%args, len => $freq, bias => 0);
+  my $grid = grid( %args, len => $freq, bias => 0 );
 
   #
   # Zooming in just makes buddhabrots disappear
   #
   my $scale = $args{zoom} || 1;
 
-  for ( my $x = 0 ; $x < $freq; $x++ ) {
-    for ( my $y = 0 ; $y < $freq/2; $y++ ) {
+  for ( my $x = 0 ; $x < $freq ; $x++ ) {
+    for ( my $y = 0 ; $y < $freq / 2 ; $y++ ) {
       next if rand() < $gap;
 
       my $cx = ( $x / $freq ) * 2 - 1;
@@ -1698,7 +1687,7 @@ sub buddha {
         my $thisY = ( ( $zy + 1 ) / 2 ) * $freq % $freq;
 
         $grid->[$thisY]->[$thisX] += 25;
-        $grid->[$freq-1-$thisY]->[$thisX] += 25;
+        $grid->[ $freq - 1 - $thisY ]->[$thisX] += 25;
       }
     }
     printRow( $grid->[$x] );
@@ -2361,7 +2350,7 @@ sub moire {
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       $grid->[$x]->[$y] =
-        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * Pi ) * $args{bias};
+        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * pi ) * $args{bias};
     }
   }
 
@@ -2482,8 +2471,8 @@ sub stereo {
 
   %args = defaultArgs(%args);
 
-  my $map       = densemap( $left, %args );
-  my $out       = grid(%args);
+  my $map = densemap( $left, %args );
+  my $out = grid(%args);
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     $out->[ $x / 2 ] ||= [];
