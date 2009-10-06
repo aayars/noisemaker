@@ -1,3 +1,6 @@
+.013
+  - Added File::Tempdir as a dep in Makefile.PL
+
 .012
   - Rename flame to fflame, tweaked function
   - Tidied code+docs, update SYNOPSIS

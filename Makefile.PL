@@ -2,6 +2,7 @@ use ExtUtils::MakeMaker;
 
 my $prereqs = {
   Imager => 0.67,
+  File::Tempdir => 0.02,
   Math::Trig => 1.2,
   Test::More => 0.86,
 };

@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use strict;
 use warnings;
@@ -2594,7 +2594,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.012 of Math::Fractal::Noisemaker.
+This document is for version 0.013 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
