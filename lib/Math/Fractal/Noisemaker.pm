@@ -1,11 +1,12 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 use strict;
 use warnings;
 
 use Imager;
+use Math::Random::Brownian;
 use Math::Trig qw| :radial deg2rad tan pi |;
 
 use base qw| Exporter |;
@@ -13,6 +14,7 @@ use base qw| Exporter |;
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla fflame
   mandel dmandel buddha fern gasket infile intile moire textile sparkle
+  brownian gaussian
   |;
 
 our @PERLIN_TYPES = qw|
@@ -79,6 +81,8 @@ sub showTypes {
   print "  * infile          ## image file named by 'in' arg\n";
   print "  * intile          ## input file + blends edges\n";
   print "  * sparkle         ## stylized stars\n";
+  print "  * brownian        ## fractional brownian\n";
+  print "  * gaussian        ## fractional gaussian\n";
   print "\n";
   print "  ! perlin          ## multi-resolution\n";
   print "  ! ridged          ## ridged multifractal\n";
@@ -142,7 +146,7 @@ sub usage {
   print "\n";
   print "For a list of available noise types, run:\n";
   print "\n";
-  print "  $0 --help types\n";
+  print "  $0 -help types\n";
   print "\n";
   print "perldoc Math::Fractal::Noisemaker for more help.\n";
   print "\n";
@@ -234,7 +238,7 @@ sub make {
   my $format = $args{format} || "bmp";
 
   if ( !$Imager::formats{$format} ) {
-    my $formats = join(",", sort keys %Imager::formats);
+    my $formats = join( ",", sort keys %Imager::formats );
 
     usage("Unsupported format: $format (choose: $formats)");
   }
@@ -277,7 +281,7 @@ sub make {
   if ( $args{workdir} ) {
     usage("workdir does not exist") if !-e $args{workdir};
 
-    $args{out} = join("/", $args{workdir}, $args{out});
+    $args{out} = join( "/", $args{workdir}, $args{out} );
   }
 
   # XXX
@@ -2006,10 +2010,10 @@ sub dla {
 
   my $len = $args{freq};
 
-  my $grid = grid(%args, bias => 0);
+  my $grid = grid( %args, bias => 0 );
 
-  for ( my $i = 0; $i <= sqrt($len); $i++ ) {
-    $grid->[rand($len)]->[rand($len)] = $maxColor;
+  for ( my $i = 0 ; $i <= sqrt($len) ; $i++ ) {
+    $grid->[ rand($len) ]->[ rand($len) ] = $maxColor;
   }
 
   my @points;
@@ -2507,6 +2511,44 @@ sub stereo {
   return glow( $out, %args );
 }
 
+sub gaussian {
+  return brownian( @_, btype => "Gaussian" );
+}
+
+sub brownian {
+  my %args = @_;
+
+  my $type = $args{btype} || "Brownian";
+
+  print "Generating $type noise...\n" if !$QUIET;
+
+  $args{len} ||= $defaultLen;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $len = $args{freq};
+
+  my $grid = grid( %args, len => $len );
+
+  my $source = Math::Random::Brownian->new();
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    my @noise = $source->Hosking(
+      LENGTH   => $len,
+      HURST    => $args{bias},
+      VARIANCE => $args{amp},
+      NOISE    => $type,
+    );
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      $grid->[$x]->[$y] = shift @noise;
+    }
+  }
+
+  return grow( $grid, %args );
+}
+
 sub _test {
   my %args = defaultArgs(@_);
 
@@ -2594,7 +2636,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.013 of Math::Fractal::Noisemaker.
+This document is for version 0.014 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -2627,9 +2669,9 @@ A wrapper script, C<make-noise>, is included with this distribution.
   #
   # usage
   #
-  make-noise --help
+  make-noise -help
 
-  make-noise --help types
+  make-noise -help types
 
 Noise sets are just 2D arrays, which may be generated directly using
 named functions.
@@ -2887,6 +2929,14 @@ Calls C<infile>, and makes a seamless repeating tile from the image.
 =item * sparkle
 
 Stylized starfield
+
+=item * brownian
+
+Fractional Brownian noise (via L<Math::Random::Brownian>)
+
+=item * gaussian
+
+Fractional Gaussian noise (via L<Math::Random::Brownian>)
 
 =back
 

@@ -1,3 +1,6 @@
+.014
+  - Added brownian/gaussian noise types via Math::Random::Brownian
+
 .013
   - Added File::Tempdir as a dep in Makefile.PL
 
