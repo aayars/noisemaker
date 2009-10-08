@@ -12,9 +12,9 @@ use Math::Trig qw| :radial deg2rad tan pi |;
 use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
-  white wavelet square gel sgel stars spirals voronoi dla fflame
-  mandel dmandel buddha fern gasket infile intile moire textile sparkle
-  brownian gaussian
+  white wavelet square gel sgel stars spirals voronoi dla
+  fflame mandel dmandel buddha fern gasket julia djulia
+  infile intile moire textile sparkle brownian gaussian
   |;
 
 our @PERLIN_TYPES = qw|
@@ -338,7 +338,7 @@ sub defaultArgs {
   $args{type}    ||= $defaultType;
   $args{freq}    ||= 8;
   $args{len}     ||= $defaultLen;
-  $args{octaves} ||= 6;
+  $args{octaves} ||= 4;
 
   $args{amp} = .5 if !defined $args{amp};
 
@@ -1547,6 +1547,7 @@ sub mandel {
         my $new_zx = $zx * $zx - $zy * $zy + $cx;
         $zy = 2 * $zx * $zy + $cy;
         $zx = $new_zx;
+
         $n++;
       }
 
@@ -1793,13 +1794,9 @@ sub cartCoords {
   my $scale = shift || 1;
 
   my $thisLen = $len * $scale;
-  $x *= $scale;
-  $y *= $scale;
 
-  $x -= $thisLen if $x > $thisLen;
-  $y -= $thisLen if $y > $thisLen;
-  $x += $thisLen if $x < 0;
-  $y += $thisLen if $y < 0;
+  $x = ( $x * $scale ) % $thisLen;
+  $y = ( $y * $scale ) % $thisLen;
 
   my $theta = deg2rad( ( $x / $thisLen ) * 360 );
   my $phi   = deg2rad( ( $y / $thisLen ) * 90 );
@@ -2536,7 +2533,7 @@ sub brownian {
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my @noise = $source->Hosking(
       LENGTH   => $len,
-      HURST    => $args{bias},
+      HURST    => .5,
       VARIANCE => $args{amp},
       NOISE    => $type,
     );
@@ -2547,6 +2544,149 @@ sub brownian {
   }
 
   return grow( $grid, %args );
+}
+
+sub jdist {
+  my $Zx = shift;
+  my $Zy = shift;
+  my $Cx = shift;
+  my $Cy = shift;
+  my $iter_max = shift;
+
+  my $x = $Zx;
+  my $y = $Zy;
+  my $xp = 1;
+  my $yp = 0;
+  my $nz = 0;
+  my $nzp = 0;
+
+  for ( my $i = 0; $i < $iter_max; $i++ ) {
+    $nz = 2 * ( $x * $xp - $y * $yp ) + 1;
+    $yp = 2 * ( $x * $yp + $y * $xp );
+    $xp = $nz;
+
+    $nz = $x * $x - $y * $y + $Cx;
+    $y = 2 * $x * $y + $Cy;
+    $x = $nz;
+
+    $nz = $x*$x + $y*$y;
+    $nzp = $xp * $xp + $yp * $yp;
+    last if $nzp > 1e60;
+  }
+
+  my $a = sqrt($nz);
+
+  return 2*$a*log($a)/sqrt($nzp); 
+}
+
+sub djulia {
+  my %args = @_;
+
+  my $ZxMin = rand(.5) - .5;
+  my $ZyMin = rand(.5) - .5;
+
+  # my $flen = rand(.5) + .125;
+  my $flen = .1 + rand(.1);
+
+  return julia(@_,
+    ZxMin => $ZxMin,
+    ZyMin => $ZyMin,
+    ZxMax => $ZxMin + $flen,
+    ZyMax => $ZyMin + $flen,
+  );
+}
+
+sub julia {
+  my %args = @_;
+
+  print "Generating Julia...\n" if !$QUIET;
+
+  $args{len} ||= $defaultLen;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $len = $args{freq};
+
+  my $grid = grid(%args, len => $len);
+
+  my $Cx = -0.74543;
+  my $Cy = 0.11301;
+
+  my $iX = 0;
+  my $iY = 0;
+
+  my $ZxMin = $args{ZxMin};
+  my $ZxMax = $args{ZxMax};
+  my $ZyMin = $args{ZyMin};
+  my $ZyMax = $args{ZyMax};
+
+  $ZxMin = -2 if !defined $ZxMin;
+  $ZxMax = 2 if !defined $ZxMax;
+  $ZyMin = -2 if !defined $ZyMin;
+  $ZyMax = 2 if !defined $ZyMax;
+
+  # This is really low because this function is really slow
+  my $iters = $args{maxiter} || ($maxColor/2);
+
+  # $len *= 2;
+
+  my $pixelWidth = ( $ZxMax - $ZxMin ) / $len;
+  my $pixelHeight = ( $ZyMax - $ZyMin ) / $len;
+
+  my $Zx = 0;
+  my $Zy = 0;
+  my $Z0x = 0;
+  my $Z0y = 0;
+  my $Zx2 = 0;
+  my $Zy2 = 0;
+
+  my $escapeRadius = 400;
+  my $ER2 = $escapeRadius * $escapeRadius;
+
+  my $distanceMax = $pixelWidth/15;
+
+  my $i;
+
+  for ( $iY = 0; $iY < $len; $iY++ ) {
+    $Z0y = $ZyMax - $iY * $pixelHeight;
+    if ( abs($Z0y) < $pixelHeight / 2 ) {
+      $Z0y = 0;
+    }
+    for ( $iX = 0; $iX < $len; $iX++ ) {
+      $Z0x = $ZxMin + $iX * $pixelWidth;
+      $Zx = $Z0x; 
+      $Zy = $Z0y; 
+      $Zx2 = $Zx * $Zx;
+      $Zy2 = $Zy * $Zy;
+
+      for ( $i = 1; $i <= $iters && ( $Zx2 + $Zy2 ) < $ER2; $i++ ) {
+        $Zy = 2 * $Zx * $Zy + $Cy;
+        $Zx = $Zx2 - $Zy2 + $Cx;
+        $Zx2 = $Zx * $Zx;
+        $Zy2 = $Zy * $Zy;
+      }
+
+      my $color;
+
+      if ( $i == $iters ) {
+        $color = 0;
+      } else {
+        my $distance = jdist($Z0x,$Z0y,$Cx,$Cy,$iters);
+        if ( $distance < $distanceMax ) {
+          $color = $distanceMax - $distance;
+        } else {
+          $color = 0;
+        }
+      }
+
+      $grid->[$iX]->[$iY] += $color;
+    }
+  }
+
+  $grid = densemap($grid,%args);
+
+  return grow($grid,%args);
 }
 
 sub _test {
@@ -2874,6 +3014,16 @@ the palette.
 =item * buddha(%args)
 
 Fractal type - "Buddhabrot" Mandelbrot variant. Work in progress.
+
+=item * julia(%args)
+
+Fractal type - Julia. Included as demo. Zoom currently doesn't work.
+
+=item * djulia(%args)
+
+Fractal type - Deep Julia. Zoomed in to a random location, which
+might not even be in the Julia set at all. Not currently very smart,
+but pretty, and pretty slow. C<maxiter> is very low by default.
 
 =item * fflame(%args)
 
@@ -3314,6 +3464,9 @@ sources.
 
   - http://flam3.com/flame.pdf
     Fractal Flame
+
+  - http://en.wikipedia.org/wiki/File:Demj.jpg
+    Julia set using DEM/J by Adam Majewski
 
 ... and a host of others.
 

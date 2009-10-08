@@ -1,4 +1,5 @@
 .014
+  - Added Julia set
   - Added brownian/gaussian noise types via Math::Random::Brownian
 
 .013
