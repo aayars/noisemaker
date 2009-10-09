@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use Imager;
+use Math::Complex;
 use Math::Random::Brownian;
 use Math::Trig qw| :radial deg2rad tan pi |;
 
@@ -13,7 +14,7 @@ use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
-  fflame mandel dmandel buddha fern gasket julia djulia
+  fflame mandel dmandel buddha fern gasket julia djulia newton
   infile intile moire textile sparkle brownian gaussian
   |;
 
@@ -69,6 +70,9 @@ sub showTypes {
   print "  * mandel          ## Mandelbrot (demo)\n";
   print "  * dmandel         ## \"deep\" mandel\n";
   print "  * buddha          ## buddhabrot\n";
+  print "  * julia           ## Julia set\n";
+  print "  * djulia          ## \"deep\" julia\n";
+  print "  * newton          ## Newton fractal (demo)\n";
   print "  * fflame          ## IFS fractal flame\n";
   print "  * fern            ## IFS fern (demo)\n";
   print "  * gasket          ## IFS gasket (demo)\n";
@@ -1342,7 +1346,7 @@ sub fflame {
 
   my $grid = grid( %args, len => $freq );
 
-  my $steps = $freq * $freq * 100;
+  my $steps = $args{maxiter} || $freq * $freq * 100;
 
   my $A = rand(.125) + .25;
   my $B = rand(.125) + .25;
@@ -1356,15 +1360,8 @@ sub fflame {
   my $x = 0;
   my $y = 0;
 
-  my $semifreq = $freq / 2;
-
   my $finalX = rand($freq);
   my $finalY = rand($freq);
-
-  # my $postX = rand(10);
-  # my $postY = rand(10);
-  my $postX = rand($freq);
-  my $postY = rand($freq);
 
   for ( my $n = 0 ; $n < $steps ; $n++ ) {
     do {
@@ -1392,7 +1389,9 @@ sub fflame {
 
   $grid = densemap($grid);
 
-  return glow( grow( $grid, %args ), %args );
+  $grid = glow( $grid, %args );
+
+  return grow( $grid, %args );
 }
 
 sub densemap {
@@ -1521,8 +1520,6 @@ sub mandel {
 
   %args = defaultArgs(%args);
 
-  my $grid = grid(%args);
-
   my $freq = $args{freq};
 
   my $iters = $args{maxiter} || $freq;
@@ -1530,6 +1527,8 @@ sub mandel {
   my $scale = $args{zoom} || 1;
 
   $freq *= 2;
+
+  my $grid = grid( %args, len => $freq );
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     my $cx = ( $x / $freq ) * 2 - 1;
@@ -1612,7 +1611,7 @@ sub dmandel {
 
   $freq *= 2;
 
-  my $grid = grid( %args, freq => $freq );
+  my $grid = grid( %args, len => $freq );
 
   for ( my $x = 0 ; $x < $freq ; $x += 1 ) {
     my $cx = ( $x / $freq ) * 2 - 1;
@@ -1648,7 +1647,11 @@ sub dmandel {
     printRow( $grid->[$x] );
   }
 
-  return shrink( $grid, %args );
+  $grid = shrink( $grid, %args );
+
+  $grid = grow( $grid, %args );
+
+  return $grid;
 }
 
 sub buddha {
@@ -2547,52 +2550,52 @@ sub brownian {
 }
 
 sub jdist {
-  my $Zx = shift;
-  my $Zy = shift;
-  my $Cx = shift;
-  my $Cy = shift;
+  my $Zx       = shift;
+  my $Zy       = shift;
+  my $Cx       = shift;
+  my $Cy       = shift;
   my $iter_max = shift;
 
-  my $x = $Zx;
-  my $y = $Zy;
-  my $xp = 1;
-  my $yp = 0;
-  my $nz = 0;
+  my $x   = $Zx;
+  my $y   = $Zy;
+  my $xp  = 1;
+  my $yp  = 0;
+  my $nz  = 0;
   my $nzp = 0;
 
-  for ( my $i = 0; $i < $iter_max; $i++ ) {
+  for ( my $i = 0 ; $i < $iter_max ; $i++ ) {
     $nz = 2 * ( $x * $xp - $y * $yp ) + 1;
     $yp = 2 * ( $x * $yp + $y * $xp );
     $xp = $nz;
 
     $nz = $x * $x - $y * $y + $Cx;
-    $y = 2 * $x * $y + $Cy;
-    $x = $nz;
+    $y  = 2 * $x * $y + $Cy;
+    $x  = $nz;
 
-    $nz = $x*$x + $y*$y;
+    $nz  = $x * $x + $y * $y;
     $nzp = $xp * $xp + $yp * $yp;
     last if $nzp > 1e60;
   }
 
   my $a = sqrt($nz);
 
-  return 2*$a*log($a)/sqrt($nzp); 
+  return 2 * $a * log($a) / sqrt($nzp);
 }
 
 sub djulia {
   my %args = @_;
 
-  my $ZxMin = rand(.5) - .5;
-  my $ZyMin = rand(.5) - .5;
+  my $xstart = rand(.05) - .05;
+  my $ystart = rand(.05) - .05;
 
-  # my $flen = rand(.5) + .125;
-  my $flen = .1 + rand(.1);
+  my $flen = .0125 + rand(.0125);
 
-  return julia(@_,
-    ZxMin => $ZxMin,
-    ZyMin => $ZyMin,
-    ZxMax => $ZxMin + $flen,
-    ZyMax => $ZyMin + $flen,
+  return julia(
+    @_,
+    ZxMin => $xstart,
+    ZyMin => $ystart,
+    ZxMax => $xstart + $flen,
+    ZyMax => $ystart + $flen,
   );
 }
 
@@ -2608,10 +2611,22 @@ sub julia {
 
   my $len = $args{freq};
 
-  my $grid = grid(%args, len => $len);
+  my $grid = grid( %args, len => $len );
 
-  my $Cx = -0.74543;
-  my $Cy = 0.11301;
+  my @c = (
+    [ -.74543, .11301 ],
+
+    # [ .285,  .01 ],
+    # [ -.8,   .156 ],
+  );
+
+  my $c = $c[ rand(@c) ];
+
+  my $Cx = $c->[0];
+  my $Cy = $c->[1];
+
+  # my $Cx = -0.74543;
+  # my $Cy = 0.11301;
 
   my $iX = 0;
   my $iY = 0;
@@ -2622,47 +2637,47 @@ sub julia {
   my $ZyMax = $args{ZyMax};
 
   $ZxMin = -2 if !defined $ZxMin;
-  $ZxMax = 2 if !defined $ZxMax;
+  $ZxMax = 2  if !defined $ZxMax;
   $ZyMin = -2 if !defined $ZyMin;
-  $ZyMax = 2 if !defined $ZyMax;
+  $ZyMax = 2  if !defined $ZyMax;
 
   # This is really low because this function is really slow
-  my $iters = $args{maxiter} || ($maxColor/2);
+  my $iters = $args{maxiter} || ( $maxColor * .75 );
 
   # $len *= 2;
 
-  my $pixelWidth = ( $ZxMax - $ZxMin ) / $len;
+  my $pixelWidth  = ( $ZxMax - $ZxMin ) / $len;
   my $pixelHeight = ( $ZyMax - $ZyMin ) / $len;
 
-  my $Zx = 0;
-  my $Zy = 0;
+  my $Zx  = 0;
+  my $Zy  = 0;
   my $Z0x = 0;
   my $Z0y = 0;
   my $Zx2 = 0;
   my $Zy2 = 0;
 
   my $escapeRadius = 400;
-  my $ER2 = $escapeRadius * $escapeRadius;
+  my $ER2          = $escapeRadius * $escapeRadius;
 
-  my $distanceMax = $pixelWidth/15;
+  my $distanceMax = $pixelWidth / 15;
 
   my $i;
 
-  for ( $iY = 0; $iY < $len; $iY++ ) {
+  for ( $iY = 0 ; $iY < $len ; $iY++ ) {
     $Z0y = $ZyMax - $iY * $pixelHeight;
     if ( abs($Z0y) < $pixelHeight / 2 ) {
       $Z0y = 0;
     }
-    for ( $iX = 0; $iX < $len; $iX++ ) {
+    for ( $iX = 0 ; $iX < $len ; $iX++ ) {
       $Z0x = $ZxMin + $iX * $pixelWidth;
-      $Zx = $Z0x; 
-      $Zy = $Z0y; 
+      $Zx  = $Z0x;
+      $Zy  = $Z0y;
       $Zx2 = $Zx * $Zx;
       $Zy2 = $Zy * $Zy;
 
-      for ( $i = 1; $i <= $iters && ( $Zx2 + $Zy2 ) < $ER2; $i++ ) {
-        $Zy = 2 * $Zx * $Zy + $Cy;
-        $Zx = $Zx2 - $Zy2 + $Cx;
+      for ( $i = 1 ; $i <= $iters && ( $Zx2 + $Zy2 ) < $ER2 ; $i++ ) {
+        $Zy  = 2 * $Zx * $Zy + $Cy;
+        $Zx  = $Zx2 - $Zy2 + $Cx;
         $Zx2 = $Zx * $Zx;
         $Zy2 = $Zy * $Zy;
       }
@@ -2672,7 +2687,7 @@ sub julia {
       if ( $i == $iters ) {
         $color = 0;
       } else {
-        my $distance = jdist($Z0x,$Z0y,$Cx,$Cy,$iters);
+        my $distance = jdist( $Z0x, $Z0y, $Cx, $Cy, $iters );
         if ( $distance < $distanceMax ) {
           $color = $distanceMax - $distance;
         } else {
@@ -2684,9 +2699,123 @@ sub julia {
     }
   }
 
-  $grid = densemap($grid,%args);
+  $grid = densemap( $grid, %args );
 
-  return grow($grid,%args);
+  return grow( $grid, %args );
+}
+
+my @roots = ( [ 1, 0 ], [ -.5, sqrt(3) / 2 ], [ -.5, sqrt(3) / 2 * -1 ], );
+
+sub nclass {
+  my $x       = shift;
+  my $y       = shift;
+  my $maxiter = shift;
+
+  my $numRoots = scalar(@roots);
+
+  my $z = cplx( $x, $y );
+
+  my $prev = cplx( 0, 0 );
+
+  my $t_numerator     = cplx( 0, 0 );
+  my $t_denominator   = cplx( 0, 0 );
+  my $t_rootDist      = cplx( 0, 0 );
+  my $t_prevRrootDist = cplx( 0, 0 );
+
+  my $dist;
+
+  for ( my $i = 0 ; $i < $maxiter ; $i++ ) {
+    for ( my $r = 0 ; $r < $numRoots ; $r++ ) {
+      $t_rootDist->_set_cartesian( $roots[$r] );
+      $t_rootDist -= $z;
+
+      $dist = abs($t_rootDist);
+      last if $dist == 0;
+
+      if ( $dist <= .25 ) {
+        $t_prevRrootDist->_set_cartesian( $roots[$r] );
+        $t_rootDist -= $prev;
+
+        my $lnPrevRrootDist = log( abs($t_prevRrootDist) );
+
+        my $coded =
+          ( log(.25) - $lnPrevRrootDist ) / ( log($dist) - $lnPrevRrootDist );
+
+        $coded = $coded - int($coded);
+        $coded = $r + $coded;
+
+        # return $coded;
+        return $i / $maxiter + $coded;
+      }
+    }
+
+    if ( $z == $prev ) {
+      return -1;
+    }
+
+    $prev = $z;
+
+    $t_numerator = $z;
+    $t_numerator**= 3;
+    $t_numerator *= 2;
+    $t_numerator += 1;
+
+    $t_denominator = $z;
+    $t_denominator**= 2;
+    $t_denominator *= 3;
+
+    $z = $t_numerator / $t_denominator;
+  }
+
+  return -1;
+}
+
+sub newton {
+  my %args = @_;
+
+  print "Generating Newton...\n" if !$QUIET;
+
+  $args{len} ||= $defaultLen;
+  $args{freq} = $args{len} if !defined $args{freq};
+
+  %args = defaultArgs(%args);
+
+  my $len = $args{freq};
+
+  my $ZxMin = $args{ZxMin};
+  my $ZxMax = $args{ZxMax};
+  my $ZyMin = $args{ZyMin};
+  my $ZyMax = $args{ZyMax};
+
+  $ZxMin = -2 if !defined $ZxMin;
+  $ZxMax = 2  if !defined $ZxMax;
+  $ZyMin = -2 if !defined $ZyMin;
+  $ZyMax = 2  if !defined $ZyMax;
+
+  my $iters = $args{maxiter} || 8;
+
+  my $grid = grid( %args, len => $len );
+
+  my $pixelWidth  = ( $ZxMax - $ZxMin ) / $len;
+  my $pixelHeight = ( $ZyMax - $ZyMin ) / $len;
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    my $zx = $ZxMin + $x * $pixelWidth;
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $zy = $ZyMin + $y * $pixelHeight;
+
+      my $result = nclass( $zx, $zy, $iters );
+
+      $grid->[$x]->[$y] = $result * $maxColor / 2;
+    }
+
+    printRow( $grid->[$x] );
+  }
+
+  $grid = grow( $grid, %args );
+
+  return $grid;
 }
 
 sub _test {
@@ -3024,6 +3153,12 @@ Fractal type - Julia. Included as demo. Zoom currently doesn't work.
 Fractal type - Deep Julia. Zoomed in to a random location, which
 might not even be in the Julia set at all. Not currently very smart,
 but pretty, and pretty slow. C<maxiter> is very low by default.
+
+=item * newton(%args)
+
+Fractal type - Newton. Included as demo. Zoom currently doesn't work.
+
+This function is very slow.
 
 =item * fflame(%args)
 
@@ -3466,7 +3601,11 @@ sources.
     Fractal Flame
 
   - http://en.wikipedia.org/wiki/File:Demj.jpg
-    Julia set using DEM/J by Adam Majewski
+    C<julia> and C<jdist> functions ported from "Julia set using
+    DEM/J" by Adam Majewski
+
+  - http://vlab.infotech.monash.edu.au/simulations/fractals/
+    C<newton> function ported from "Fractals on the Complex Plane"
 
 ... and a host of others.
 
