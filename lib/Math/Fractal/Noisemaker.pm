@@ -14,7 +14,7 @@ use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
-  fflame mandel dmandel buddha fern gasket julia djulia newton
+  fflame mandel dmandel buddha fern gasket julia djulia newton dnewton
   infile intile moire textile sparkle brownian gaussian
   |;
 
@@ -103,7 +103,7 @@ sub showTypes {
   print "\n";
   print "Legend:";
   print "\n";
-  print "  * simple type: may be used as a Perlin slice type (stype)\n";
+  print "  * single-res type: may be used as a multi-res slice type (stype)\n";
   print "  ! control basis func via 'stype'\n";
   print " !! control basis funcs via 'ltype' and/or 'stype'\n";
   print "!!! control basis funcs via 'lbase', 'ltype' and/or 'stype'\n";
@@ -119,7 +119,7 @@ sub usage {
   print "Usage:\n";
   print "$0 \\\n";
   print "  [-type <noisetype>] \\             ## noise type\n";
-  print "  [-stype <simple type>]\\           ## perlin slice type\n";
+  print "  [-stype <single-res type>]\\       ## multi-res slice type\n";
   print "  [-lbase <any type but complex>] \\ ## complex basis\n";
   print "  [-ltype <any type but complex>] \\ ## complex layer\n";
   print "  [-amp <num>] \\              ## base amplitude (eg .5)\n";
@@ -920,7 +920,7 @@ sub pgel {
 
   my $grid = perlin(%args);
 
-  $args{offset} = 2 if !defined $args{offset};
+  $args{displace} = 2 if !defined $args{displace};
 
   %args = defaultArgs(%args);
 
@@ -2753,8 +2753,6 @@ sub nclass {
       return -1;
     }
 
-    $prev = $z;
-
     $t_numerator = $z;
     $t_numerator**= 3;
     $t_numerator *= 2;
@@ -2764,10 +2762,29 @@ sub nclass {
     $t_denominator**= 2;
     $t_denominator *= 3;
 
+    $prev = $z;
+
     $z = $t_numerator / $t_denominator;
   }
 
   return -1;
+}
+
+sub dnewton {
+  my %args = @_;
+
+  my $xstart = rand(.5) - .5;
+  my $ystart = rand(.5) - .5;
+
+  my $flen = .25 + rand(.25);
+
+  return newton(
+    @_,
+    ZxMin => $xstart,
+    ZyMin => $ystart,
+    ZxMax => $xstart + $flen,
+    ZyMax => $ystart + $flen,
+  );
 }
 
 sub newton {
@@ -2792,7 +2809,7 @@ sub newton {
   $ZyMin = -2 if !defined $ZyMin;
   $ZyMax = 2  if !defined $ZyMax;
 
-  my $iters = $args{maxiter} || 8;
+  my $iters = $args{maxiter} || 10;
 
   my $grid = grid( %args, len => $len );
 
@@ -3018,7 +3035,8 @@ generated, C<make> accepts the following args in hash key form:
 
 =item * type => $noiseType
 
-The type of noise to generate, defaults to Perlin. Specify any type.
+The type of noise to generate, defaults to C<perlin>. Specify any
+type.
 
   make(type => 'gel');
 
@@ -3099,54 +3117,88 @@ Render lightmap only
 
 =head1 NOISE TYPES
 
-=head2 SIMPLE NOISE
+=head2 SINGLE-RES NOISE
 
-Simple noise types may be specified as Perlin slice types (C<stype>)
+Single-res noise types may be specified as a multi-res slice types (C<stype>)
 
 =over 4
 
 =item * white(%args)
 
-Each non-smoothed pixel contains a pseudo-random value
+Each non-smoothed pixel contains a pseudo-random value.
+
+See SINGLE-RES ARGS for allowed arguments.
 
 =item * wavelet(%args)
 
-Basis function for sharper Perlin slices
+Basis function for sharper multi-res slices
+
+See SINGLE-RES ARGS for allowed arguments.
 
 =item * square(%args)
 
 Diamond-Square
 
+See SINGLE-RES ARGS for allowed arguments.
+
 =item * gel(%args)
 
-Self-displaced white noise; see GEL TYPES
+Self-displaced white noise.
+
+See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
 =item * sgel(%args)
 
-Self-displaced Diamond-Square noise; see GEL TYPES
+Self-displaced Diamond-Square noise.
+
+See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
 =item * dla(%args)
 
 Diffusion-limited aggregation, seeded from multiple random points.
 
+See SINGLE-RES ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
+
 =item * mandel(%args)
 
 Fractal type - Mandelbrot. Included as a demo.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * dmandel(%args)
 
 Fractal type - Deep Mandelbrot. Picks a random "interesting" location
 in the set (some point with a value which neither hovers near 0 nor
-flies off into infinity), zooms in a random amount, and embellishes
-the palette.
+flies off into infinity), zooms in a random amount (unless an
+explicit C<zoom> arg was provided), and embellishes the palette.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * buddha(%args)
 
-Fractal type - "Buddhabrot" Mandelbrot variant. Work in progress.
+Fractal type - "Buddhabrot" Mandelbrot variant. Shows the paths of
+slowly escaping points, density-mapped to escape time.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect. This type does not
+C<zoom> well, due to the diminished sample of escaping points.
 
 =item * julia(%args)
 
-Fractal type - Julia. Included as demo. Zoom currently doesn't work.
+Fractal type - Julia. Included as demo.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
+
+C<zoom> is not yet implemented for this type.
 
 =item * djulia(%args)
 
@@ -3154,15 +3206,31 @@ Fractal type - Deep Julia. Zoomed in to a random location, which
 might not even be in the Julia set at all. Not currently very smart,
 but pretty, and pretty slow. C<maxiter> is very low by default.
 
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
+
+C<zoom> is not yet implemented for this type.
+
 =item * newton(%args)
 
-Fractal type - Newton. Included as demo. Zoom currently doesn't work.
+Fractal type - Newton. Included as demo.
 
-This function is very slow.
+This function is ridiculously slow in its current form.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
+
+C<zoom> is not yet implemented for this type.
 
 =item * fflame(%args)
 
-IFS type - "Fractal Flame". Work in progress. Neat.
+IFS type - "Fractal Flame". Work in progress. Slow but neat.
+
+See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * fern(%args)
 
@@ -3174,15 +3242,25 @@ IFS type - Sierpinski's triangle/gasket. Included as a demo.
 
 =item * stars(%args)
 
-White noise generated with extreme gappiness and smoothed
+White noise generated with extreme C<gap>, and smoothed
+
+See SINGLE-RES ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * spirals(%args)
 
 Tiny logarithmic spirals
 
+See SINGLE-RES ARGS for allowed arguments.
+
+C<bias> and C<amp> currently have no effect.
+
 =item * voronoi(%args)
 
 Ridged Voronoi cells.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * moire(%args)
 
@@ -3190,9 +3268,13 @@ Interference pattern with blended image seams.
 
 Appearance of output is heavily influenced by the C<freq> arg.
 
+C<bias> and C<amp> currently have no effect.
+
 =item * textile(%args)
 
 Moire noise with a randomized and large C<freq> arg.
+
+C<bias> and C<amp> currently have no effect.
 
 =item * infile(%args)
 
@@ -3215,17 +3297,25 @@ Calls C<infile>, and makes a seamless repeating tile from the image.
 
 Stylized starfield
 
+C<bias> and C<amp> currently have no effect.
+
 =item * brownian
 
 Fractional Brownian noise (via L<Math::Random::Brownian>)
+
+C<bias> has no effect.
 
 =item * gaussian
 
 Fractional Gaussian noise (via L<Math::Random::Brownian>)
 
+C<bias> has no effect.
+
 =back
 
-Simple noise types accept the following arguments in hash key form:
+=head3 SINGLE-RES ARGS
+
+Single-res noise types accept the following arguments in hash key form:
 
 =over 4
 
@@ -3265,17 +3355,22 @@ Enable/disable noise smoothing. 1 is default/recommended
 
   make(smooth => 0);
 
+=back
+
+=head3 FRACTAL ARGS
+
+=over 4
+
 =item * zoom => $num
 
-Used for fractal types only. Magnifaction factor.
+Magnifaction factor.
 
   make(type => 'mandel', zoom => 2);
 
 =item * maxiter => $int
 
-Used for fractal types only. Iteration limit for determining
-infinite boundaries, larger values take longer but are more
-accurate/look nicer.
+Iteration limit for determining infinite boundaries, larger values
+take longer but are more accurate/look nicer.
 
   make(type => 'mandel', maxiter => 2000);
 
@@ -3283,14 +3378,14 @@ accurate/look nicer.
 
 =cut
 
-=head2 PERLIN TYPES
+=head2 MULTI-RES TYPES
 
-Perlin noise combines the values from multiple 2D slices (octaves),
-which are generated using successively higher frequencies and lower
-amplitudes.
+Perlin (multi-res) noise combines the values from multiple 2D slices
+(octaves), which are generated using successively higher frequencies
+and lower amplitudes.
 
-The slice type used for generating Perlin noise may be controlled
-with the C<stype> argument. Any simple type may be specified.
+The slice type used for generating multi-res noise may be controlled
+with the C<stype> argument. Any single-res type may be specified.
 
 The default slice type is smoothed C<wavelet> noise.
 
@@ -3298,74 +3393,57 @@ The default slice type is smoothed C<wavelet> noise.
 
 =item * perlin(%args)
 
-Perlin
+Multi-resolution noise.
+
+See MULTI-RES ARGS for allowed args.
 
   make(type => 'perlin', stype => '...');
 
 =item * ridged(%args)
 
-Ridged multifractal - provide C<zshift> arg to specify a post-processing bias.
+Ridged multifractal.
+
+See MULTI-RES ARGS for allowed args.
+
+Provide C<zshift> arg to specify a post-processing bias.
 
   make(type => 'ridged', stype => '...', zshift => .5 );
 
 =item * block(%args)
 
-Unsmoothed Perlin
+Unsmoothed multi-resolution.
+
+See MULTI-RES ARGS for allowed args.
 
   make(type => 'block', stype => ...);
 
 =item * pgel(%args)
 
-Self-displaced Perlin noise; see GEL TYPES
+Self-displaced multi-res noise.
+
+See MULTI-RES ARGS and GEL TYPES for allowed args.
 
   make(type => 'pgel', stype => ...);
 
 =item * fur(%args)
 
-Fur-lin noise; traced paths of worms with Perlin input.
+Fur-lin noise; traced paths of worms with multi-res input.
+
+See MULTI-RES ARGS for allowed args.
 
 =item * tesla(%args)
 
 Long, fiberous worm paths with random skew.
 
-=item * delta(%args)
-
-Difference noise; output contains absolute values of subtracting
-two noise sets.
-
-  make( type => "delta" );
-
-Use C<ltype> to specify any simple or perlin layer type.
-
-  make(
-    type => "delta",
-    ltype => "gel"
-  );
-
-=item * chiral(%args)
-
-Twin noise; output contains the lightest values of two noise sets.
-
-  make( type => "chiral" );
-
-Use C<ltype> to specify any simple or perlin layer type.
-
-  make(
-    type => "chiral",
-    ltype => "tesla"
-  );
-
-=item * stereo(%args)
-
-Stereoscopic depth map.
-
-Use C<ltype> to specify any simple or perlin layer type.
+See MULTI-RES ARGS for allowed args.
 
 =back
 
-In addition to any of the args which may be used for simple noise
-types, Perlin noise types accept the following arguments in hash
-key form:
+=head3 MULTI-RES ARGS
+
+In addition to any of the args which may be used for single-res
+noise types, Perlin noise types accept the following arguments in
+hash key form:
 
 =over 4
 
@@ -3382,10 +3460,55 @@ Higher generally looks nicer.
 
 =item * stype => $simpleType
 
-Perlin slice type, defaults to C<wavelet>. Any simple type may be
+Perlin slice type, defaults to C<wavelet>. Any single-res type may be
 specified.
 
   my $grid = make(stype => 'gel');
+
+=back
+
+=head2 DUAL NOISE
+
+=over 4
+
+=item * delta(%args)
+
+Difference noise; output contains absolute values of subtracting
+two noise sets.
+
+  make( type => "delta" );
+
+Use C<ltype> to specify any single-res or perlin layer type. If
+specifying a perlin layer type, you may also specify C<stype> to
+override the slice type.
+
+  make(
+    type => "delta",
+    ltype => "gel"
+  );
+
+=item * chiral(%args)
+
+Twin noise; output contains the lightest values of two noise sets.
+
+  make( type => "chiral" );
+
+Use C<ltype> to specify any single-res or perlin layer type. If
+specifying a perlin layer type, you may also specify C<stype> to
+override the slice type.
+
+  make(
+    type => "chiral",
+    ltype => "tesla"
+  );
+
+=item * stereo(%args)
+
+Stereoscopic depth map.
+
+Use C<ltype> to specify any single-res or perlin layer type. If
+specifying a perlin layer type, you may also specify C<stype> to
+override the slice type.
 
 =back
 
@@ -3417,13 +3540,13 @@ different base types, layer types, and slice types.
   my $grid = complex(
     lbase => <any noise type but complex>,
     ltype => <any noise type but complex>,
-    stype => <any simple type>,
+    stype => <any single-res type>,
     # ...
   );
 
 =back
 
-In addition to all simple and Perlin args, complex noise accepts
+In addition to all single-res and Perlin args, complex noise accepts
 the following args in hash key form:
 
 =over 4
@@ -3460,16 +3583,16 @@ except for C<complex> may be used.
 
 =head2 GEL TYPES
 
-The simple and Perlin "gel" types (C<gel>, C<sgel>, C<pgel>)
+The single-res and Perlin "gel" types (C<gel>, C<sgel>, C<pgel>)
 accept the following additional arguments:
 
 =over 4
 
-=item * offset => $float
+=item * displace => $float
 
 Amount of self-displacement to apply to gel noise
 
-  make(type => 'gel', offset => .125);
+  make(type => 'gel', displace => .125);
 
 =back
 
