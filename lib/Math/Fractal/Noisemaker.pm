@@ -3137,7 +3137,7 @@ See SINGLE-RES ARGS for allowed arguments.
 
 =item * square(%args)
 
-Diamond-Square
+Diamond-Square (mostly square)
 
 See SINGLE-RES ARGS for allowed arguments.
 
@@ -3169,6 +3169,8 @@ See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
 
+Example C<maxiter> value: 256
+
 =item * dmandel(%args)
 
 Fractal type - Deep Mandelbrot. Picks a random "interesting" location
@@ -3180,6 +3182,8 @@ See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
 
+Example C<maxiter> value: 256
+
 =item * buddha(%args)
 
 Fractal type - "Buddhabrot" Mandelbrot variant. Shows the paths of
@@ -3190,6 +3194,8 @@ See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 C<bias> and C<amp> currently have no effect. This type does not
 C<zoom> well, due to the diminished sample of escaping points.
 
+Example C<maxiter> value: 4096
+
 =item * julia(%args)
 
 Fractal type - Julia. Included as demo.
@@ -3199,6 +3205,8 @@ See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 C<bias> and C<amp> currently have no effect.
 
 C<zoom> is not yet implemented for this type.
+
+Example C<maxiter> value: 200
 
 =item * djulia(%args)
 
@@ -3212,6 +3220,8 @@ C<bias> and C<amp> currently have no effect.
 
 C<zoom> is not yet implemented for this type.
 
+Example C<maxiter> value: 200
+
 =item * newton(%args)
 
 Fractal type - Newton. Included as demo.
@@ -3224,6 +3234,8 @@ C<bias> and C<amp> currently have no effect.
 
 C<zoom> is not yet implemented for this type.
 
+Example C<maxiter> value: 10
+
 =item * fflame(%args)
 
 IFS type - "Fractal Flame". Work in progress. Slow but neat.
@@ -3231,6 +3243,8 @@ IFS type - "Fractal Flame". Work in progress. Slow but neat.
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
+
+Example C<maxiter> value: 6553600
 
 =item * fern(%args)
 
@@ -3319,7 +3333,7 @@ Single-res noise types accept the following arguments in hash key form:
 
 =over 4
 
-=item * amp => $num
+=item * amp => <0..1>
 
 Amplitude, or max variance from the bias value.
 
@@ -3328,7 +3342,7 @@ amplitude (peak-to-peak amp/2).
 
   make(amp => 1);
 
-=item * freq => $num
+=item * freq => $int
 
 Frequency, or "density" of the noise produced.
 
@@ -3343,17 +3357,24 @@ Side length of the output images, which are always square.
 
   make(len => 512);
 
-=item * bias => $num
+=item * bias => <0..1>
 
 "Baseline" value for all pixels, .5 = 50%
 
   make(bias => .25);
 
-=item * smooth => $bool
+=item * smooth => <0|1>
 
 Enable/disable noise smoothing. 1 is default/recommended
 
   make(smooth => 0);
+
+=item * gap => <0..1>
+
+Larger values increase the chance for black pixels in white noise
+(which many noise types are derived from).
+
+  make(type => "white", gap => .995);
 
 =back
 
@@ -3469,6 +3490,8 @@ specified.
 
 =head2 DUAL NOISE
 
+Dual noise contains two noise sets of the same type.
+
 =over 4
 
 =item * delta(%args)
@@ -3514,6 +3537,9 @@ override the slice type.
 
 =head2 COMPLEX NOISE
 
+Complex noise is a homebrew noise recipe inspired by (but not using)
+I<libnoise>.
+
 =over 4
 
 =item * complex
@@ -3521,9 +3547,6 @@ override the slice type.
 Complex layered noise
 
   make(type => "complex");
-
-Complex noise is a homebrew noise recipe inspired by (but not using)
-I<libnoise>.
 
 This function generates a noise base and multiple noise layers.
 Each pixel in the resulting noise is blended towards the value in
