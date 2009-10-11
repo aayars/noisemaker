@@ -1,5 +1,6 @@
 .014
-  - Added Julia set
+  - Doc updates with links to example images
+  - Added julia, newton types
   - Added brownian/gaussian noise types via Math::Random::Brownian
 
 .013
