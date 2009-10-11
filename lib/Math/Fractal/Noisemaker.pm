@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use strict;
 use warnings;
@@ -954,10 +954,8 @@ sub refract {
     for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
       my $color = $grid->[$x]->[$y] || 0;
       my $srcY = ( $color / $maxColor ) * $haveLength;
-      $srcY -= $haveLength if $srcY > $haveLength;
-      $srcY += $haveLength if $srcY < 0;
 
-      $out->[$x]->[$y] = $grid->[0]->[$srcY];
+      $out->[$x]->[$y] = $grid->[0]->[$srcY % $haveLength];
     }
   }
 
@@ -2906,7 +2904,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.014 of Math::Fractal::Noisemaker.
+This document is for version 0.015 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 

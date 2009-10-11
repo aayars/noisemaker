@@ -1,3 +1,6 @@
+.015
+  - Fixed bug in refract
+
 .014
   - Doc updates with links to example images
   - Added julia, newton types
