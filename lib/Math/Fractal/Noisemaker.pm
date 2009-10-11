@@ -14,7 +14,7 @@ use base qw| Exporter |;
 
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
-  fflame mandel dmandel buddha fern gasket julia djulia newton dnewton
+  fflame mandel dmandel buddha fern gasket julia djulia newton
   infile intile moire textile sparkle brownian gaussian
   |;
 
@@ -1442,7 +1442,7 @@ sub fern {
 
   %args = defaultArgs(%args);
 
-  my $grid = grid(%args);
+  my $grid = grid(%args, len => $freq);
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
@@ -1607,7 +1607,7 @@ sub dmandel {
 
   my $tuple = $interesting[ rand(@interesting) ];
 
-  my $scale = $args{zoom} || 1024 + rand(1024);
+  my $scale = $args{zoom} || 5120 + rand(128);
 
   $freq *= 2;
 
@@ -2010,7 +2010,7 @@ sub dla {
 
   my $len = $args{freq};
 
-  my $grid = grid( %args, bias => 0 );
+  my $grid = grid( %args, bias => 0, len => $len );
 
   for ( my $i = 0 ; $i <= sqrt($len) ; $i++ ) {
     $grid->[ rand($len) ]->[ rand($len) ] = $maxColor;
@@ -2590,8 +2590,10 @@ sub djulia {
 
   my $flen = .0125 + rand(.0125);
 
+  $args{maxiter} ||= 4096;
+
   return julia(
-    @_,
+    %args,
     ZxMin => $xstart,
     ZyMin => $ystart,
     ZxMax => $xstart + $flen,
@@ -2770,23 +2772,6 @@ sub nclass {
   return -1;
 }
 
-sub dnewton {
-  my %args = @_;
-
-  my $xstart = rand(.5) - .5;
-  my $ystart = rand(.5) - .5;
-
-  my $flen = .25 + rand(.25);
-
-  return newton(
-    @_,
-    ZxMin => $xstart,
-    ZyMin => $ystart,
-    ZxMax => $xstart + $flen,
-    ZyMax => $ystart + $flen,
-  );
-}
-
 sub newton {
   my %args = @_;
 
@@ -2851,7 +2836,6 @@ sub _test {
   return $grid;
 }
 
-# our @chars = ( " ", ".", "-", "+", "=", "/", ">", "X", "#", "@" );
 our @chars = ( " ", ".", ".", ":", ":", "-", "-", "+", "+", "=", "=", "#" );
 
 sub printRow {
@@ -3042,6 +3026,12 @@ type.
 
 =item * sphere => $bool
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/sphere.jpeg" width="256" height="256" alt="sphere example" /></p>
+
+=end HTML
+
 Generate a pseudo-spheremap from the resulting noise.
 
 When specifying C<sphere>, the output image will be 50% of the
@@ -3053,6 +3043,12 @@ See C<spheremap>.
   make(sphere => 1);
 
 =item * refract => $bool
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/refract.jpeg" width="256" height="256" alt="refract example" /></p>
+
+=end HTML
 
 "Refracted" pixel values. Can be used to enhance the fractal
 appearance of the resulting noise. Often makes it look dirty.
@@ -3070,19 +3066,43 @@ This feature is a work in progress.
 =item * clutdir => <0|1|2>
 
 0: Hypotenuse lookup (corner to corner, so it doesn't matter if the
-input table is oriented horizontally or vertically). This is the
-default. Best for seamless tiling.
+input table is oriented horizontally or vertically).
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/clutdir-0.jpeg" width="256" height="256" alt="clutdir 0 example" /></p>
+
+=end HTML
+
+This is the default. Best for seamless tiling.
+
+  make(clut => $filename, clutdir => 0);
 
 1: Vertical lookup, good for generating maps which have ice caps at
-the poles and tropical looking colors at the equator. Output will
-have color seams at the poles unless viewed on a spheroid. This
-lookup method produces output which resembles a reflection map, if
-a photograph is used for the C<clut>.
+the poles and tropical looking colors at the equator.
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/clutdir-1.jpeg" width="256" height="256" alt="clutdir 1 example" /></p>
+
+=end HTML
+
+Output will have color seams at the poles unless viewed on a spheroid.
+This lookup method produces output which resembles a reflection
+map, if a photograph is used for the C<clut>.
+
+  make(clut => $filename, clutdir => 1);
 
 2: Fractal lookup, uses the same methodology as C<refract>. Also
 good for seamless tiling.
 
-  make(clut => $filename, clutdir => 1);
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/clutdir-2.jpeg" width="256" height="256" alt="clutdir 2 example" /></p>
+
+=end HTML
+
+  make(clut => $filename, clutdir => 2);
 
 =item * limit => <0|1>
 
@@ -3107,9 +3127,21 @@ generated.
 
 =item * shadow => $float
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/shadow.jpeg" width="256" height="256" alt="shadow example" /></p>
+
+=end HTML
+
 Amount of self-shadowing to apply, between 0 and 1.
 
 =item * emboss => <0|1>
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/post/emboss.jpeg" width="256" height="256" alt="emboss example" /></p>
+
+=end HTML
 
 Render lightmap only
 
@@ -3125,11 +3157,23 @@ Single-res noise types may be specified as a multi-res slice types (C<stype>)
 
 =item * white(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/white.jpeg" width="256" height="256" alt="white noise example" /></p>
+
+=end HTML
+
 Each non-smoothed pixel contains a pseudo-random value.
 
 See SINGLE-RES ARGS for allowed arguments.
 
 =item * wavelet(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/wavelet.jpeg" width="256" height="256" alt="wavelet noise example" /></p>
+
+=end HTML
 
 Basis function for sharper multi-res slices
 
@@ -3137,11 +3181,23 @@ See SINGLE-RES ARGS for allowed arguments.
 
 =item * square(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/square.jpeg" width="256" height="256" alt="square noise example" /></p>
+
+=end HTML
+
 Diamond-Square (mostly square)
 
 See SINGLE-RES ARGS for allowed arguments.
 
 =item * gel(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/gel.jpeg" width="256" height="256" alt="gel noise example" /></p>
+
+=end HTML
 
 Self-displaced white noise.
 
@@ -3149,11 +3205,23 @@ See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
 =item * sgel(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/sgel.jpeg" width="256" height="256" alt="square gel noise example" /></p>
+
+=end HTML
+
 Self-displaced Diamond-Square noise.
 
 See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
 =item * dla(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/dla.jpeg" width="256" height="256" alt="diffusion-limited aggregation noise example" /></p>
+
+=end HTML
 
 Diffusion-limited aggregation, seeded from multiple random points.
 
@@ -3162,6 +3230,12 @@ See SINGLE-RES ARGS for allowed arguments.
 C<bias> and C<amp> currently have no effect.
 
 =item * mandel(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/mandel.jpeg" width="256" height="256" alt="mandelbrot fractal example" /></p>
+
+=end HTML
 
 Fractal type - Mandelbrot. Included as a demo.
 
@@ -3173,10 +3247,16 @@ Example C<maxiter> value: 256
 
 =item * dmandel(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/dmandel.jpeg" width="256" height="256" alt="deep mandelbrot fractal example" /></p>
+
+=end HTML
+
 Fractal type - Deep Mandelbrot. Picks a random "interesting" location
 in the set (some point with a value which neither hovers near 0 nor
-flies off into infinity), zooms in a random amount (unless an
-explicit C<zoom> arg was provided), and embellishes the palette.
+flies off into infinity), and zooms in a random amount (unless an
+explicit C<zoom> arg was provided).
 
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
@@ -3185,6 +3265,12 @@ C<bias> and C<amp> currently have no effect.
 Example C<maxiter> value: 256
 
 =item * buddha(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/buddha.jpeg" width="256" height="256" alt="buddhabrot fractal example" /></p>
+
+=end HTML
 
 Fractal type - "Buddhabrot" Mandelbrot variant. Shows the paths of
 slowly escaping points, density-mapped to escape time.
@@ -3198,6 +3284,12 @@ Example C<maxiter> value: 4096
 
 =item * julia(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/julia.jpeg" width="256" height="256" alt="julia fractal example" /></p>
+
+=end HTML
+
 Fractal type - Julia. Included as demo.
 
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
@@ -3209,6 +3301,12 @@ C<zoom> is not yet implemented for this type.
 Example C<maxiter> value: 200
 
 =item * djulia(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/djulia.jpeg" width="256" height="256" alt="deep julia fractal example" /></p>
+
+=end HTML
 
 Fractal type - Deep Julia. Zoomed in to a random location, which
 might not even be in the Julia set at all. Not currently very smart,
@@ -3224,9 +3322,15 @@ Example C<maxiter> value: 200
 
 =item * newton(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/newton.jpeg" width="256" height="256" alt="newton fractal example" /></p>
+
+=end HTML
+
 Fractal type - Newton. Included as demo.
 
-This function is ridiculously slow in its current form.
+Currently, this function is ridiculously slow.
 
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
@@ -3238,6 +3342,12 @@ Example C<maxiter> value: 10
 
 =item * fflame(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/fflame.jpeg" width="256" height="256" alt="ifs fractal flame example" /></p>
+
+=end HTML
+
 IFS type - "Fractal Flame". Work in progress. Slow but neat.
 
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
@@ -3248,13 +3358,31 @@ Example C<maxiter> value: 6553600
 
 =item * fern(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/fern.jpeg" width="256" height="256" alt="fern example" /></p>
+
+=end HTML
+
 IFS type - Barnsley's fern. Included as a demo.
 
 =item * gasket(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/gasket.jpeg" width="256" height="256" alt="gasket example" /></p>
+
+=end HTML
+
 IFS type - Sierpinski's triangle/gasket. Included as a demo.
 
 =item * stars(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/stars.jpeg" width="256" height="256" alt="stars example" /></p>
+
+=end HTML
 
 White noise generated with extreme C<gap>, and smoothed
 
@@ -3264,6 +3392,12 @@ C<bias> and C<amp> currently have no effect.
 
 =item * spirals(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/spirals.jpeg" width="256" height="256" alt="spirals example" /></p>
+
+=end HTML
+
 Tiny logarithmic spirals
 
 See SINGLE-RES ARGS for allowed arguments.
@@ -3272,11 +3406,23 @@ C<bias> and C<amp> currently have no effect.
 
 =item * voronoi(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/voronoi.jpeg" width="256" height="256" alt="voronoi example" /></p>
+
+=end HTML
+
 Ridged Voronoi cells.
 
 C<bias> and C<amp> currently have no effect.
 
 =item * moire(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/moire.jpeg" width="256" height="256" alt="moire example" /></p>
+
+=end HTML
 
 Interference pattern with blended image seams.
 
@@ -3285,6 +3431,12 @@ Appearance of output is heavily influenced by the C<freq> arg.
 C<bias> and C<amp> currently have no effect.
 
 =item * textile(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/textile.jpeg" width="256" height="256" alt="textile example" /></p>
+
+=end HTML
 
 Moire noise with a randomized and large C<freq> arg.
 
@@ -3301,6 +3453,12 @@ or "-in" arg.
 
 =item * intile(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/intile.jpeg" width="256" height="256" alt="intile example" /></p>
+
+=end HTML
+
 Calls C<infile>, and makes a seamless repeating tile from the image.
 
   my $grid = intile(
@@ -3309,21 +3467,39 @@ Calls C<infile>, and makes a seamless repeating tile from the image.
 
 =item * sparkle
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/sparkle.jpeg" width="256" height="256" alt="sparkle example" /></p>
+
+=end HTML
+
 Stylized starfield
 
 C<bias> and C<amp> currently have no effect.
 
 =item * brownian
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/brownian.jpeg" width="256" height="256" alt="brownian example" /></p>
+
+=end HTML
+
 Fractional Brownian noise (via L<Math::Random::Brownian>)
 
-C<bias> has no effect.
+C<bias> currently has no effect.
 
 =item * gaussian
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/gaussian.jpeg" width="256" height="256" alt="gaussian example" /></p>
+
+=end HTML
+
 Fractional Gaussian noise (via L<Math::Random::Brownian>)
 
-C<bias> has no effect.
+C<bias> currently has no effect.
 
 =back
 
@@ -3414,6 +3590,12 @@ The default slice type is smoothed C<wavelet> noise.
 
 =item * perlin(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/perlin-wavelet.jpeg" width="256" height="256" alt="perlin example" /></p>
+
+=end HTML
+
 Multi-resolution noise.
 
 See MULTI-RES ARGS for allowed args.
@@ -3421,6 +3603,12 @@ See MULTI-RES ARGS for allowed args.
   make(type => 'perlin', stype => '...');
 
 =item * ridged(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/ridged-wavelet.jpeg" width="256" height="256" alt="ridged example" /></p>
+
+=end HTML
 
 Ridged multifractal.
 
@@ -3432,6 +3620,12 @@ Provide C<zshift> arg to specify a post-processing bias.
 
 =item * block(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/block-wavelet.jpeg" width="256" height="256" alt="block example" /></p>
+
+=end HTML
+
 Unsmoothed multi-resolution.
 
 See MULTI-RES ARGS for allowed args.
@@ -3439,6 +3633,12 @@ See MULTI-RES ARGS for allowed args.
   make(type => 'block', stype => ...);
 
 =item * pgel(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/pgel-wavelet.jpeg" width="256" height="256" alt="perlin gel example" /></p>
+
+=end HTML
 
 Self-displaced multi-res noise.
 
@@ -3448,11 +3648,23 @@ See MULTI-RES ARGS and GEL TYPES for allowed args.
 
 =item * fur(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/fur-wavelet.jpeg" width="256" height="256" alt="fur example" /></p>
+
+=end HTML
+
 Fur-lin noise; traced paths of worms with multi-res input.
 
 See MULTI-RES ARGS for allowed args.
 
 =item * tesla(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/tesla-wavelet.jpeg" width="256" height="256" alt="tesla example" /></p>
+
+=end HTML
 
 Long, fiberous worm paths with random skew.
 
@@ -3496,6 +3708,12 @@ Dual noise contains two noise sets of the same type.
 
 =item * delta(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/delta-perlin-wavelet.jpeg" width="256" height="256" alt="delta example" /></p>
+
+=end HTML
+
 Difference noise; output contains absolute values of subtracting
 two noise sets.
 
@@ -3512,6 +3730,12 @@ override the slice type.
 
 =item * chiral(%args)
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/chiral-perlin-wavelet.jpeg" width="256" height="256" alt="chiral example" /></p>
+
+=end HTML
+
 Twin noise; output contains the lightest values of two noise sets.
 
   make( type => "chiral" );
@@ -3526,6 +3750,12 @@ override the slice type.
   );
 
 =item * stereo(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/stereo-perlin-wavelet.jpeg" width="256" height="256" alt="stereo example" /></p>
+
+=end HTML
 
 Stereoscopic depth map.
 
@@ -3544,6 +3774,12 @@ I<libnoise>.
 
 =item * complex
 
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/complex-perlin-perlin-wavelet.jpeg" width="256" height="256" alt="complex example" /></p>
+
+=end HTML
+
 Complex layered noise
 
   make(type => "complex");
@@ -3556,9 +3792,9 @@ superimposed over the combined layers.
 
   my $grid = complex();
 
-Presets for hundreds of noise variants (many of them quite interesting
-visually) may be generated through this function, by combining
-different base types, layer types, and slice types.
+Hundreds of noise variants (many of them quite interesting visually)
+may be generated through this function, by combining different base
+types, layer types, and slice types.
 
   my $grid = complex(
     lbase => <any noise type but complex>,
