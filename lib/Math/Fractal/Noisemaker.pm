@@ -19,7 +19,7 @@ our @SIMPLE_TYPES = qw|
   |;
 
 our @PERLIN_TYPES = qw|
-  perlin ridged block pgel fur tesla
+  perlin ridged block pgel fur tesla lumber wormhole flux
   |;
 
 our @NOISE_TYPES = (
@@ -94,6 +94,9 @@ sub showTypes {
   print "  ! pgel            ## self-displaced multi-res\n";
   print "  ! fur             ## based on \"Perlin Worms\"\n";
   print "  ! tesla           ## worms/fur variant\n";
+  print "  ! lumber          ## vaguely woodlike\n";
+  print "  ! wormhole        ## field flow\n";
+  print "  ! flux            ## extruded contours\n";
   print "\n";
   print " !! delta           ## difference noise\n";
   print " !! chiral          ## joined noise\n";
@@ -235,8 +238,8 @@ sub make {
   {
     $args{freq}     ||= 4;
     $args{displace} ||= .5;
-  } else {
-    $args{octaves} ||= 8;
+  # } else {
+    # $args{octaves} ||= 8;
   }
 
   my $format = $args{format} || "bmp";
@@ -336,13 +339,14 @@ sub defaultArgs {
 
   $args{bias}   = .5 if !defined $args{bias};
   $args{smooth} = 1  if !defined $args{smooth};
-  $args{auto}   = 1  if !defined( $args{auto} ) && $args{type} ne 'fern';
 
   $args{gap}     ||= 0;
   $args{type}    ||= $defaultType;
   $args{freq}    ||= 8;
   $args{len}     ||= $defaultLen;
   $args{octaves} ||= 4;
+
+  $args{auto}   = 1  if !defined( $args{auto} ) && $args{type} ne 'fern';
 
   $args{amp} = .5 if !defined $args{amp};
 
@@ -596,10 +600,10 @@ sub white {
 
   %args = defaultArgs(%args);
 
-  my $grid = grid(%args);
-
   my $freq = $args{freq};
   my $gap  = $args{gap};
+
+  my $grid = grid(%args, len => $freq);
 
   $args{amp} = .5 if !defined $args{amp};
 
@@ -715,7 +719,7 @@ sub square {
 
   $amp = .5 if !defined $amp;
 
-  my $grid = wavelet( %args, len => $freq * 2 );
+  my $grid = white( %args, len => $freq * 2 );
 
   my $haveLength = $freq * 2;
   my $baseOffset = $maxColor * $amp;
@@ -767,10 +771,12 @@ sub square {
 
     $haveLength *= 2;
 
-    for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
-      for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
-        next if defined $grown->[$x]->[$y];
+    $baseOffset /= 2;
 
+    for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
+      my $base = ( $x + 1 ) % 2;
+
+      for ( my $y = $base ; $y < $haveLength ; $y += 2 ) {
         my $sides =
           ( noise( $grown, $x - 1, $y ) +
             noise( $grown, $x + 1, $y ) +
@@ -783,13 +789,7 @@ sub square {
       }
     }
 
-    $baseOffset /= 2;
-
-    $grid = $grown;
-  }
-
-  if ( $args{smooth} ) {
-    $grid = smooth( $grid, %args );
+    $grid = $args{smooth} ? smooth($grown) : $grown;
   }
 
   return $grid;
@@ -970,8 +970,9 @@ sub lsmooth {
 
   my $smooth = [];
 
-  my $dirs  = 6;
-  my $angle = rand(360);
+  my $dirs  = $args{dirs} || 6;
+  my $angle = $args{angle} || rand(360);
+  my $rad   = $args{rad} || 6;
 
   my $dirAngle = 360 / $dirs;
   my $angle360 = 360 + $angle;
@@ -983,16 +984,12 @@ sub lsmooth {
       $smooth->[$x]->[$y] += $grid->[$x]->[$y] / $dirs;
 
       for ( my $a = $angle ; $a < $angle360 ; $a += $dirAngle ) {
-        my $rad = 6;
-
         for ( my $d = 1 ; $d <= $rad ; $d++ ) {    # distance
           my ( $tx, $ty ) = translate( $x, $y, $a, $d );
           $tx = $tx % $len;
           $ty = $ty % $len;
 
-          # print "$x, $y: $tx, $ty\n";
-
-          $smooth->[$x]->[$y] += $grid->[$tx]->[$ty] * ( 1 - ( $d / $rad ) );
+          $smooth->[$x]->[$y] += $grid->[$tx]->[$ty] * ( 1 - ( $d / $rad ) ) / $rad;
         }
       }
     }
@@ -1170,7 +1167,7 @@ sub noise {
   my $x     = shift;
   my $y     = shift;
 
-  my $length = @{$noise};
+  my $length = shift || @{$noise};
 
   $x = $x % $length;
   $y = $y % $length;
@@ -1286,40 +1283,52 @@ sub gasket {
 #
 # Set up IFS flame functions once
 #
+sub _fflinear { return @_ }
+
+sub _ffsinusoidal {
+  my ( $x, $y ) = @_;
+  return sin($x) * 3, sin($y) * 3;
+}
+
+sub _ffsphere {
+  my ( $x, $y ) = @_;
+  my $n = 1 / ( ( $x * $x ) + ( $y + $y ) );
+  return $x * $n, $y * $n;
+}
+
+sub _ffswirl {
+  my ( $x, $y ) = @_;
+  my $rsqrd = ( ( $x * $x ) + ( $y + $y ) );
+  return (
+    ( $x * sin($rsqrd) ) - ( $y * cos($rsqrd) ),
+    ( $x * cos($rsqrd) ) + ( $y * sin($rsqrd) )
+  );
+}
+
+sub _ffhorseshoe {
+  my ( $x, $y ) = @_;
+  my $r = sqrt( ( $x * $x ) + ( $y * $y ) );
+  my $rf = 1 / ( $r * $r );
+  return ( $rf * ( $x - $y ) * ( $x + $y ), $rf * 2 * $x * $y );
+}
+
+sub _ffpopcorn {
+  my ( $x, $y, $c, $f ) = @_;
+  return (
+    $x + ( $c * sin( tan( 3 * $y ) ) ),
+    $y + ( $f * sin( tan( 3 * $x ) ) ),
+  );
+}
+
 my @flameFns;
 
 do {
-  push @flameFns, sub { return @_ };    # linear
-  push @flameFns, sub {                 # sinu
-    my ( $x, $y ) = @_;
-    return sin($x) * 3, sin($y) * 3;
-  };
-  push @flameFns, sub {                 # sphere
-    my ( $x, $y ) = @_;
-    my $n = 1 / ( ( $x * $x ) + ( $y + $y ) );
-    return $x * $n, $y * $n;
-  };
-  push @flameFns, sub {                 # swirl
-    my ( $x, $y ) = @_;
-    my $rsqrd = ( ( $x * $x ) + ( $y + $y ) );
-    return (
-      ( $x * sin($rsqrd) ) - ( $y * cos($rsqrd) ),
-      ( $x * cos($rsqrd) ) + ( $y * sin($rsqrd) )
-    );
-  };
-  push @flameFns, sub {                 # horseshoe
-    my ( $x, $y ) = @_;
-    my $r = sqrt( ( $x * $x ) + ( $y * $y ) );
-    my $rf = 1 / ( $r * $r );
-    return ( $rf * ( $x - $y ) * ( $x + $y ), $rf * 2 * $x * $y );
-  };
-  push @flameFns, sub {                 # popcorn
-    my ( $x, $y, $c, $f ) = @_;
-    return (
-      $x + ( $c * sin( tan( 3 * $y ) ) ),
-      $y + ( $f * sin( tan( 3 * $x ) ) ),
-    );
-  };
+  push @flameFns, \&_fflinear;
+  push @flameFns, \&_ffsinusoidal;
+  push @flameFns, \&_ffsphere;
+  push @flameFns, \&_ffswirl;
+  push @flameFns, \&_ffhorseshoe;
+  push @flameFns, \&_ffpopcorn;
 };
 
 sub fflame {
@@ -1409,7 +1418,7 @@ sub densemap {
 
   my $i = 0;
   for ( sort { $a <=> $b } @colors ) {
-    $colors->{$_} = ( sqrt( $i / @colors ) * $maxColor );
+    $colors->{$_} = ( $i / @colors ) * $maxColor;
 
     $i++;
   }
@@ -2818,6 +2827,157 @@ sub newton {
   return $grid;
 }
 
+sub lumber {
+  my %args = defaultArgs(@_);
+
+  my $len = $args{len};
+
+  my $perlin = perlin(%args, octaves => 4, freq => 2, amp => 8);
+
+  my $grid = grid(%args);
+
+  for ( my $x = 0 ; $x < $len; $x++ ) {
+    for ( my $y = 0 ; $y < $len; $y++ ) {
+      my $gray = noise($perlin, $x, 0)/4;
+
+      $grid->[$y]->[$x] =
+        (noise($perlin, $gray, $y) + ($perlin->[$x]->[$y])) % $maxColor;
+    }
+  }
+
+  return glow($grid);
+}
+
+#
+# I heartily endorse this event or product
+#
+sub wormhole {
+  my %args = @_;
+
+  $args{octaves} = 3 if !$args{octaves};
+  $args{freq} = 2 if !$args{freq};
+  $args{amp} = 8 if !$args{amp};
+
+  %args = defaultArgs(%args);
+
+  my $len  = $args{len} * 2;
+  my $dist = sqrt($len);
+
+  my $grid = grid(%args, bias => 0, len => $len);
+  my $perlin = perlin(%args, len => $len);
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $amp = noise($perlin,$x,$y,$len) / $maxColor;
+
+      do {
+        my ( $thisX, $thisY ) = translate( $x, $y,
+          $amp * 360,
+          $amp * $dist,
+        );
+
+        $grid->[$thisX % $len]->[$thisY % $len] = abs($amp);
+      };
+    }
+  }
+
+  $grid = shrink($grid,%args);
+
+  $grid = glow($grid,%args);
+
+  $grid = densemap($grid,%args);
+
+  return $grid;
+}
+
+sub flux {
+  my %args = @_;
+
+  $args{len} = $defaultLen if !$args{len};
+  $args{octaves} = 3 if !$args{octaves};
+  $args{freq} = 2 if !$args{freq};
+
+  my $len  = $args{len} * 2;
+
+  $args{amp} = sqrt($len)*2 if !$args{amp};
+  $args{bias} = 0 if !$args{bias};
+
+  my $dist = sqrt($len);
+
+  %args = defaultArgs(%args);
+
+  my $grid = grid(%args,bias=>0, len => $len);
+
+  my $perlin = perlin(%args, freq => 2, len => $len);
+
+  for ( my $x = 0; $x < $len; $x++ ) {
+    for ( my $y = 0; $y < $len; $y++ ) {
+      my $amp = noise($perlin,$x,$y,$len) / $maxColor;
+
+      # $grid->[$x]->[$y] = abs($amp);
+
+      do {
+        my $xAngle = xAngle( $perlin, $x, $y );
+        my $yAngle = yAngle( $perlin, $x, $y );
+
+        my $angle = sqrt(($xAngle**2) + ($yAngle**2));
+
+        my ( $thisX, $thisY ) = translate( $x, $y,
+          $angle,
+          ( $amp / $dist ) * $dist,
+        );
+
+        $thisX %= $len;
+        $thisY %= $len;
+
+        $grid->[$thisX]->[$thisY] = abs($amp);
+      };
+    }
+  }
+
+  $grid = shrink($grid,%args);
+
+  $grid = glow($grid,%args);
+
+  $grid = densemap($grid,%args);
+
+  for ( my $x = 0; $x < $len/2; $x++ ) {
+    for ( my $y = 0; $y < $len/2; $y++ ) {
+      $grid->[$x]->[$y] = $maxColor - $grid->[$x]->[$y];
+    }
+  }
+
+  return $grid;
+}
+
+sub xAngle {
+  my $perlin = shift;
+  my $x = shift;
+  my $y = shift;
+
+  my $left = noise($perlin,$x-1,$y);
+  my $this = noise($perlin,$x,$y);
+  my $right = noise($perlin,$x+1,$y);
+
+  my $delta = ( $left - $right ) / $maxColor;
+
+  return ( $delta * 360 );
+}
+
+sub yAngle {
+  my $perlin = shift;
+  my $x = shift;
+  my $y = shift;
+
+  my $up = noise($perlin,$x,$y-1);
+  my $this = noise($perlin,$x,$y);
+  my $down = noise($perlin,$x,$y+1);
+
+  my $delta = ( $up - $down ) / $maxColor;
+
+  return ( $delta * 360 );
+}
+
 sub _test {
   my %args = defaultArgs(@_);
 
@@ -3665,6 +3825,48 @@ See MULTI-RES ARGS for allowed args.
 =end HTML
 
 Long, fiberous worm paths with random skew.
+
+See MULTI-RES ARGS for allowed args.
+
+=item * lumber(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/lumber-wavelet.jpeg" width="256" height="256" alt="lumber example" /></p>
+
+=end HTML
+
+Persistent noise with heavy banding.
+
+Looks vaguely wood-like with the right clut.
+
+See MULTI-RES ARGS for allowed args.
+
+=item * wormhole(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/wormhole-wavelet.jpeg" width="256" height="256" alt="wormhole example" /></p>
+
+=end HTML
+
+Noise values displaced according to field flow rules, and plotted.
+
+C<amp> controls displacement amount (eg 8).
+
+See MULTI-RES ARGS for allowed args.
+
+=item * flux(%args)
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/flux-wavelet.jpeg" width="256" height="256" alt="flux example" /></p>
+
+=end HTML
+
+Noise values extruded in three dimensions, and plotted.
+
+C<amp> controls extrusion amount (eg 8).
 
 See MULTI-RES ARGS for allowed args.
 

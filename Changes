@@ -1,5 +1,7 @@
 .015
-  - Fixed bug in refract
+  - Added multi-res types: lumber, wormhole, flux
+  - Added smoothing step to Diamond-Square
+  - Misc cleanup and fixes
 
 .014
   - Doc updates with links to example images
