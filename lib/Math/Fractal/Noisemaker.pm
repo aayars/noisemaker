@@ -40,6 +40,8 @@ our %EXPORT_TAGS = (
   'all' => \@EXPORT_OK,
 );
 
+our $defaultAmp       = .5;
+our $defaultBias      = .5;
 our $defaultLen       = 256;
 our $defaultType      = 'perlin';
 our $defaultSliceType = 'wavelet';
@@ -130,6 +132,7 @@ sub usage {
   print "  [-len <int>] \\              ## side length (eg 256)\n";
   print "  [-octaves <int>] \\          ## octave count (eg 4)\n";
   print "  [-bias <num>] \\             ## value bias (0..1)\n";
+  print "  [-persist <num>] \\          ## multi-res persistence (eg .5)\n";
   print "  [-gap <num>] \\              ## gappiness (0..1)\n";
   print "  [-feather <num>] \\          ## feather amt (0..255)\n";
   print "  [-layers <int>] \\           ## complex layers (eg 3)\n";
@@ -186,6 +189,7 @@ sub make {
     elsif ( $arg =~ /len/ )       { $args{len}      = shift; }
     elsif ( $arg =~ /octaves/ )   { $args{octaves}  = shift; }
     elsif ( $arg =~ /bias/ )      { $args{bias}     = shift; }
+    elsif ( $arg =~ /persist/ )   { $args{persist}  = shift; }
     elsif ( $arg =~ /gap/ )       { $args{gap}      = shift; }
     elsif ( $arg =~ /feather/ )   { $args{feather}  = shift; }
     elsif ( $arg =~ /layers/ )    { $args{layers}   = shift; }
@@ -337,7 +341,7 @@ sub make {
 sub defaultArgs {
   my %args = @_;
 
-  $args{bias}   = .5 if !defined $args{bias};
+  $args{bias}   = $defaultBias if !defined $args{bias};
   $args{smooth} = 1  if !defined $args{smooth};
 
   $args{gap}     ||= 0;
@@ -345,10 +349,11 @@ sub defaultArgs {
   $args{freq}    ||= 8;
   $args{len}     ||= $defaultLen;
   $args{octaves} ||= 4;
+  $args{persist} ||= .5;
 
   $args{auto}   = 1  if !defined( $args{auto} ) && $args{type} ne 'fern';
 
-  $args{amp} = .5 if !defined $args{amp};
+  $args{amp} = $defaultAmp if !defined $args{amp};
 
   return %args;
 }
@@ -605,7 +610,7 @@ sub white {
 
   my $grid = grid(%args, len => $freq);
 
-  $args{amp} = .5 if !defined $args{amp};
+  $args{amp} = $defaultAmp if !defined $args{amp};
 
   my $ampVal  = $args{amp} * $maxColor;
   my $biasVal = $args{bias} * $maxColor;
@@ -648,7 +653,7 @@ sub stars {
   print "Generating stars...\n" if !$QUIET;
 
   $args{bias} = 0;
-  $args{amp} ||= .5;
+  $args{amp} ||= $defaultAmp;
   $args{gap} ||= .995;
 
   my $grid = white( %args, stars => 1 );
@@ -717,7 +722,7 @@ sub square {
   my $bias   = $args{bias};
   my $length = $args{len};
 
-  $amp = .5 if !defined $amp;
+  $amp = $defaultAmp if !defined $amp;
 
   my $grid = white( %args, len => $freq * 2 );
 
@@ -810,7 +815,7 @@ sub perlin {
 
   print "Generating Perlin noise...\n" if !$QUIET;
 
-  $args{amp} = .5 if !defined $args{amp};
+  $args{amp} = $defaultAmp if !defined $args{amp};
 
   %args = defaultArgs(%args);
 
@@ -855,7 +860,7 @@ sub perlin {
       len  => $length,
       );
 
-    $amp  *= .5;
+    $amp  *= $args{persist};
     $freq *= 2;
   }
 
@@ -1069,7 +1074,7 @@ sub complex {
 
       $bias += $biasOffset;
       $biasOffset *= .5;
-      $amp        *= .5;
+      $amp        *= $args{persist};
     }
   };
 
@@ -1202,7 +1207,7 @@ sub wavelet {
 
   print "Generating wavelet noise...\n" if !$QUIET;
 
-  $args{amp} = .5 if !defined $args{amp};
+  $args{amp} = $defaultAmp if !defined $args{amp};
   $args{len} ||= $defaultLen;
   $args{freq} = $args{len} if !defined $args{freq};
 
@@ -1942,7 +1947,7 @@ sub spirals {
   my $radius = $half;
   my $rand   = sub { ( rand() >= .5 ) ? 1 : -1 };
 
-  $args{amp} = .5 if !defined $args{amp};
+  $args{amp} = $defaultAmp if !defined $args{amp};
 
   my $bias = $args{bias} * $maxColor;
   my $amp  = $args{amp} * $maxColor;
@@ -2007,8 +2012,8 @@ sub spirals {
 sub dla {
   my %args = @_;
 
-  $args{bias} ||= .5;
-  $args{amp}  ||= .5;
+  $args{bias} ||= $defaultBias;
+  $args{amp}  ||= $defaultAmp;
   $args{len}  ||= $defaultLen;
   $args{freq} = $args{len} if !defined $args{freq};
 
@@ -2420,7 +2425,7 @@ sub sparkle {
   my $clouds = sgel( %args, freq => 8, bias => 0, amp => .025, stars => 1 );
 
   my $shadow = emboss( $clouds, %args );
-  my $dust = sgel( %args, freq => 16, amp => .5, stars => 1 );
+  my $dust = sgel( %args, freq => 16, amp => $defaultAmp, stars => 1 );
   $dust = densemap($dust);
 
   my $out = grid(%args);
@@ -3314,7 +3319,7 @@ Single-res noise types may be specified as a multi-res slice types (C<stype>)
 
 =over 4
 
-=item * white(%args)
+=item * white
 
 =begin HTML
 
@@ -3326,7 +3331,7 @@ Each non-smoothed pixel contains a pseudo-random value.
 
 See SINGLE-RES ARGS for allowed arguments.
 
-=item * wavelet(%args)
+=item * wavelet
 
 =begin HTML
 
@@ -3338,7 +3343,7 @@ Basis function for sharper multi-res slices
 
 See SINGLE-RES ARGS for allowed arguments.
 
-=item * square(%args)
+=item * square
 
 =begin HTML
 
@@ -3350,7 +3355,7 @@ Diamond-Square (mostly square)
 
 See SINGLE-RES ARGS for allowed arguments.
 
-=item * gel(%args)
+=item * gel
 
 =begin HTML
 
@@ -3362,7 +3367,7 @@ Self-displaced white noise.
 
 See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
-=item * sgel(%args)
+=item * sgel
 
 =begin HTML
 
@@ -3374,7 +3379,7 @@ Self-displaced Diamond-Square noise.
 
 See SINGLE-RES ARGS and GEL TYPES for allowed arguments.
 
-=item * dla(%args)
+=item * dla
 
 =begin HTML
 
@@ -3388,7 +3393,7 @@ See SINGLE-RES ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * mandel(%args)
+=item * mandel
 
 =begin HTML
 
@@ -3404,7 +3409,7 @@ C<bias> and C<amp> currently have no effect.
 
 Example C<maxiter> value: 256
 
-=item * dmandel(%args)
+=item * dmandel
 
 =begin HTML
 
@@ -3423,7 +3428,7 @@ C<bias> and C<amp> currently have no effect.
 
 Example C<maxiter> value: 256
 
-=item * buddha(%args)
+=item * buddha
 
 =begin HTML
 
@@ -3441,7 +3446,7 @@ C<zoom> well, due to the diminished sample of escaping points.
 
 Example C<maxiter> value: 4096
 
-=item * julia(%args)
+=item * julia
 
 =begin HTML
 
@@ -3459,7 +3464,7 @@ C<zoom> is not yet implemented for this type.
 
 Example C<maxiter> value: 200
 
-=item * djulia(%args)
+=item * djulia
 
 =begin HTML
 
@@ -3479,7 +3484,7 @@ C<zoom> is not yet implemented for this type.
 
 Example C<maxiter> value: 200
 
-=item * newton(%args)
+=item * newton
 
 =begin HTML
 
@@ -3499,7 +3504,7 @@ C<zoom> is not yet implemented for this type.
 
 Example C<maxiter> value: 10
 
-=item * fflame(%args)
+=item * fflame
 
 =begin HTML
 
@@ -3515,7 +3520,7 @@ C<bias> and C<amp> currently have no effect.
 
 Example C<maxiter> value: 6553600
 
-=item * fern(%args)
+=item * fern
 
 =begin HTML
 
@@ -3525,7 +3530,7 @@ Example C<maxiter> value: 6553600
 
 IFS type - Barnsley's fern. Included as a demo.
 
-=item * gasket(%args)
+=item * gasket
 
 =begin HTML
 
@@ -3535,7 +3540,7 @@ IFS type - Barnsley's fern. Included as a demo.
 
 IFS type - Sierpinski's triangle/gasket. Included as a demo.
 
-=item * stars(%args)
+=item * stars
 
 =begin HTML
 
@@ -3549,7 +3554,7 @@ See SINGLE-RES ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * spirals(%args)
+=item * spirals
 
 =begin HTML
 
@@ -3563,7 +3568,7 @@ See SINGLE-RES ARGS for allowed arguments.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * voronoi(%args)
+=item * voronoi
 
 =begin HTML
 
@@ -3575,7 +3580,7 @@ Ridged Voronoi cells.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * moire(%args)
+=item * moire
 
 =begin HTML
 
@@ -3589,7 +3594,7 @@ Appearance of output is heavily influenced by the C<freq> arg.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * textile(%args)
+=item * textile
 
 =begin HTML
 
@@ -3601,7 +3606,7 @@ Moire noise with a randomized and large C<freq> arg.
 
 C<bias> and C<amp> currently have no effect.
 
-=item * infile(%args)
+=item * infile
 
 Import the brightness values from the file specified by the "in"
 or "-in" arg.
@@ -3610,7 +3615,7 @@ or "-in" arg.
     in => "dirt.bmp"
   );
 
-=item * intile(%args)
+=item * intile
 
 =begin HTML
 
@@ -3747,7 +3752,7 @@ The default slice type is smoothed C<wavelet> noise.
 
 =over 4
 
-=item * perlin(%args)
+=item * perlin
 
 =begin HTML
 
@@ -3761,7 +3766,7 @@ See MULTI-RES ARGS for allowed args.
 
   make(type => 'perlin', stype => '...');
 
-=item * ridged(%args)
+=item * ridged
 
 =begin HTML
 
@@ -3777,7 +3782,7 @@ Provide C<zshift> arg to specify a post-processing bias.
 
   make(type => 'ridged', stype => '...', zshift => .5 );
 
-=item * block(%args)
+=item * block
 
 =begin HTML
 
@@ -3791,7 +3796,7 @@ See MULTI-RES ARGS for allowed args.
 
   make(type => 'block', stype => ...);
 
-=item * pgel(%args)
+=item * pgel
 
 =begin HTML
 
@@ -3805,7 +3810,7 @@ See MULTI-RES ARGS and GEL TYPES for allowed args.
 
   make(type => 'pgel', stype => ...);
 
-=item * fur(%args)
+=item * fur
 
 =begin HTML
 
@@ -3817,7 +3822,7 @@ Fur-lin noise; traced paths of worms with multi-res input.
 
 See MULTI-RES ARGS for allowed args.
 
-=item * tesla(%args)
+=item * tesla
 
 =begin HTML
 
@@ -3829,7 +3834,7 @@ Long, fiberous worm paths with random skew.
 
 See MULTI-RES ARGS for allowed args.
 
-=item * lumber(%args)
+=item * lumber
 
 =begin HTML
 
@@ -3843,7 +3848,7 @@ Looks vaguely wood-like with the right clut.
 
 See MULTI-RES ARGS for allowed args.
 
-=item * wormhole(%args)
+=item * wormhole
 
 =begin HTML
 
@@ -3857,7 +3862,7 @@ C<amp> controls displacement amount (eg 8).
 
 See MULTI-RES ARGS for allowed args.
 
-=item * flux(%args)
+=item * flux
 
 =begin HTML
 
@@ -3892,6 +3897,13 @@ Higher generally looks nicer.
 
   my $sharp = make(octaves => 8);
 
+=item * persist => $num
+
+Per-octave amplitude multiplicand (persistence). Traditional and
+default value is .5
+
+  my $grid => make(persist => .25);
+
 =item * stype => $simpleType
 
 Perlin slice type, defaults to C<wavelet>. Any single-res type may be
@@ -3907,7 +3919,7 @@ Dual noise contains two noise sets of the same type.
 
 =over 4
 
-=item * delta(%args)
+=item * delta
 
 =begin HTML
 
@@ -3929,7 +3941,7 @@ override the slice type.
     ltype => "gel"
   );
 
-=item * chiral(%args)
+=item * chiral
 
 =begin HTML
 
@@ -3950,7 +3962,7 @@ override the slice type.
     ltype => "tesla"
   );
 
-=item * stereo(%args)
+=item * stereo
 
 =begin HTML
 
