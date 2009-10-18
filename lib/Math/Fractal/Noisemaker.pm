@@ -811,9 +811,10 @@ sub perlin {
   print "Generating Perlin noise...\n" if !$QUIET;
 
   $args{amp} = .5 if !defined $args{amp};
-  $args{amp} *= $args{octaves};
 
   %args = defaultArgs(%args);
+
+  $args{amp} *= $args{octaves};
 
   my $length  = $args{len};
   my $amp     = $args{amp};
