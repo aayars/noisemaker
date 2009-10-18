@@ -1,7 +1,8 @@
 .015
   - Added multi-res types: lumber, wormhole, flux
-  - Added smoothing step to Diamond-Square
+  - Added smoothing step for square noise (sparkle looks nicer too)
   - Misc cleanup and fixes
+  - Changed licensing to Perl's
 
 .014
   - Doc updates with links to example images

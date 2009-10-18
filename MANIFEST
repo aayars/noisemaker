@@ -1,6 +1,5 @@
 bin/make-noise
 Changes
-cpl1.0.txt
 INSTALL
 lib/Math/Fractal/Noisemaker.pm
 Makefile.PL

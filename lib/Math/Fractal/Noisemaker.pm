@@ -4210,13 +4210,12 @@ sources.
 
 =head1 COPYRIGHT
 
-  File: Fractal/Noisemaker.pm
+  File: Math/Fractal/Noisemaker.pm
  
-  Copyright (c) 2009 Alex Ayars
- 
-  All rights reserved. This program and the accompanying materials
-  are made available under the terms of the Common Public License v1.0
-  which accompanies this distribution, and is available at
-  http://opensource.org/licenses/cpl1.0.txt
+  Copyright (C) 2009, Alex Ayars <pause@nodekit.org>
+
+  This program is free software; you can redistribute it and/or modify
+  it under the same terms as Perl 5.10.0 or later. See:
+  http://dev.perl.org/licenses/
 
 =cut
