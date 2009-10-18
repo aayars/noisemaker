@@ -1,3 +1,6 @@
-This module generates many types of two-dimensional grayscale noise.
+Math::Fractal::Noisemaker provides a simple functional interface
+for generating 2D fractal (or non-fractal) noise.
 
 See lib/Math/Fractal/Noisemaker.pm for perldoc.
+
+--aayars

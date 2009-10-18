@@ -3134,13 +3134,12 @@ L<Imager> can take care of further post-processing.
 =head1 DESCRIPTION
 
 Math::Fractal::Noisemaker provides a simple functional interface
-for generating 2D tiles from various flavors of fractal (and
-non-fractal) inputs.
+for generating 2D fractal (or non-fractal) noise.
 
-As long as the specified side length is a power of the noise's
-frequency, this module will produce seamless tiles (with the exception
-of a few noise types).  For example, a base frequency of 4 would
-work fine for an image with a side length of 256 (256x256).
+If the specified side length is a power of the noise's frequency,
+this module will produce seamless tiles (with the exception of a
+few noise types). For example, a base frequency of 4 works for an
+image with a side length of 256 (256x256).
 
 =head1 FUNCTION
 
