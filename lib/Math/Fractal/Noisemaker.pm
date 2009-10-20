@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.015';
+our $VERSION = '0.099_001';
 
 use strict;
 use warnings;
@@ -15,7 +15,7 @@ use base qw| Exporter |;
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
   fflame mandel dmandel buddha fern gasket julia djulia newton
-  infile intile moire textile sparkle brownian gaussian
+  infile intile moire textile sparkle brownian gaussian canvas
   |;
 
 our @PERLIN_TYPES = qw|
@@ -89,6 +89,7 @@ sub showTypes {
   print "  * sparkle         ## stylized stars\n";
   print "  * brownian        ## fractional brownian\n";
   print "  * gaussian        ## fractional gaussian\n";
+  print "  * canvas          ## like an old map\n";
   print "\n";
   print "  ! perlin          ## multi-resolution\n";
   print "  ! ridged          ## ridged multifractal\n";
@@ -242,8 +243,6 @@ sub make {
   {
     $args{freq}     ||= 4;
     $args{displace} ||= .5;
-  # } else {
-    # $args{octaves} ||= 8;
   }
 
   my $format = $args{format} || "bmp";
@@ -2936,7 +2935,7 @@ sub flux {
         $thisX %= $len;
         $thisY %= $len;
 
-        $grid->[$thisX]->[$thisY] = abs($amp);
+        $grid->[$thisX]->[$thisY] += abs($amp);
       };
     }
   }
@@ -2982,6 +2981,16 @@ sub yAngle {
   my $delta = ( $up - $down ) / $maxColor;
 
   return ( $delta * 360 );
+}
+
+sub canvas {
+  my %args = defaultArgs(@_);
+
+  my $square = square(%args, smooth=>0);
+
+  $square = lsmooth($square, %args, dirs=>4, angle=>90, rad=>$args{len}/10);
+
+  return $square;
 }
 
 sub _test {
@@ -3070,7 +3079,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.015 of Math::Fractal::Noisemaker.
+This document is for version 0.099_001 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -3350,7 +3359,7 @@ See SINGLE-RES ARGS for allowed arguments.
 
 =end HTML
 
-Diamond-Square (mostly square)
+Diamond-Square
 
 See SINGLE-RES ARGS for allowed arguments.
 
@@ -3663,6 +3672,16 @@ C<bias> currently has no effect.
 Fractional Gaussian noise (via L<Math::Random::Brownian>)
 
 C<bias> currently has no effect.
+
+=item * canvas
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/canvas.jpeg" width="256" height="256" alt="canvas example" /></p>
+
+=end HTML
+
+Unsmoothed square noise with perpenticular linear blur
 
 =back
 
