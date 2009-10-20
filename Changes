@@ -1,3 +1,7 @@
+.099_001
+  - Added canvas type
+  - Updated dependency versions in Makefile.PL
+
 .015
   - Added multi-res types: lumber, wormhole, flux
   - Added smoothing step for square noise (sparkle looks nicer too)
