@@ -1,13 +1,12 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.099_001';
+our $VERSION = '0.100';
 
 use strict;
 use warnings;
 
 use Imager;
 use Math::Complex;
-use Math::Random::Brownian;
 use Math::Trig qw| :radial deg2rad tan pi |;
 
 use base qw| Exporter |;
@@ -15,7 +14,7 @@ use base qw| Exporter |;
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
   fflame mandel dmandel buddha fern gasket julia djulia newton
-  infile intile moire textile sparkle brownian gaussian canvas
+  infile intile moire textile sparkle canvas
   |;
 
 our @PERLIN_TYPES = qw|
@@ -87,8 +86,6 @@ sub showTypes {
   print "  * infile          ## image file named by 'in' arg\n";
   print "  * intile          ## input file + blends edges\n";
   print "  * sparkle         ## stylized stars\n";
-  print "  * brownian        ## fractional brownian\n";
-  print "  * gaussian        ## fractional gaussian\n";
   print "  * canvas          ## like an old map\n";
   print "\n";
   print "  ! perlin          ## multi-resolution\n";
@@ -2523,44 +2520,6 @@ sub stereo {
   return glow( $out, %args );
 }
 
-sub gaussian {
-  return brownian( @_, btype => "Gaussian" );
-}
-
-sub brownian {
-  my %args = @_;
-
-  my $type = $args{btype} || "Brownian";
-
-  print "Generating $type noise...\n" if !$QUIET;
-
-  $args{len} ||= $defaultLen;
-  $args{freq} = $args{len} if !defined $args{freq};
-
-  %args = defaultArgs(%args);
-
-  my $len = $args{freq};
-
-  my $grid = grid( %args, len => $len );
-
-  my $source = Math::Random::Brownian->new();
-
-  for ( my $x = 0 ; $x < $len ; $x++ ) {
-    my @noise = $source->Hosking(
-      LENGTH   => $len,
-      HURST    => .5,
-      VARIANCE => $args{amp},
-      NOISE    => $type,
-    );
-
-    for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $grid->[$x]->[$y] = shift @noise;
-    }
-  }
-
-  return grow( $grid, %args );
-}
-
 sub jdist {
   my $Zx       = shift;
   my $Zy       = shift;
@@ -3079,7 +3038,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.099_001 of Math::Fractal::Noisemaker.
+This document is for version 0.100 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -3648,30 +3607,6 @@ Calls C<infile>, and makes a seamless repeating tile from the image.
 Stylized starfield
 
 C<bias> and C<amp> currently have no effect.
-
-=item * brownian
-
-=begin HTML
-
-<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/brownian.jpeg" width="256" height="256" alt="brownian example" /></p>
-
-=end HTML
-
-Fractional Brownian noise (via L<Math::Random::Brownian>)
-
-C<bias> currently has no effect.
-
-=item * gaussian
-
-=begin HTML
-
-<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/gaussian.jpeg" width="256" height="256" alt="gaussian example" /></p>
-
-=end HTML
-
-Fractional Gaussian noise (via L<Math::Random::Brownian>)
-
-C<bias> currently has no effect.
 
 =item * canvas
 

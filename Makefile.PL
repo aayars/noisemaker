@@ -4,7 +4,6 @@ my $prereqs = {
   Imager                 => 0.70,
   File::Tempdir          => 0.02,
   Math::Complex          => 1.56,
-  Math::Random::Brownian => 0.03,
   Test::Simple           => 0.86,
 };
 

@@ -1,3 +1,7 @@
+.100
+  - Removed Math::Random::Brownian types for now, since the dependency
+    was limiting the number of supported platforms
+
 .099_001
   - Added canvas type
   - Updated dependency versions in Makefile.PL
