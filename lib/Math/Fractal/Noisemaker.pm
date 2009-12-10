@@ -1315,16 +1315,22 @@ sub noise {
 
   my $length = shift || @{$noise};
 
+  my $thisX  = int($x);
+  my $thisY  = int($y);
+
+  #
+  # No need to interpolate
+  #
+  if ( ( $thisX == $x ) && ( $thisY == $y ) ) {
+    return $noise->[$x % $length]->[$y % $length];
+  }
+
   $x = ( ( $x * 100 ) % ( $length * 100 ) ) / 100;
   $y = ( ( $y * 100 ) % ( $length * 100 ) ) / 100;
 
-  die "no data for $x,$y" if !defined $noise->[$x]->[$y];
-
-  my $thisX  = int($x);
   my $fractX = $x - $thisX;
   my $nextX  = ( $x + 1 ) % $length;
 
-  my $thisY  = int($y);
   my $fractY = $y - $thisY;
   my $nextY  = ( $y + 1 ) % $length;
 
@@ -1379,7 +1385,7 @@ sub wavelet {
 
   my $down = shrink( $source, %args, len => $args{freq} / 2 );
 
-  $down = smooth( $down, %args, len => $args{freq} / 2 );
+  # $down = smooth( $down, %args, len => $args{freq} / 2 );
 
   my $up = grow( $down, %args, len => $args{freq} );
 
