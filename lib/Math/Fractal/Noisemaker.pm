@@ -14,7 +14,7 @@ use base qw| Exporter |;
 our @SIMPLE_TYPES = qw|
   white wavelet square gel sgel stars spirals voronoi dla
   fflame mandel dmandel buddha fern gasket julia djulia newton
-  infile intile moire textile sparkle canvas simplex
+  infile intile moire textile sparkle canvas simplex simplex2
   |;
 
 our @PERLIN_TYPES = qw|
@@ -39,9 +39,9 @@ our $defaultAmp       = .5;
 our $defaultBias      = .5;
 our $defaultLen       = 256;
 our $defaultType      = 'perlin';
-our $defaultSliceType = 'wavelet';
+our $defaultSliceType = 'white';
 our $defaultLayerBase = 'perlin';
-our $defaultLayerType = 'perlin';
+our $defaultLayerType = 'ridged';
 our $defaultGap       = 0;
 our $defaultFreq      = 4;
 our $defaultOctaves   = 8;
@@ -68,7 +68,8 @@ sub showTypes {
   print "\n";
   print "  * white           ## pseudo-random values\n";
   print "  * wavelet         ## band-limited ortho\n";
-  print "  * simplex         ## budget isotropic noise\n";
+  print "  * simplex         ## continuous gradient noise\n";
+  print "  * simplex2        ## tiled simplex\n";
   print "  * square          ## diamond-square algorithm\n";
   print "  * gel             ## self-displaced smooth\n";
   print "  * sgel            ## self-displaced diamond-square\n";
@@ -104,17 +105,12 @@ sub showTypes {
   print "\n";
   print "Legend:";
   print "\n";
-  print "  * single-res type: may be used as a multi-res slice type (stype)\n";
-  print "  ! control basis func via 'stype'\n";
+  print "  * single-res type\n";
+  print "  !  multi-res type - use 'stype' arg to change basis func\n";
   print "\n";
   print "perldoc Math::Fractal::Noisemaker for more help.\n";
   print "\n";
 }
-
-# print "  [-lbase <any type but terra>] \\ ## terra basis\n";
-# print "  [-ltype <any type but terra>] \\ ## terra layer\n";
-# print "  [-feather <num>] \\          ## feather amt (0..255)\n";
-# print "  [-layers <int>] \\           ## terra layers (eg 3)\n";
 
 sub usage {
   showVersion();
@@ -128,10 +124,10 @@ sub usage {
   print "  [-freq <num>] \\             ## base frequency (eg 2)\n";
   print "  [-len <int>] \\              ## side length (eg 256)\n";
   print "  [-bias <num>] \\             ## value bias (0..1)\n";
-  print "  [-octaves <int>] \\          ## multi-res octaves (eg 4)\n";
-  print "  [-persist <num>] \\          ## multi-res persistence (eg .5)\n";
   print "  [-interp <0|1>] \\           ## interp fn linear|cosine\n";
   print "  [-grow <0|1>] \\             ## growth fn interp|gaussian\n";
+  print "  [-octaves <int>] \\          ## multi-res octaves (eg 4)\n";
+  print "  [-persist <num>] \\          ## multi-res persistence (eg .5)\n";
   print "  [-gap <num>] \\              ## gappiness (0..1)\n";
   print "  [-smooth <0..1>] \\          ## resampling off..on\n";
   print "  [-sphere <0|1>] \\           ## fake spheremap\n";
@@ -149,9 +145,11 @@ sub usage {
   print "  [-delta 0|1] \\              ## output as difference noise\n";
   print "  [-chiral 0|1] \\             ## output as additive noise\n";
   print "  [-stereo 0|1] \\             ## output as stereogram\n";
+  print "  [-lbase <any type but terra>] \\ ## terra continent shape\n";
+  print "  [-ltype <any type but terra>] \\ ## terra multi-res type\n";
+  print "  [-feather <num>] \\          ## terra feather amt (0..255)\n";
+  print "  [-layers <int>] \\           ## terra layers (eg 3)\n";
   print "  [-format <type>] \\          ## file type (default bmp)\n";
-  print "  [-workdir <dir>] \\          ## output dir (eg \"mynoise/\")\n";
-  print "  [-workdir <dir>] \\          ## output dir (eg \"mynoise/\")\n";
   print "  [-workdir <dir>] \\          ## output dir (eg \"mynoise/\")\n";
   print "  [-quiet <0|1>] \\            ## no STDOUT spam\n";
   print "  [-out <filename>]           ## Output file (foo.bmp)\n";
@@ -286,7 +284,6 @@ sub make {
         $args{out} = join( "-", $args{type}, $args{ltype} ) . ".$format";
       }
     } elsif ( $args{type} eq 'terra' ) {
-
       #
       #
       #
@@ -316,9 +313,6 @@ sub make {
 
     $args{out} = join( "/", $args{workdir}, $args{out} );
   }
-
-  # XXX
-  # return if -e $args{out};
 
   my $grid;
 
@@ -778,8 +772,7 @@ sub gel {
 
   print "Generating gel noise...\n" if !$QUIET;
 
-  $args{displace} = 4 if !defined $args{displace};
-  $args{freq}     = 8 if !defined $args{freq};
+  $args{displace} = 2 if !defined $args{displace};
 
   %args = defaultArgs(%args);
 
@@ -814,7 +807,7 @@ sub displace {
       my $displaceX = noise( $grid, $x,           $y ) * $displace;
       my $displaceY = noise( $grid, $length - $x, $length - $y ) * $displace;
 
-      $out->[$x]->[$y] = noise( $grid, $x + $displaceX, $y + $displaceY );
+      $out->[$x]->[$y] = noise( $grid, $displaceX, $displaceY );
     }
   }
 
@@ -1172,7 +1165,7 @@ sub terra {
     %args,
     bias => .4,
     amp  => .6,
-    freq => 4,
+    freq => $args{freq},
   );
 
   my @layers;
@@ -1181,7 +1174,7 @@ sub terra {
     my $biasOffset = .5;
     my $bias       = .25;
     my $amp        = .125;
-    my $freq       = 8;
+    my $freq       = $args{freq};
 
     my $generator = __generator( $args{ltype} );
 
@@ -1315,24 +1308,27 @@ sub noise {
 
   my $length = shift || @{$noise};
 
-  my $thisX  = int($x);
-  my $thisY  = int($y);
+  my $thisX = int($x);
+  my $thisY = int($y);
 
   #
   # No need to interpolate
   #
   if ( ( $thisX == $x ) && ( $thisY == $y ) ) {
-    return $noise->[$x % $length]->[$y % $length];
+    return $noise->[ $x % $length ]->[ $y % $length ];
   }
 
-  $x = ( ( $x * 100 ) % ( $length * 100 ) ) / 100;
-  $y = ( ( $y * 100 ) % ( $length * 100 ) ) / 100;
+  $x = ( ( $x * 1000 ) % ( $length * 1000 ) ) / 1000;
+  $y = ( ( $y * 1000 ) % ( $length * 1000 ) ) / 1000;
 
   my $fractX = $x - $thisX;
   my $nextX  = ( $x + 1 ) % $length;
 
   my $fractY = $y - $thisY;
   my $nextY  = ( $y + 1 ) % $length;
+
+  $thisX = $thisX % $length;
+  $thisY = $thisY % $length;
 
   my $v1 = $noise->[$thisX]->[$thisY] || 0;
   my $v2 = $noise->[$nextX]->[$thisY] || 0;
@@ -2588,24 +2584,16 @@ sub sparkle {
 
   %args = defaultArgs(%args);
 
-  my $clouds = sgel( %args, freq => 8, bias => 0, amp => .025, stars => 1 );
-
-  my $shadow = emboss( $clouds, %args );
-  my $dust = sgel( %args, freq => 16, amp => $defaultAmp, stars => 1 );
-  $dust = densemap($dust);
-
   my $out = grid(%args);
 
   my $len = $args{len};
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      my $cv = $clouds->[$x]->[$y] + $stars0->[$x]->[$y];
-      my $dv = $dust->[$x]->[$y] + $shadow->[$x]->[$y];
-      my $fv = interp( 0, $cv, $dv / $maxColor );
+      my $cv = $stars0->[$x]->[$y];
       my $sv = $stars->[$x]->[$y];
 
-      $out->[$x]->[$y] = $sv + $fv;
+      $out->[$x]->[$y] = $sv + $cv;
     }
   }
 
@@ -2953,7 +2941,7 @@ sub lumber {
 
   my $len = $args{len};
 
-  my $perlin = perlin( %args, octaves => 4, freq => 2, amp => 8 );
+  my $perlin = perlin( %args, octaves => 3, freq => 2, amp => 4 );
 
   my $grid = grid(%args);
 
@@ -2977,7 +2965,7 @@ sub wormhole {
 
   $args{octaves} = 3 if !$args{octaves};
   $args{freq}    = 2 if !$args{freq};
-  $args{amp}     = 8 if !$args{amp};
+  $args{amp}     = 4 if !$args{amp};
 
   %args = defaultArgs(%args);
 
@@ -3105,46 +3093,9 @@ sub canvas {
   return $square;
 }
 
-my @perm = (
-  151, 160, 137, 91,  90,  15,  131, 13,  201, 95,  96,  53,  194, 233,
-  7,   225, 140, 36,  103, 30,  69,  142, 8,   99,  37,  240, 21,  10,
-  23,  190, 6,   148, 247, 120, 234, 75,  0,   26,  197, 62,  94,  252,
-  219, 203, 117, 35,  11,  32,  57,  177, 33,  88,  237, 149, 56,  87,
-  174, 20,  125, 136, 171, 168, 68,  175, 74,  165, 71,  134, 139, 48,
-  27,  166, 77,  146, 158, 231, 83,  111, 229, 122, 60,  211, 133, 230,
-  220, 105, 92,  41,  55,  46,  245, 40,  244, 102, 143, 54,  65,  25,
-  63,  161, 1,   216, 80,  73,  209, 76,  132, 187, 208, 89,  18,  169,
-  200, 196, 135, 130, 116, 188, 159, 86,  164, 100, 109, 198, 173, 186,
-  3,   64,  52,  217, 226, 250, 124, 123, 5,   202, 38,  147, 118, 126,
-  255, 82,  85,  212, 207, 206, 59,  227, 47,  16,  58,  17,  182, 189,
-  28,  42,  223, 183, 170, 213, 119, 248, 152, 2,   44,  154, 163, 70,
-  221, 153, 101, 155, 167, 43,  172, 9,   129, 22,  39,  253, 19,  98,
-  108, 110, 79,  113, 224, 232, 178, 185, 112, 104, 218, 246, 97,  228,
-  251, 34,  242, 193, 238, 210, 144, 12,  191, 179, 162, 241, 81,  51,
-  145, 235, 249, 14,  239, 107, 49,  192, 214, 31,  181, 199, 106, 157,
-  184, 84,  204, 176, 115, 121, 50,  45,  127, 4,   150, 254, 138, 236,
-  205, 93,  222, 114, 67,  29,  24,  72,  243, 141, 128, 195, 78,  66,
-  215, 61,  156, 180, 151, 160, 137, 91,  90,  15,  131, 13,  201, 95,
-  96,  53,  194, 233, 7,   225, 140, 36,  103, 30,  69,  142, 8,   99,
-  37,  240, 21,  10,  23,  190, 6,   148, 247, 120, 234, 75,  0,   26,
-  197, 62,  94,  252, 219, 203, 117, 35,  11,  32,  57,  177, 33,  88,
-  237, 149, 56,  87,  174, 20,  125, 136, 171, 168, 68,  175, 74,  165,
-  71,  134, 139, 48,  27,  166, 77,  146, 158, 231, 83,  111, 229, 122,
-  60,  211, 133, 230, 220, 105, 92,  41,  55,  46,  245, 40,  244, 102,
-  143, 54,  65,  25,  63,  161, 1,   216, 80,  73,  209, 76,  132, 187,
-  208, 89,  18,  169, 200, 196, 135, 130, 116, 188, 159, 86,  164, 100,
-  109, 198, 173, 186, 3,   64,  52,  217, 226, 250, 124, 123, 5,   202,
-  38,  147, 118, 126, 255, 82,  85,  212, 207, 206, 59,  227, 47,  16,
-  58,  17,  182, 189, 28,  42,  223, 183, 170, 213, 119, 248, 152, 2,
-  44,  154, 163, 70,  221, 153, 101, 155, 167, 43,  172, 9,   129, 22,
-  39,  253, 19,  98,  108, 110, 79,  113, 224, 232, 178, 185, 112, 104,
-  218, 246, 97,  228, 251, 34,  242, 193, 238, 210, 144, 12,  191, 179,
-  162, 241, 81,  51,  145, 235, 249, 14,  239, 107, 49,  192, 214, 31,
-  181, 199, 106, 157, 184, 84,  204, 176, 115, 121, 50,  45,  127, 4,
-  150, 254, 138, 236, 205, 93,  222, 114, 67,  29,  24,  72,  243, 141,
-  128, 195, 78,  66,  215, 61,  156, 180
-);
-
+#
+# Simplex gradient function
+#
 sub _sgrad {
   my $hash = shift;
   my $x    = shift;
@@ -3161,9 +3112,18 @@ sub _sgrad {
 my $F2 = 0.366025403;
 my $G2 = 0.211324865;
 
+my @perm;
+
+#
+# Simplex noise lookup
+#
 sub _snoise {
   my $x = shift;
   my $y = shift;
+  my $len = shift || $defaultLen;
+
+  $x = ( ( $x * 1000 ) % ( $len * 1000 ) ) / 1000;
+  $y = ( ( $y * 1000 ) % ( $len * 1000 ) ) / 1000;
 
   my ( $n0, $n1, $n2 );
 
@@ -3240,22 +3200,26 @@ sub simplex {
   my $len  = $args{len};
   my $amp  = $args{amp};
 
-  my $grid = grid(%args);
+  my $grid = grid(%args, len => $len);
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      my $thisX = ( $x / $len ) * $freq;
-      my $thisY = ( $y / $len ) * $freq;
+      my $thisX = ($x/$len)*$freq;
+      my $thisY = ($y/$len)*$freq;
 
-      $grid->[$x]->[$y] = _snoise( $thisX, $thisY ) * $amp;
+      $grid->[$x]->[$y] = _snoise( $thisX, $thisY, $len ) * $amp;
     }
   }
 
   return $grid;
+}
 
-  # $grid = smooth($grid);
+sub simplex2 {
+  my %args = defaultArgs(@_);
 
-  # $grid = densemap($grid);
+  my $grid = simplex(%args, len => $args{freq});
+
+  return grow($grid, %args);
 }
 
 sub _test {
@@ -3350,59 +3314,12 @@ This document is for version 0.101 of Math::Fractal::Noisemaker.
 
   use Math::Fractal::Noisemaker qw| :all |;
 
-  #
-  # use defaults
-  #
   make();
-
-  #
-  # override defaults
-  #
-  make(type => 'gel',
-    # ...
-  );
 
 A wrapper script, C<make-noise>, is included with this distribution.
 
-  #
-  # use defaults
-  #
-  make-noise
-
-  #
-  # override defaults
-  #
-  make-noise -type gel
-
-  #
-  # usage
-  #
   make-noise -help
   make-noise -help types
-
-Noise sets are just 2D arrays, which may be generated directly using
-named functions.
-
-  use Math::Fractal::Noisemaker qw| :flavors |;
-
-  my $grid = square(%args);
-
-  #
-  # Look up a value, given X and Y coords
-  #
-  my $value = $grid->[$x]->[$y];
-
-L<Imager> can take care of further post-processing.
-
-  my $grid = perlin(%args);
-
-  my $img = img($grid,%args);
-
-  #
-  # Insert image manip methods here!
-  #
-
-  $img->write(file => "oot.png");
 
 =head1 DESCRIPTION
 
@@ -3420,6 +3337,15 @@ image with a side length of 256 (256x256).
 
 =item * make(type => $type, out => $filename, %ARGS)
 
+Creates the specified noise type (see NOISE TYPES), writing the
+resulting image to the received filename. Unless seriously tinkering,
+C<make> may be the only function needed.
+
+Returns the resulting dataset, as well as the L<Imager> object which
+was created from it and filename used.
+
+This function accepts a plethora of optional arguments, see MAKE ARGS.
+
   #
   # Just make some noise:
   #
@@ -3434,17 +3360,24 @@ image with a side length of 256 (256x256).
     #
   );
 
+Noise sets are 2D array refs.
+
+  #
+  # Look up a value, given X and Y coords
+  #
+  my $value = $grid->[$x]->[$y];
+
+L<Imager> can take care of further post-processing.
+
+  #
+  # Insert image manip methods here!
+  #
+  $img->write(file => "oot.png");
+
+C<make-noise>, included with this distribution, provides a CLI
+wrapper to this function.
+
 =back
-
-Creates the specified noise type (see NOISE TYPES), writing the
-resulting image to the received filename.
-
-Unless seriously tinkering, C<make> may be the only function you need.
-C<make-noise>, included with this distribution, provides a CLI for
-this function.
-
-Returns the resulting dataset, as well as the L<Imager> object which
-was created from it and filename used.
 
 =head2 MAKE ARGS
 
@@ -3468,7 +3401,7 @@ type.
 
 =end HTML
 
-Generate a pseudo-spheremap from the resulting noise.
+Generate a false spheremap from the resulting noise.
 
 See C<spheremap>.
 
@@ -3489,9 +3422,7 @@ appearance of the resulting noise. Often makes it look dirty.
 
 =item * clut => $filename
 
-Use an input image as a color lookup table
-
-This feature is a work in progress.
+Use an input image as a false color lookup table.
 
   make(clut => $filename);
 
@@ -3552,7 +3483,7 @@ good for seamless tiling.
 
 =end HTML
 
-Amount of self-shadowing to apply, between 0 and 1.
+Amount of false self-shadowing to apply, between 0 and 1.
 
 =item * emboss => <0|1>
 
@@ -3562,7 +3493,7 @@ Amount of self-shadowing to apply, between 0 and 1.
 
 =end HTML
 
-Render lightmap only
+Render false lightmap only
 
 =item * interp => <0|1>
 
@@ -3664,7 +3595,14 @@ See SINGLE-RES ARGS for allowed arguments.
 
 =item * simplex
 
-Basis function for faster isotropic multi-res slices
+Another basis function described by Ken Perlin. Not much speed
+benefit in 2D, but it has a distinct flavor.
+
+Does not seamlessly tile.
+
+=item * simplex2
+
+Interpolated simplex noise which seamlessly tiles.
 
 =item * square
 
@@ -3835,7 +3773,7 @@ Example C<maxiter> value: 10
 
 =end HTML
 
-IFS type - "Fractal Flame". Work in progress. Slow but neat.
+IFS type - "Fractal Flame". Slow but neat.
 
 See SINGLE-RES ARGS and FRACTAL ARGS for allowed arguments.
 
@@ -4057,7 +3995,7 @@ and lower amplitudes.
 The slice type used for generating multi-res noise may be controlled
 with the C<stype> argument. Any single-res type may be specified.
 
-The default slice type is smoothed C<wavelet> noise.
+The default slice type is smoothed C<white> noise.
 
 =over 4
 
@@ -4329,6 +4267,14 @@ See GEL TYPES
 
 =back
 
+=head1 BUGS AND LIMITATIONS
+
+Noisemaker was written in Perl as an exploration of the included
+algorithms. Because everything is currently in Perl, this module
+is many orders of magnitude slower than comparable C-based solutions.
+
+This module only produces single-channel two-dimensional noise.
+
 =head1 SEE ALSO
 
 L<Imager>, L<Math::Trig>
@@ -4366,8 +4312,8 @@ Majewski
 - C<newton> function ported from "Fractals on the Complex Plane"
 
 =item * L<http://staffwww.itn.liu.se/~stegu/aqsis/aqsis-newnoise/>
-- C<simplex> function ported from simplexnoise1234.cpp, Copyright
-(c) 2003-2005, Stefan Gustavson
+- 2D C<simplex> function ported from simplexnoise1234.cpp by Stefan
+Gustavson
 
 =back
 

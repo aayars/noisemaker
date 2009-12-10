@@ -1,10 +1,12 @@
 .101
   - Increased default octave count, tweaked other defaults
-  - Turned several noise types into post-processing options
+  - Turned delta, chiral, stereo into post-processing options
   - Added -interp noise arg for specifying interpolation function
   - Added -grow noise arg for specifying upsampling function
-  - Replaced "complex" with "terra"
-  - Added simplex type (2d only)
+  - Replaced "complex" with refined "terra" type
+  - Added simplex and simplex2 types
+  - Changed default slice type/basis func back to white noise
+  - Changed false spheremap recipe, more convincing than ever
 
 .100
   - Removed Math::Random::Brownian types for now, since the dependency
