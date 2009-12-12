@@ -90,7 +90,6 @@ sub showTypes {
   print "  * moire           ## interference patterns\n";
   print "  * textile         ## random high-freq moire\n";
   print "  * infile          ## image file named by 'in' arg\n";
-  print "  * intile          ## input file + blends edges\n";
   print "  * sparkle         ## stylized stars\n";
   print "  * canvas          ## like an old map\n";
   print "\n";
@@ -3805,24 +3804,6 @@ or "-in" arg.
   # also
   #
   my $grid = infile(in => "dirt.bmp", ...);
-
-
-=item * intile
-
-=begin HTML
-
-<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/intile.jpeg" width="256" height="256" alt="intile example" /></p>
-
-=end HTML
-
-Calls C<infile>, and makes a seamless repeating tile from the image.
-
-  make(type => "intile", in => "dirt.bmp", ...);
-
-  #
-  # also
-  #
-  my $grid = intile(in => "dirt.bmp", ...);
 
 
 =item * sparkle
