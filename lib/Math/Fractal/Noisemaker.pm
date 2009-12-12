@@ -4004,6 +4004,39 @@ See MULTI-RES ARGS for allowed args.
 =back
 
 
+=head2 BONUS NOISE
+
+=over 4
+
+=item * terra
+
+=begin HTML
+
+<p><img src="http://github.com.nyud.net/aayars/noisemaker-ex/raw/master/ex/img/terra.jpeg" width="256" height="256" alt="terra example" /></p>
+
+=end HTML
+
+Multi-layered complex noise. Very slow.
+
+See TERRA ARGS for additional arguments.
+
+  make(
+    type   => "terra",
+    lbase  => "perlin",   # Layer base = continent shapes
+    ltype  => "ridged",   # Layer type = elevation layers
+    stype  => "simplex2", # Basis function is any simple type
+
+    clut     => "color.bmp", # color lookup table
+    clutdir  => 1,  # vertical "polar" lookup
+    shadow   => .5, # false shadow
+    grow     => 1,  # gaussian spread
+    sphere   => 1,  # false spheremap
+
+  );
+
+=back
+
+
 =head1 NOISE ARGS
 
 =head2 MAKE ARGS
@@ -4031,8 +4064,6 @@ type.
 =end HTML
 
 Generate a false spheremap from the resulting noise.
-
-See C<spheremap>.
 
   make(sphere => 1);
 
@@ -4140,7 +4171,7 @@ Use linear (0) or cosine (1) interpolation. Default is (1) cosine.
 
 =item * grow => <0|1>
 
-This option may dramatically improve noise quality.
+B<This option may dramatically improve noise quality.>
 
 Use interpolation (0) or gaussian neighborhoods (1) when upsampling
 pixel grids. Gaussian (1) is best for avoiding directional artifacts,
@@ -4338,6 +4369,45 @@ take longer but are more accurate/look nicer.
 
 =back
 
+
+=head2 TERRA ARGS
+
+In addition to all single-res and multi-res args, C<terra> noise consumes
+the following args in hash key form:
+
+=over 4
+
+=item * feather => $num
+
+e.g. 0..255
+
+Amount of blending between elevation layers
+
+  make(type => 'terra', feather => 50);
+
+=item * layers => $int
+
+Number of elevation layers to generate
+
+  make(type => 'terra', layers => 4);
+
+=item * lbase => $noiseType
+
+Complex layer base - defaults to "perlin". Any type except for
+C<terra> may be used.
+
+  make(type => 'terra', lbase => 'gel');
+
+=item * ltype => $noiseType
+
+Complex layer type - defaults to "perlin". Any type
+except for C<terra> may be used.
+
+  make(type => 'terra', ltype => 'gel');
+
+=back
+
+
 =cut
 
 =head1 MORE FUNCTIONS
@@ -4469,7 +4539,8 @@ Inspiration and/or pseudocode borrowed from these notable sources:
 
 =item * L<http://freespace.virgin.net/hugo.elias/models/m_perlin.htm>
 
-Hugo Elias's Perlin noise page
+Hugo Elias's Perlin noise page provided pseudocode for smoothing
+and interpolation functions.
 
 
 =item * L<http://gameprogrammer.com/fractal.html>
@@ -4502,6 +4573,7 @@ The Fractal Flame Algorithm by Scott Draves and Erik Reckase
 Julia fractal functions ported from "Julia set using DEM/J" by Adam
 Majewski
 
+
 =item * L<http://vlab.infotech.monash.edu.au/simulations/fractals/>
 
 Newton functions ported from "Fractals on the Complex Plane", Monash University
@@ -4509,7 +4581,7 @@ Newton functions ported from "Fractals on the Complex Plane", Monash University
 
 =item * L<http://staffwww.itn.liu.se/~stegu/aqsis/aqsis-newnoise/>
 
-C<simplex> function ported from simplexnoise1234.cpp by Stefan Gustavson
+Simplex functions ported from simplexnoise1234.cpp by Stefan Gustavson
 
 =back
 
