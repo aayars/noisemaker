@@ -46,6 +46,7 @@ our $defaultGap       = 0;
 our $defaultFreq      = 4;
 our $defaultOctaves   = 8;
 our $defaultPersist   = .5;
+our $defaultDisplace  = 1;
 
 our $maxColor = 255;
 
@@ -772,7 +773,7 @@ sub gel {
 
   print "Generating gel noise...\n" if !$QUIET;
 
-  $args{displace} = 2 if !defined $args{displace};
+  $args{displace} = $defaultDisplace if !defined $args{displace};
 
   %args = defaultArgs(%args);
 
@@ -905,6 +906,8 @@ sub square {
 sub sgel {
   my %args = defaultArgs(@_);
 
+  $args{displace} = $defaultDisplace if !defined $args{displace};
+
   print "Generating square gel noise...\n" if !$QUIET;
 
   my $grid = square(%args);
@@ -1030,7 +1033,7 @@ sub pgel {
 
   my $grid = perlin(%args);
 
-  $args{displace} = 2 if !defined $args{displace};
+  $args{displace} = $defaultDisplace if !defined $args{displace};
 
   %args = defaultArgs(%args);
 
@@ -1141,7 +1144,9 @@ sub smooth {
 
       my $blended = $corners + $sides + $center;
 
-      $smooth->[$x]->[$y] = interp( $pixel, $blended, $amt );
+      my $final = interp( $pixel, $blended, $amt );
+
+      $smooth->[$x]->[$y] = $final;
     }
   }
 
