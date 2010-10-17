@@ -1,13 +1,13 @@
 .102
   - noisemaker now consumes *way* less memory (thx Tie::CArray!)
   - added worley, wgel, gradient noise types (see docs/help)
-  - removed voronoi type, is about the same as using "worley -nth 0"
-  - improved gel noise recipe imo
-  - tiling works better now, and you may specify XY dir, see "-tile" in help
-  - simplified help screens
-  - added "-quality" make-noise arg to control smooth, interp, and grow
-  - default interpolation mode changed to linear. use "-interp 1" for cosine
+  - removed voronoi type, is about the same as using "-type worley -nth 0"
+  - added "-quality" arg to control smooth, interp, and grow
+  - default "-interp" changed from cosine to linear. use "-quality"
   - misnomered "perlin" type renamed to "multires"
+  - improved gel noise
+  - tiling for non-seamless noise works better now
+  - simplified help screens
 
 .101
   - Increased default octave count, tweaked other defaults

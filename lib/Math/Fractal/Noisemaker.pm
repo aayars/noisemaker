@@ -63,13 +63,13 @@ my $growFn;
 #
 # Persistent gradient values
 #
-my @nums = ( -255..255 );
+my @nums = ( -255 .. 255 );
 do {
   my @r;
-  while ( @nums ) {
+  while (@nums) {
     my $i = rand(@nums);
     push @r, $nums[$i];
-    splice(@nums,$i,1);
+    splice( @nums, $i, 1 );
   }
   @nums = @r;
 };
@@ -82,13 +82,15 @@ sub showTypes {
   showVersion();
 
   print "\n";
+  print "All noise types have optional args, see -h.\n";
+  print "\n";
   print "Noise Types:\n";
   print "\n";
   print "  * white           ## pseudo-random values\n";
   print "  * wavelet         ## band-limited ortho\n";
   print "  * gradient        ## persistent gradient noise\n";
   print "  * simplex         ## continuous gradient noise\n";
-  print "  * simplex2        ## interpolated/seamless simplex\n";
+  print "  * simplex2        ## interpolated simplex\n";
   print "  * square          ## diamond-square algorithm\n";
   print "  * gel             ## self-displaced smooth\n";
   print "  * sgel            ## self-displaced diamond-square\n";
@@ -104,9 +106,6 @@ sub showTypes {
   print "  ! pgel            ## self-displaced multi-res\n";
   print "  ! fur             ## based on \"Perlin Worms\"\n";
   print "  ! tesla           ## worms/fur variant\n";
-  print "  ! lumber          ## vaguely woodlike\n";
-  print "  ! wormhole        ## field flow\n";
-  print "  ! flux            ## extruded contours\n";
   print "\n";
   print "Legend:";
   print "\n";
@@ -117,7 +116,8 @@ sub showTypes {
   print "  $0 -h moretypes\n";
   print "\n";
   print "perldoc Math::Fractal::Noisemaker for more help, or see:\n";
-  print "  http://search.cpan.org/~aayars/Math-Fractal-Noisemaker/lib/Math/Fractal/Noisemaker.pm\n";
+  print
+"  http://search.cpan.org/~aayars/Math-Fractal-Noisemaker/lib/Math/Fractal/Noisemaker.pm\n";
   print "\n";
 
   exit 1;
@@ -141,9 +141,13 @@ sub showMoreTypes {
   print "  * moire           ## interference patterns\n";
   print "  * textile         ## random high-freq moire\n";
   print "  * infile          ## image file named by 'in' arg\n";
+  print "  * intile          ## infile + blend seams\n";
   print "  * sparkle         ## stylized stars\n";
   print "  * canvas          ## like an old map\n";
   print "\n";
+  print "  ! lumber          ## vaguely woodlike\n";
+  print "  ! wormhole        ## field flow\n";
+  print "  ! flux            ## extruded contours\n";
   print "  ! terra           ## terrain recipe (see -h more)\n";
   print "\n";
 
@@ -166,8 +170,7 @@ sub usage {
   print "  [-bias <num>] \\      ## value bias (0..1)\n";
   print "  [-qual <0|1|2|3>] \\  ## quality (draft|linear|cosine|gaussian)\n";
   print "  [-octaves <int>] \\   ## multi-res octaves (eg 4)\n";
-  print "  [-persist <num>] \\   ## multi-res persistence (eg .5)\n";
-  print "  [-gap <num>] \\       ## gappiness (0..1)\n";
+  print "  [-refract <0|1>] \\   ## refractive grayscale palette\n";
   print "  [-sphere <0|1>] \\    ## fake spheremap\n";
   print "  [-displace <num>] \\  ## self-displacement (eg .25)\n";
   print "  [-clut <filename>] \\ ## color lookup table (ex.bmp)\n";
@@ -203,10 +206,11 @@ sub moreUsage {
   print "\n";
   print "Additional options:\n";
   print "$0 \\\n";
-  print "  [-smooth <0|1>] \\   ## resampling off|on\n";
+  print "  [-persist <num>] \\   ## multi-res persistence (eg .5)\n";
+  print "  [-gap <num>] \\       ## gappiness (0..1)\n";
+  print "  [-smooth <0|1>] \\    ## resampling off|on\n";
   print "  [-interp <0|1>] \\    ## interp fn linear|cosine\n";
   print "  [-grow <0|1>] \\      ## growth fn interp|gaussian\n";
-  print "  [-refract <0|1>] \\   ## refractive grayscale palette\n";
   print "  [-limit 0|1] \\       ## scale|clip pixel values\n";
   print "  [-zoom <num>] \\      ## scale magnitude for fractals\n";
   print "  [-maxiter <num>] \\   ## iteration limit for fractals\n";
@@ -234,7 +238,7 @@ sub make {
   my %args;
 
   while ( my $arg = shift ) {
-    if ( $arg =~ /help/ ) {
+    if ( $arg =~ /(-h$|help)/ ) {
       if ( $_[0] && lc( $_[0] ) eq 'types' ) {
         showTypes();
       } elsif ( $_[0] && lc( $_[0] ) eq 'moretypes' ) {
@@ -288,7 +292,6 @@ sub make {
     else                          { usage("Unknown argument: $arg") }
   }
 
-
   usage("Specified CLUT file not found") if $args{clut} && !-e $args{clut};
 
   my $q = $args{quality};
@@ -296,19 +299,19 @@ sub make {
     if ( $q == 0 ) {
       $args{smooth} = 0 if !defined $args{smooth};
       $args{interp} = 0 if !defined $args{interp};
-      $args{grow} = 0 if !defined $args{grow};
+      $args{grow}   = 0 if !defined $args{grow};
     } elsif ( $q == 1 ) {
       $args{smooth} = 1 if !defined $args{smooth};
       $args{interp} = 0 if !defined $args{interp};
-      $args{grow} = 0 if !defined $args{grow};
+      $args{grow}   = 0 if !defined $args{grow};
     } elsif ( $q == 2 ) {
       $args{smooth} = 1 if !defined $args{smooth};
       $args{interp} = 1 if !defined $args{interp};
-      $args{grow} = 0 if !defined $args{grow};
+      $args{grow}   = 0 if !defined $args{grow};
     } elsif ( $q == 3 ) {
       $args{smooth} = 1 if !defined $args{smooth};
       $args{interp} = 1 if !defined $args{interp};
-      $args{grow} = 1 if !defined $args{grow};
+      $args{grow}   = 1 if !defined $args{grow};
     }
   }
 
@@ -376,6 +379,7 @@ sub make {
         $args{out} = join( "-", $args{type}, $args{ltype} ) . ".$format";
       }
     } elsif ( $args{type} eq 'terra' ) {
+
       #
       #
       #
@@ -540,7 +544,7 @@ sub img {
   my $scaledGrid = [];
 
   for ( my $x = 0 ; $x < $length ; $x++ ) {
-    my $column = $grid->[$x];
+    my $column       = $grid->[$x];
     my $scaledColumn = $COLUMN_CLASS->new($length);
 
     for ( my $y = 0 ; $y < $length ; $y++ ) {
@@ -554,7 +558,7 @@ sub img {
         $scaled = clamp($gray);
       }
 
-      $scaledColumn->set($y, $scaled);
+      $scaledColumn->set( $y, $scaled );
     }
 
     $scaledGrid->[$x] = $scaledColumn;
@@ -671,7 +675,7 @@ sub grow_interp {
         $thisY = int($thisY);
       }
 
-      $column->set($y, noise($noise, $thisX, $thisY));
+      $column->set( $y, noise( $noise, $thisX, $thisY ) );
     }
   }
 
@@ -694,11 +698,11 @@ sub grow_gaussian {
     my $grown = [];
 
     for ( my $x = 0 ; $x < $haveLength * 2 ; $x++ ) {
-      my $column = $grid->[$x/2];
-      my $grownColumn = $COLUMN_CLASS->new($haveLength*2);
+      my $column      = $grid->[ $x / 2 ];
+      my $grownColumn = $COLUMN_CLASS->new( $haveLength * 2 );
 
       for ( my $y = 0 ; $y < $haveLength * 2 ; $y++ ) {
-        $grownColumn->set($y,$column->get($y/2));
+        $grownColumn->set( $y, $column->get( $y / 2 ) );
       }
 
       $grown->[$x] = $grownColumn;
@@ -725,16 +729,17 @@ sub shrink {
     my $shrunk = [];
 
     for ( my $x = 0 ; $x < $haveLength / 2 ; $x++ ) {
-      my $shrunkColumn = $COLUMN_CLASS->new($haveLength/2);
+      my $shrunkColumn = $COLUMN_CLASS->new( $haveLength / 2 );
 
       for ( my $y = 0 ; $y < $haveLength / 2 ; $y++ ) {
-        my $value = $grid->[ $x * 2 ]->get($y*2);
-        $value += $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]->get($y*2);
-        $value += $grid->[ $x * 2 ]->get((($y*2)+1) % $haveLength);
-        $value += $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]
-          ->get((($y*2)+1) % $haveLength);
+        my $value = $grid->[ $x * 2 ]->get( $y * 2 );
+        $value += $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]->get( $y * 2 );
+        $value += $grid->[ $x * 2 ]->get( ( ( $y * 2 ) + 1 ) % $haveLength );
+        $value +=
+          $grid->[ ( ( $x * 2 ) + 1 ) % $haveLength ]
+          ->get( ( ( $y * 2 ) + 1 ) % $haveLength );
 
-        $shrunkColumn->set($y, $value / 4);
+        $shrunkColumn->set( $y, $value / 4 );
       }
 
       $shrunk->[$x] = $shrunkColumn;
@@ -762,7 +767,7 @@ sub grid {
       $row[$y] = ( $args{bias} / 1 ) * $maxColor;
     }
 
-    $grid->[$x] = $COLUMN_CLASS->new($len, \@row);
+    $grid->[$x] = $COLUMN_CLASS->new( $len, \@row );
   }
 
   return $grid;
@@ -795,7 +800,7 @@ sub infile {
 
       my ( $r, $g, $b ) = $color->rgba;
 
-      $column->set($y, ($r+$g+$b)/3);
+      $column->set( $y, ( $r + $g + $b ) / 3 );
     }
 
     printRow($column);
@@ -839,18 +844,19 @@ sub gradient {
     my $thisX = $x / $freq;
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
+
       # my $randAmp = rand($ampVal);
 
       my $thisY = $y / $freq;
 
-      my $xval = $nums[$thisX * 256] + $nums[$thisY * 256];
-      my $yval = $nums[$thisY * 256] + $nums[$xval % 256];
-      $xval = ( $nums[$xval % 256] / 255 ) * $amp;
-      $yval = ( $nums[$yval % 256] / 255 ) * $amp;
+      my $xval = $nums[ $thisX * 256 ] + $nums[ $thisY * 256 ];
+      my $yval = $nums[ $thisY * 256 ] + $nums[ $xval % 256 ];
+      $xval = ( $nums[ $xval % 256 ] / 255 ) * $amp;
+      $yval = ( $nums[ $yval % 256 ] / 255 ) * $amp;
 
-      my $randAmp = interp($xval, $yval, .5);
+      my $randAmp = interp( $xval, $yval, .5 );
 
-      $column->set($y, $randAmp + $biasVal);
+      $column->set( $y, $randAmp + $biasVal );
     }
 
     printRow($column);
@@ -866,10 +872,10 @@ sub worley {
 
   %args = defaultArgs(%args);
 
-  my $freq = $args{freq};
-  my $len = $args{len};
-  my $amp = $args{amp};
-  my $nth = $args{nth};
+  my $freq     = $args{freq};
+  my $len      = $args{len};
+  my $amp      = $args{amp};
+  my $nth      = $args{nth};
   my $distType = $args{dist} || 0;
 
   if ( !defined $nth ) {
@@ -879,40 +885,41 @@ sub worley {
   my $grid = grid(%args);
 
   my @points;
-  for ( my $i = 0; $i < $freq; $i++ ) {
+  for ( my $i = 0 ; $i < $freq ; $i++ ) {
     my $x = rand($len);
     my $y = rand($len);
 
-    push @points, [$x, $y];
+    push @points, [ $x, $y ];
   }
 
-  for ( my $x = 0; $x < $len; $x++ ) {
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $column = $grid->[$x];
 
-    for ( my $y = 0; $y < $len; $y++ ) {
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
       my @thisDist;
-      for my $point ( @points ) {
+      for my $point (@points) {
         if ( $distType == 0 || $distType == 3 ) {
-          my $xdist = abs($x-$point->[0]);
-          my $ydist = abs($y-$point->[1]);
-          push @thisDist, sqrt($xdist**2 + $ydist**2);
+          my $xdist = abs( $x - $point->[0] );
+          my $ydist = abs( $y - $point->[1] );
+          push @thisDist, sqrt( $xdist**2 + $ydist**2 );
         }
         if ( $distType == 1 ) {
-          push @thisDist, abs($x-$point->[0]) + abs($y-$point->[1]);
+          push @thisDist, abs( $x - $point->[0] ) + abs( $y - $point->[1] );
         }
         if ( $distType == 2 ) {
-          my $xdist = abs($x-$point->[0]);
-          my $ydist = abs($y-$point->[1]);
+          my $xdist = abs( $x - $point->[0] );
+          my $ydist = abs( $y - $point->[1] );
           push @thisDist, ( $xdist > $ydist ) ? $xdist : $ydist;
         }
       }
       if ( $distType == 3 ) {
         my @foo;
         my $i = 0;
-        for ( @thisDist ) {
-           $i++;
-           push @foo, abs($_ - ($nums[$i]/256)*$len);
+        for (@thisDist) {
+          $i++;
+          push @foo, abs( $_ - ( $nums[$i] / 256 ) * $len );
         }
+
         # push @thisDist, @foo;
         @thisDist = sort { $a <=> $b } @foo;
       } else {
@@ -920,11 +927,11 @@ sub worley {
       }
 
       my $val = $thisDist[$nth];
-      $column->set($y, $val);
+      $column->set( $y, $val );
     }
   }
 
-  return tile($grid, %args);
+  return tile( $grid, %args );
 }
 
 sub white {
@@ -957,14 +964,14 @@ sub white {
   my $offY = 0;
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    my $thisX = ( $x + $offX ) % $freq;
+    my $thisX  = ( $x + $offX ) % $freq;
     my $column = $grid->[$thisX];
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
       my $thisY = ( $y + $offY ) % $freq;
 
       if ( rand() < $gap ) {
-        $column->set($thisY,0);
+        $column->set( $thisY, 0 );
         next;
       }
 
@@ -974,7 +981,7 @@ sub white {
         $randAmp *= -1 if rand(1) >= .5;
       }
 
-      $column->set($thisY, $randAmp + $biasVal);
+      $column->set( $thisY, $randAmp + $biasVal );
     }
 
     printRow($column);
@@ -1039,7 +1046,7 @@ sub displace {
       my $displaceX = noise( $grid, $x, $y ) * $displace;
       my $displaceY = noise( $grid, $y, $displaceX ) * $displace;
 
-      $column->set($y, noise($grid, $displaceX, $displaceY));
+      $column->set( $y, noise( $grid, $displaceX, $displaceY ) );
     }
 
     $out->[$x] = $column;
@@ -1071,12 +1078,12 @@ sub square {
     my $grown = [];
 
     for ( my $x = 0 ; $x < $haveLength * 2 ; $x++ ) {
-      $grown->[$x] = $COLUMN_CLASS->new($haveLength*2);
+      $grown->[$x] = $COLUMN_CLASS->new( $haveLength * 2 );
     }
 
     for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
-      my $thisX = $x * 2;
-      my $column = $grid->[$x];
+      my $thisX       = $x * 2;
+      my $column      = $grid->[$x];
       my $grownColumn = $grown->[$thisX];
 
       for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
@@ -1085,7 +1092,7 @@ sub square {
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
 
-        $grownColumn->set($thisY, $column->get($y) + $offset);
+        $grownColumn->set( $thisY, $column->get($y) + $offset );
       }
 
       $grown->[$thisX] = $grownColumn;
@@ -1109,7 +1116,7 @@ sub square {
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
-        $grownColumn->set($thisY, $corners + $offset);
+        $grownColumn->set( $thisY, $corners + $offset );
       }
     }
 
@@ -1131,7 +1138,7 @@ sub square {
 
         my $offset = rand($baseOffset);
         $offset *= -1 if ( rand(1) >= .5 );
-        $grownColumn->set($y, $sides + $offset);
+        $grownColumn->set( $y, $sides + $offset );
       }
     }
 
@@ -1242,11 +1249,12 @@ sub multires {
       }
 
       if ( $n && $args{ridged} ) {
-        $combinedColumn->set($y, ($bias*$maxColor)+$zshift-($t/$n));
+        $combinedColumn->set( $y,
+          ( $bias * $maxColor ) + $zshift - ( $t / $n ) );
       } elsif ($n) {
-        $combinedColumn->set($y, $t/$n);
+        $combinedColumn->set( $y, $t / $n );
       } else {
-        $combinedColumn->set($y, 0);
+        $combinedColumn->set( $y, 0 );
       }
     }
 
@@ -1287,13 +1295,14 @@ sub wgel {
 
   print "Generating worley gel noise...\n" if !$QUIET;
 
-  my $dist = defined $args{dist} ? $args{dist} : 3;
-  my $freq = defined $args{freq} ? $args{freq} : 8;
+  my $dist     = defined $args{dist}     ? $args{dist}     : 3;
+  my $freq     = defined $args{freq}     ? $args{freq}     : 8;
   my $displace = defined $args{displace} ? $args{displace} : 4;
 
-  %args = defaultArgs(%args,
-    dist => $dist,
-    freq => $freq,
+  %args = defaultArgs(
+    %args,
+    dist     => $dist,
+    freq     => $freq,
     displace => $displace,
   );
 
@@ -1326,14 +1335,14 @@ sub refract {
   for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
     $out->[$x] = [];
 
-    my $inColumn = $grid->[$x];
+    my $inColumn  = $grid->[$x];
     my $outColumn = $COLUMN_CLASS->new($haveLength);
 
     for ( my $y = 0 ; $y < $haveLength ; $y++ ) {
       my $color = $inColumn->get($y) || 0;
       my $srcY = ( $color / $maxColor ) * $haveLength;
 
-      $outColumn->set($y, $inColumn->get( $srcY % $haveLength ));
+      $outColumn->set( $y, $inColumn->get( $srcY % $haveLength ) );
     }
 
     $out->[$x] = $outColumn;
@@ -1359,10 +1368,11 @@ sub lsmooth {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $smoothColumn = $smooth->[$x];
-    my $column = $grid->[$x];
+    my $column       = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $smoothColumn->set($y, $smoothColumn->get($y) + $column->get($y)/$dirs);
+      $smoothColumn->set( $y,
+        $smoothColumn->get($y) + $column->get($y) / $dirs );
 
       for ( my $a = $angle ; $a < $angle360 ; $a += $dirAngle ) {
         for ( my $d = 1 ; $d <= $rad ; $d++ ) {    # distance
@@ -1370,9 +1380,9 @@ sub lsmooth {
           $tx = $tx % $len;
           $ty = $ty % $len;
 
-          $smoothColumn->set($y, $smoothColumn->get($y) +
-            $grid->[$tx]->get($ty) * ( 1 - ( $d / $rad ) ) / $rad
-          );
+          $smoothColumn->set( $y,
+            $smoothColumn->get($y) +
+              $grid->[$tx]->get($ty) * ( 1 - ( $d / $rad ) ) / $rad );
         }
       }
     }
@@ -1417,12 +1427,11 @@ sub smooth {
 
       my $final = interp( $pixel, $blended, $amt );
 
-      $smoothColumn->set($y, $final);
+      $smoothColumn->set( $y, $final );
     }
 
     $smooth->[$x] = $smoothColumn;
   }
-
 
   return $smooth;
 }
@@ -1494,7 +1503,7 @@ sub terra {
 
   for ( my $x = 0 ; $x < $length ; $x++ ) {
     my $referenceColumn = $reference->[$x];
-    my $outColumn = $COLUMN_CLASS->new($length);
+    my $outColumn       = $COLUMN_CLASS->new($length);
 
     for ( my $y = 0 ; $y < $length ; $y++ ) {
       my $value = $referenceColumn->get($y);
@@ -1502,7 +1511,7 @@ sub terra {
       my $level       = 128;
       my $levelOffset = 64;
 
-      $outColumn->set($y, $layers[0][$x]->get($y));
+      $outColumn->set( $y, $layers[0][$x]->get($y) );
 
       for ( my $z = 1 ; $z < $args{layers} ; $z++ ) {
         my $diff = $level - $value;
@@ -1512,7 +1521,7 @@ sub terra {
           ## Reference pixel value is greater than current level,
           ## so use the current level's pixel value
           ##
-          $outColumn->set($y, $layers[$z][$x]->get($y));
+          $outColumn->set( $y, $layers[$z][$x]->get($y) );
 
         } elsif ( ( ( $feather > 0 ) && $diff <= $feather )
           || ( ( $feather < 0 ) && $diff <= $feather * -1 ) )
@@ -1530,14 +1539,14 @@ sub terra {
           my $color =
             interp( $layers[$z][$x]->get($y), $outColumn->get($y), $fadeAmt );
 
-          $outColumn->set($y, $color);
+          $outColumn->set( $y, $color );
         }
 
         $level += $levelOffset;
         $levelOffset /= 2;
       }
 
-      $outColumn->set($y, interp($outColumn->get($y), $value, .25 ));
+      $outColumn->set( $y, interp( $outColumn->get($y), $value, .25 ) );
     }
 
     $out->[$x] = $outColumn;
@@ -1594,7 +1603,7 @@ sub noise {
   # No need to interpolate
   #
   if ( ( $thisX == $x ) && ( $thisY == $y ) ) {
-    return $noise->[ $x % $length ]->get($y % $length);
+    return $noise->[ $x % $length ]->get( $y % $length );
   }
 
   $x = ( ( $x * 1000 ) % ( $length * 1000 ) ) / 1000;
@@ -1678,13 +1687,15 @@ sub wavelet {
   my $freq = $args{freq};
 
   for ( my $x = 0 ; $x < $freq ; $x++ ) {
-    my $column = $COLUMN_CLASS->new($freq);
+    my $column       = $COLUMN_CLASS->new($freq);
     my $sourceColumn = $source->[$x];
-    my $upColumn = $up->[$x];
+    my $upColumn     = $up->[$x];
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
-      $column->set($y,
-        ($args{bias}*$maxColor)+$sourceColumn->get($y)-$upColumn->get($y));
+      $column->set( $y,
+        ( $args{bias} * $maxColor ) +
+          $sourceColumn->get($y) -
+          $upColumn->get($y) );
     }
 
     $out->[$x] = $column;
@@ -1727,7 +1738,7 @@ sub gasket {
     if ( $i > 20 ) {
       my $thisX = ( $x * $freq ) % $freq;
       my $thisY = ( $y * $freq ) % $freq;
-      $grid->[$thisX]->set($thisY, $maxColor);
+      $grid->[$thisX]->set( $thisY, $maxColor );
     }
 
     my $rand = rand(3);
@@ -1838,10 +1849,10 @@ sub fflame {
 
       my $column = $grid->[$gx];
 
-      $column->set($gy, $column->get($gy)+1);
+      $column->set( $gy, $column->get($gy) + 1 );
 
       if ( $n >= 20 ) {
-        $column->set($gy, $column->get($gy) + 1);
+        $column->set( $gy, $column->get($gy) + 1 );
       }
     };
 
@@ -1876,7 +1887,7 @@ sub densemap {
     my $column = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $colors->{$column->get($y)}++;
+      $colors->{ $column->get($y) }++;
     }
   }
 
@@ -1893,9 +1904,9 @@ sub densemap {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $outColumn = $COLUMN_CLASS->new($len);
-    my $column = $grid->[$x];
+    my $column    = $grid->[$x];
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $outColumn->set($y, $colors->{$column->get($y)});
+      $outColumn->set( $y, $colors->{ $column->get($y) } );
     }
     $out->[$x] = $outColumn;
   }
@@ -1933,7 +1944,7 @@ sub fern {
 
     my $column = $grid->[$gx];
 
-    $column->set($gy, $column->get($gy) + sqrt(rand()*$amp));
+    $column->set( $gy, $column->get($gy) + sqrt( rand() * $amp ) );
 
     my $rand = rand();
 
@@ -2021,8 +2032,9 @@ sub mandel {
         $n++;
       }
 
-      $column->set($y, $maxColor - (($n/$iters)*$maxColor));
-      $column->set($freq-1-$y, $maxColor-(($n/$iters)*$maxColor));
+      $column->set( $y, $maxColor - ( ( $n / $iters ) * $maxColor ) );
+      $column->set( $freq - 1 - $y,
+        $maxColor - ( ( $n / $iters ) * $maxColor ) );
     }
 
     printRow($column);
@@ -2112,7 +2124,7 @@ sub dmandel {
 
       # $color = 0 if $color >= $maxColor;
 
-      $column->set($y, $color);
+      $column->set( $y, $color );
     }
 
     printRow($column);
@@ -2185,9 +2197,9 @@ sub buddha {
         my $thisX = ( ( ( $zx + 1 ) / 2 ) * $freq + ( $freq * .25 ) ) % $freq;
         my $thisY = ( ( $zy + 1 ) / 2 ) * $freq % $freq;
 
-        $grid->[$thisY]->set($thisX, $grid->[$thisY]->get($thisX) + 25);
-        $grid->[$freq-1-$thisY]->set($thisX,
-          $grid->[$freq-1-$thisY]->get($thisX) + 25);
+        $grid->[$thisY]->set( $thisX, $grid->[$thisY]->get($thisX) + 25 );
+        $grid->[ $freq - 1 - $thisY ]
+          ->set( $thisX, $grid->[ $freq - 1 - $thisY ]->get($thisX) + 25 );
       }
     }
     printRow( $grid->[$x] );
@@ -2226,15 +2238,18 @@ sub spheremap {
       my ( $cartX, $cartY, $cartZ ) = cartCoords( $x, $y, $len, $scale );
 
       ### North Pole
-      $column->set($y/2,
-        noise($grid, $xOffset + ( ( $srclen - $cartX ) / 2 ), $cartY / 2 ));
+      $column->set( $y / 2,
+        noise( $grid, $xOffset + ( ( $srclen - $cartX ) / 2 ), $cartY / 2 ) );
 
       ### South Pole
-      $column->set($len-1-($y/2),  noise(
-        $grid,
-        $xOffset + ( $cartX / 2 ),
-        ( $offset * $scale ) + ( $cartY / 2 )
-      ));
+      $column->set(
+        $len - 1 - ( $y / 2 ),
+        noise(
+          $grid,
+          $xOffset + ( $cartX / 2 ),
+          ( $offset * $scale ) + ( $cartY / 2 )
+        )
+      );
     }
 
     $out->[$x] = $column;
@@ -2259,7 +2274,7 @@ sub spheremap {
 
       my $target = $column->get($y) || 0;
 
-      $column->set($y, interp($source,$target,$pct));
+      $column->set( $y, interp( $source, $target, $pct ) );
     }
   }
 
@@ -2440,21 +2455,21 @@ sub spirals {
       my $away = $radius**( $i / $steps );
 
       for ( my $r = 0 ; $r < $arms ; $r += 1 / $arms ) {
-        my $around = ($i*$aroundRads) + $rotation + ($r*2*(22/7));
+        my $around = ( $i * $aroundRads ) + $rotation + ( $r * 2 * ( 22 / 7 ) );
 
         my $x = ( $centerX + cos($around) * $away ) % $len;
         my $y = ( $centerY + sin($around) * $away ) % $len;
 
         my $column = $grid->[$x];
-        my $color = $maxColor - ((($i-1)/($steps-1))*$maxColor);
+        my $color = $maxColor - ( ( ( $i - 1 ) / ( $steps - 1 ) ) * $maxColor );
 
         if ( $column->get($y) < $color ) {
-          $column->set($y, $color);
+          $column->set( $y, $color );
         }
       }
     }
 
-    $grid->[$centerX]->set($centerY, $maxColor);
+    $grid->[$centerX]->set( $centerY, $maxColor );
   }
 
   if ($voronoi) {
@@ -2464,7 +2479,8 @@ sub spirals {
       my $column = $grid->[$x];
 
       for ( my $y = 0 ; $y < $len ; $y++ ) {
-        $column->set($y, $maxColor - (($column->get($y)/$maxColor)*$maxColor));
+        $column->set( $y,
+          $maxColor - ( ( $column->get($y) / $maxColor ) * $maxColor ) );
       }
     }
   } else {
@@ -2491,12 +2507,12 @@ sub dla {
   my $grid;
 
   if ( $args{in} ) {
-    $grid = infile(%args, len => $len);
+    $grid = infile( %args, len => $len );
   } else {
     $grid = grid( %args, bias => 0, len => $len );
 
     for ( my $i = 0 ; $i <= sqrt($len) ; $i++ ) {
-      $grid->[ rand($len) ]->set(rand($len), $maxColor);
+      $grid->[ rand($len) ]->set( rand($len), $maxColor );
     }
   }
 
@@ -2530,16 +2546,16 @@ sub dla {
       my $column = $grid->[$x];
 
       if ( ( $column->get($y) )
-        || ( $grid->[($x+1) % $len]->get($y) )
-        || ( $grid->[($x-1) % $len]->get($y) )
-        || ( $column->get(($y+1) % $len) )
-        || ( $column->get(($y-1) % $len) )
-        || ( $grid->[($x+1) % $len]->get(($y+1) % $len) )
-        || ( $grid->[($x+1) % $len]->get(($y-1) % $len) )
-        || ( $grid->[($x-1) % $len]->get(($y-1) % $len) )
-        || ( $grid->[($x-1) % $len]->get(($y+1) % $len) ) )
+        || ( $grid->[ ( $x + 1 ) % $len ]->get($y) )
+        || ( $grid->[ ( $x - 1 ) % $len ]->get($y) )
+        || ( $column->get( ( $y + 1 ) % $len ) )
+        || ( $column->get( ( $y - 1 ) % $len ) )
+        || ( $grid->[ ( $x + 1 ) % $len ]->get( ( $y + 1 ) % $len ) )
+        || ( $grid->[ ( $x + 1 ) % $len ]->get( ( $y - 1 ) % $len ) )
+        || ( $grid->[ ( $x - 1 ) % $len ]->get( ( $y - 1 ) % $len ) )
+        || ( $grid->[ ( $x - 1 ) % $len ]->get( ( $y + 1 ) % $len ) ) )
       {
-        $column->set($y, $color);
+        $column->set( $y, $color );
       } else {
         push @newPoints, [ $x, $y ];
       }
@@ -2580,11 +2596,11 @@ sub glow {
   my $len = scalar @{$grid};
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
-    my $column = $grid->[$x];
+    my $column         = $grid->[$x];
     my $smoothedColumn = $smoothed->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $smoothedColumn->set($y, $smoothedColumn->get($y) + $column->get($y))
+      $smoothedColumn->set( $y, $smoothedColumn->get($y) + $column->get($y) );
     }
   }
 
@@ -2638,17 +2654,18 @@ sub fur {
       my $y = $worm->[1];
 
       my $multiresColumn = $multires->[$x];
-      my $column = $grid->[$x];
+      my $column         = $grid->[$x];
 
-      my $heading = ( $multiresColumn->get($y)/$maxColor ) * 360;
+      my $heading = ( $multiresColumn->get($y) / $maxColor ) * 360;
 
       if ( $args{tesla} ) {
         ### kink it up
         $heading += ( $w / $numWorms ) * 45;
       }
 
-      $column->set($y, $column->get($y) +
-        1 - ( abs( $i - ( $threadLen / 2 ) ) / ( $threadLen / 2 ) ));
+      $column->set( $y,
+        $column->get($y) + 1 -
+          ( abs( $i - ( $threadLen / 2 ) ) / ( $threadLen / 2 ) ) );
 
       ( $x, $y ) = translate( $x, $y, $heading, 1 );
       $x = ( $x * 100 ) % ( $len * 100 );
@@ -2685,7 +2702,7 @@ sub emboss {
     $lightmap->[$x] = [];
 
     my $lightmapColumn = $COLUMN_CLASS->new($len);
-    my $column = $grid->[$x];
+    my $column         = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y += 1 ) {
       my $value;
@@ -2696,7 +2713,7 @@ sub emboss {
 
       my $diff = $column->get($y) - $neighbor;
 
-      $lightmapColumn->set($y, $maxColor-$diff);
+      $lightmapColumn->set( $y, $maxColor - $diff );
     }
 
     $lightmap->[$x] = $lightmapColumn;
@@ -2723,10 +2740,10 @@ sub tile {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $outColumn = $out->[$x];
-    my $column = $grid->[$x];
+    my $column    = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $outColumn->set($y, $column->get($y));
+      $outColumn->set( $y, $column->get($y) );
     }
   }
 
@@ -2744,17 +2761,17 @@ sub tile {
           $blend = ( $len - $x ) / $border;
         }
 
-        $outColumn->set($y,
-          interp( $out->[$thisX]->get($y), $outColumn->get($y), $blend ));
+        $outColumn->set( $y,
+          interp( $out->[$thisX]->get($y), $outColumn->get($y), $blend ) );
       }
     }
 
     for ( my $x = 0 ; $x < $len ; $x++ ) {
       my $outColumn = $grid->[$x];
-      my $column = $out->[$x];
+      my $column    = $out->[$x];
 
       for ( my $y = 0 ; $y < $len ; $y++ ) {
-        $outColumn->set($y, $column->get($y));
+        $outColumn->set( $y, $column->get($y) );
       }
     }
   }
@@ -2765,7 +2782,7 @@ sub tile {
 
       for ( my $y = 0 ; $y < $len ; $y++ ) {
         my $thisX = $x;
-        my $thisY = ($y - ( $len / 2 )) % $len;
+        my $thisY = ( $y - ( $len / 2 ) ) % $len;
 
         my $blend = 1;
         if ( $y < $border ) {
@@ -2774,8 +2791,8 @@ sub tile {
           $blend = ( $len - $y ) / $border;
         }
 
-        $outColumn->set($y,
-          interp( $out->[$thisX]->get($thisY), $outColumn->get($y), $blend ));
+        $outColumn->set( $y,
+          interp( $out->[$thisX]->get($thisY), $outColumn->get($y), $blend ) );
       }
     }
   }
@@ -2879,8 +2896,8 @@ sub moire {
     my $column = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $column->set($y,
-        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * pi ) * $args{bias});
+      $column->set( $y,
+        sin( ( $x / $scale ) * ( $y / $scale ) / 180 * pi ) * $args{bias} );
     }
   }
 
@@ -2921,15 +2938,15 @@ sub sparkle {
   my $len = $args{len};
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
-    my $col0 = $stars0->[$x];
-    my $col1 = $stars->[$x];
+    my $col0      = $stars0->[$x];
+    my $col1      = $stars->[$x];
     my $outColumn = $out->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $cv = $col0->get($y);
       my $sv = $col1->get($y);
 
-      $outColumn->set($y, $sv+$cv);
+      $outColumn->set( $y, $sv + $cv );
     }
   }
 
@@ -2951,7 +2968,7 @@ sub delta {
     my $n2col  = $noise2->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $column->set($y, abs($n1col->get($y) - $n2col->get($y)));
+      $column->set( $y, abs( $n1col->get($y) - $n2col->get($y) ) );
     }
   }
 
@@ -2969,14 +2986,14 @@ sub chiral {
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $column = $grid->[$x];
-    my $n1col = $noise1->[$x];
-    my $n2col = $noise2->[$x];
+    my $n1col  = $noise1->[$x];
+    my $n2col  = $noise2->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       if ( $n1col->get($y) > $n2col->get($y) ) {
-        $column->set($y, $n1col->get($y));
+        $column->set( $y, $n1col->get($y) );
       } else {
-        $column->set($y, $n2col->get($y));
+        $column->set( $y, $n2col->get($y) );
       }
     }
   }
@@ -2996,15 +3013,17 @@ sub stereo {
   my $out = grid(%args);
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
-    my $outcol = $out->[$x/2];
-    my $outcol2 = $out->[($x+$len)/2];
-    my $mapcol = $map->[$x];
+    my $outcol  = $out->[ $x / 2 ];
+    my $outcol2 = $out->[ ( $x + $len ) / 2 ];
+    my $mapcol  = $map->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $offset = ( $mapcol->get($y) / $maxColor ) * 16;
 
-      $outcol->set($y, $outcol->get($y)+noise($noise,$x-$offset,$y)/2);
-      $outcol2->set($y, $outcol2->get($y)+noise($noise,$x+$offset,$y)/2);
+      $outcol->set( $y,
+        $outcol->get($y) + noise( $noise, $x - $offset, $y ) / 2 );
+      $outcol2->set( $y,
+        $outcol2->get($y) + noise( $noise, $x + $offset, $y ) / 2 );
     }
   }
 
@@ -3165,7 +3184,7 @@ sub julia {
       }
 
       my $column = $grid->[$iX];
-      $column->set($iY, $column->get($iY)+$color);
+      $column->set( $iY, $column->get($iY) + $color );
     }
   }
 
@@ -3279,7 +3298,7 @@ sub newton {
 
       my $result = nclass( $zx, $zy, $iters );
 
-      $column->set($y, $result * $maxColor / 2);
+      $column->set( $y, $result * $maxColor / 2 );
     }
 
     printRow( $grid->[$x] );
@@ -3300,14 +3319,15 @@ sub lumber {
   my $grid = grid(%args);
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
-    my $column = $grid->[$x];
+    my $column         = $grid->[$x];
     my $multiresColumn = $multires->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       my $gray = noise( $multires, $x, 0 ) / 4;
 
-      $column->set($y,
-        ( noise($multires,$gray,$y) + $multiresColumn->get($y) ) % $maxColor);
+      $column->set( $y,
+        ( noise( $multires, $gray, $y ) + $multiresColumn->get($y) )
+          % $maxColor );
     }
   }
 
@@ -3339,7 +3359,7 @@ sub wormhole {
       do {
         my ( $thisX, $thisY ) = translate( $x, $y, $amp * 360, $amp * $dist, );
 
-        $grid->[ $thisX % $len ]->set($thisY % $len, abs($amp));
+        $grid->[ $thisX % $len ]->set( $thisY % $len, abs($amp) );
       };
     }
   }
@@ -3391,7 +3411,7 @@ sub flux {
 
         my $column = $grid->[$thisX];
 
-        $column->set($thisY, $column->get($thisY)+abs($amp));
+        $column->set( $thisY, $column->get($thisY) + abs($amp) );
       };
     }
   }
@@ -3406,7 +3426,7 @@ sub flux {
     my $column = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len / 2 ; $y++ ) {
-      $column->set($y, $maxColor - $column->get($y));
+      $column->set( $y, $maxColor - $column->get($y) );
     }
   }
 
@@ -3415,8 +3435,8 @@ sub flux {
 
 sub xAngle {
   my $multires = shift;
-  my $x      = shift;
-  my $y      = shift;
+  my $x        = shift;
+  my $y        = shift;
 
   my $left  = noise( $multires, $x - 1, $y );
   my $this  = noise( $multires, $x,     $y );
@@ -3429,8 +3449,8 @@ sub xAngle {
 
 sub yAngle {
   my $multires = shift;
-  my $x      = shift;
-  my $y      = shift;
+  my $x        = shift;
+  my $y        = shift;
 
   my $up   = noise( $multires, $x, $y - 1 );
   my $this = noise( $multires, $x, $y );
@@ -3475,8 +3495,8 @@ my $G2 = 0.211324865;
 # Simplex noise lookup
 #
 sub _snoise {
-  my $x = shift;
-  my $y = shift;
+  my $x   = shift;
+  my $y   = shift;
   my $len = shift || $defaultLen;
 
   $x = ( ( $x * 1000 ) % ( $len * 1000 ) ) / 1000;
@@ -3515,7 +3535,7 @@ sub _snoise {
   if ( $t0 < 0 ) { $n0 = 0; }
   else {
     $t0 *= $t0;
-    $n0 = $t0 * $t0 * _sgrad( $nums[($ii+$nums[$jj]) % 256], $x0, $y0 );
+    $n0 = $t0 * $t0 * _sgrad( $nums[ ( $ii + $nums[$jj] ) % 256 ], $x0, $y0 );
   }
 
   my $t1 = .5 - $x1 * $x1 - $y1 * $y1;
@@ -3524,7 +3544,9 @@ sub _snoise {
   else {
     $t1 *= $t1;
     $n1 =
-      $t1 * $t1 * _sgrad( $nums[($ii+$i1+$nums[($jj+$j1) % 256]) % 256 ], $x1, $y1 );
+      $t1 * $t1 *
+      _sgrad( $nums[ ( $ii + $i1 + $nums[ ( $jj + $j1 ) % 256 ] ) % 256 ],
+      $x1, $y1 );
   }
 
   my $t2 = .5 - $x2 * $x2 - $y2 * $y2;
@@ -3532,7 +3554,10 @@ sub _snoise {
   if ( $t2 < 0 ) { $n2 = 0; }
   else {
     $t2 *= $t2;
-    $n2 = $t2 * $t2 * _sgrad( $nums[($ii+1+$nums[($jj+1) % 256]) % 256], $x2, $y2 );
+    $n2 =
+      $t2 * $t2 *
+      _sgrad( $nums[ ( $ii + 1 + $nums[ ( $jj + 1 ) % 256 ] ) % 256 ],
+      $x2, $y2 );
   }
 
   return ( $n0 + $n1 + $n2 );
@@ -3545,28 +3570,28 @@ sub simplex {
   my $len  = $args{len};
   my $amp  = $args{amp};
 
-  my $grid = grid(%args, len => $len);
+  my $grid = grid( %args, len => $len );
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $column = $grid->[$x];
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      my $thisX = ($x/$len)*$freq;
-      my $thisY = ($y/$len)*$freq;
+      my $thisX = ( $x / $len ) * $freq;
+      my $thisY = ( $y / $len ) * $freq;
 
-      $column->set($y, _snoise( $thisX, $thisY, $len ) * $amp);
+      $column->set( $y, _snoise( $thisX, $thisY, $len ) * $amp );
     }
   }
 
-  return tile($grid,%args);
+  return tile( $grid, %args );
 }
 
 sub simplex2 {
   my %args = defaultArgs(@_);
 
-  my $grid = simplex(%args, len => $args{freq});
+  my $grid = simplex( %args, len => $args{freq} );
 
-  return grow($grid, %args);
+  return grow( $grid, %args );
 }
 
 sub _test {
@@ -3585,7 +3610,7 @@ sub _test {
   return $grid;
 }
 
-our @chars = split(//, " .-',^+\|\<)vxls*I![te7juTJwy2F6qgV4gPZYO&U\@HBNRQ");
+our @chars = split( //, '     . .....:.:::::H:HHHHH#H#######');
 
 sub printRow {
   return if $QUIET;
@@ -3594,10 +3619,10 @@ sub printRow {
   my $len = $row->len();
 
   my $rows = 80;
-  for my $i ( 0 .. $rows-1 ) {
-    my $pct  = $i / $rows-1;
-    my $rowI = int($pct*$len);
-    my $val  = $row->get($rowI % $len);
+  for my $i ( 0 .. $rows - 1 ) {
+    my $pct  = $i / $rows - 1;
+    my $rowI = int( $pct * $len );
+    my $val  = $row->get( $rowI % $len );
 
     my $valPct = clamp($val) / $maxColor;
     my $char = $chars[ $valPct * ( @chars - 1 ) ];
@@ -3697,7 +3722,7 @@ This function accepts a plethora of optional arguments, see MAKE ARGS.
   make();
 
   #
-  # Care slightly more:
+  # $img is an Imager object containing the noise output:
   #
   my ( $grid, $img, $filename ) = make(
     #
@@ -3705,24 +3730,21 @@ This function accepts a plethora of optional arguments, see MAKE ARGS.
     #
   );
 
-Noise sets are 2D array refs.
+  #
+  # Exact pixel value
+  #
+  my $value = $grid->[$x]->get($y);
 
   #
-  # Look up a value, given X and Y coords
+  # Smoothed pixel value
   #
-  my $value = $grid->[$x]->[$y];
+  my $value = noise($grid, $x, $y);
 
-L<Imager> can take care of further post-processing.
 
-  #
-  # Insert image manip methods here!
-  #
-  $img->write(file => "oot.png");
+C<make-noise>, included with this distribution, provides a command-line
+wrapper:
 
-C<make-noise>, included with this distribution, provides a CLI
-wrapper to this function.
-
-  $ make-noise -h
+  make-noise -h
 
 
 =back
@@ -4808,7 +4830,7 @@ can do.
   # Insert Imager image manip stuff here!
   #
 
-  $img->write(file => "oot.png");
+  $img->write(file => "oot.bmp");
 
 Returns an L<Imager> object from the received two-dimensional grid.
 
@@ -4902,11 +4924,14 @@ C-based solutions.
 
 This module only produces single-channel two-dimensional noise.
 
+Image type support is limited to what Imager on your local machine
+was built with.
+
 =head1 SEE ALSO
 
-L<Imager>, L<Math::Trig>
+L<Imager>, L<Math::Trig>, L<Tie::CArray>
 
-Images above not displaying? Check out the examples set on Flickr:
+Check out the examples set on Flickr:
 
 L<http://www.flickr.com/photos/aayars/sets/72157622726199318/>
 
