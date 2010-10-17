@@ -5,6 +5,7 @@ my $prereqs = {
   File::Tempdir          => 0.02,
   Math::Complex          => 1.56,
   Test::Simple           => 0.86,
+  Tie::CArray            => 0.15,
 };
 
 WriteMakefile(
