@@ -31,19 +31,19 @@ my %args = (
   len     => 32,
   in      => $testfile,
   quiet   => 1,
-  workdir => $path,
+  outdir  => $path,
 );
 
 while ( my $arg = shift @ARGV ) {
-  if    ( $arg =~ /workdir/ ) { $args{workdir} = shift @ARGV }
+  if    ( $arg =~ /outdir/ )  { $args{outdir}  = shift @ARGV }
   elsif ( $arg =~ /format/ )  { $args{format}  = shift @ARGV }
   elsif ( $arg =~ /len/ )     { $args{len}     = shift @ARGV }
   elsif ( $arg =~ /quiet/ )   { $args{quiet}   = shift @ARGV }
   else                        { usage() }
 }
 
-if ( $args{workdir} ) {
-  $args{in} = join( "/", $args{workdir}, $args{in} );
+if ( $args{outdir} ) {
+  $args{in} = join( "/", $args{outdir}, $args{in} );
 }
 
 SKIP: {
@@ -71,10 +71,10 @@ SKIP: {
 sub usage {
   print "Usage:\n";
   print "$0 \\\n";
-  print "  [-workdir <workdir>] \\ ## output directory (eg /tmp)\n";
-  print "  [-format <fmt>]\\       ## image format (eg bmp)\n";
-  print "  [-len <num>]\\          ## image size length (eg 256)\n";
-  print "  [-quiet <0|1>]\\        ## do|don't spam console\n";
+  print "  [-outdir <outdir>] \\    ## output directory (eg /tmp)\n";
+  print "  [-format <fmt>] \\       ## image format (eg bmp)\n";
+  print "  [-len <num>] \\          ## image size length (eg 256)\n";
+  print "  [-quiet <0|1>] \\        ## do|don't spam console\n";
   print "\n";
 
   exit 2;
