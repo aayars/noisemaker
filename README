@@ -1,5 +1,9 @@
-Math::Fractal::Noisemaker provides a simple functional interface
-for generating 2D fractal (or non-fractal) noise.
+Math::Fractal::Noisemaker provides a simple functional interface for
+generating several types of two‐dimensional grayscale noise, which may
+be combined in interesting and novel ways.
+
+Noisemaker is not fast‐‐ but it can output production‐quality seamless
+noise for use in games or other media.
 
 See lib/Math/Fractal/Noisemaker.pm for perldoc.
 

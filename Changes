@@ -1,3 +1,18 @@
+.103
+  - will now use upsampled lower res noise by default. this is
+    "about as good" in most cases, but renders much faster.
+  - to disable upsampling (aka to render at natural image resolution),
+    use -quality N+, eg "-quality 2+". current max is 3+. see docs
+    regarding "quality" arg.
+  - several effects like shadow and linear blur are now upsampled from
+    lower resolution for performance
+  - using -sphere will now create output as a 2:1 rectangular image
+  - will now create output as a single-channel file, unless -clut
+    was specified
+  - removed noisemaker internal functions from perldoc
+  - pruned optional exports to a single function, make()
+  - changed -workdir to -outdir, which makes more sense
+
 .102
   - noisemaker now consumes *way* less memory (thx Tie::CArray!)
   - added worley, wgel, gradient noise types (see docs/help)
