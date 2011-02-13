@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.103';
+our $VERSION = '0.104';
 
 use strict;
 use warnings;
@@ -286,9 +286,11 @@ sub make {
     elsif ( $arg =~ /chiral/ )    { $args{chiral}   = shift; }
     elsif ( $arg =~ /stereo/ )    { $args{stereo}   = shift; }
     elsif ( $arg =~ /tile/ )      { $args{tile}     = shift; }
+    elsif ( $arg =~ /xscale/ )    { $args{xscale}   = shift; }
+    elsif ( $arg =~ /yscale/ )    { $args{yscale}   = shift; }
     elsif ( $arg =~ /quiet/ )     { $QUIET          = shift; }
     elsif ( $arg =~ /format/ )    { $args{format}   = shift; }
-    elsif ( $arg =~ /outdir/ )    { $args{outdir}  = shift; }
+    elsif ( $arg =~ /outdir/ )    { $args{outdir}   = shift; }
     else                          { usage("Unknown argument: $arg") }
   }
 
@@ -418,6 +420,10 @@ sub make {
     $grid = refract( $grid, %args );
   }
 
+  if ( defined($args{xscale}) || defined($args{yscale}) ) {
+    $grid = stretch($grid, %args);
+  }
+
   if ( $args{sphere} ) {
     %args = defaultArgs(%args);
 
@@ -465,7 +471,7 @@ sub make {
 
   print "Saved file to $args{out}\n" if !$QUIET;
 
-  return ( $grid, $img, $args{out} );
+  return($img, $args{out});
 }
 
 sub defaultArgs {
@@ -625,10 +631,6 @@ sub img {
     }
   }
 
-  # if ( $args{sphere} ) {
-    # return $img->scaleX( scalefactor => 2 );
-  # }
-
   return $img;
 }
 
@@ -636,6 +638,34 @@ sub grow {
   $GROW_FN ||= \&grow_interp;
 
   &$GROW_FN(@_);
+}
+
+#
+# Artificially stretch noise along either axis
+#
+sub stretch {
+  my $noise = shift;
+  my %args  = defaultArgs(@_);
+
+  my $len = $args{len};
+
+  my $grid = grid(%args);
+
+  my $xscale = $args{xscale} || 1;
+  my $yscale = $args{yscale} || 1;
+
+  for ( my $x = 0 ; $x < $len ; $x++ ) {
+    my $column = $grid->[$x];
+
+    for ( my $y = 0 ; $y < $len ; $y++ ) {
+      my $thisX = $x * $xscale;
+      my $thisY = $y * $yscale;
+
+      $column->set( $y, noise( $noise, $thisX, $thisY ) );
+    }
+  }
+
+  return $grid;
 }
 
 #
@@ -1071,6 +1101,7 @@ sub square {
   my $amp    = $args{amp};
   my $bias   = $args{bias};
   my $length = $args{len};
+  my $persist = $args{persist};
 
   $amp = $DEFAULT_AMP if !defined $amp;
 
@@ -1129,7 +1160,7 @@ sub square {
 
     $haveLength *= 2;
 
-    $baseOffset /= 2;
+    $baseOffset *= $persist;
 
     for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
       my $base = ( $x + 1 ) % 2;
@@ -1686,10 +1717,7 @@ sub wavelet {
   my $source = $args{grid} || white( %args, len => $args{freq} );
 
   my $down = shrink( $source, %args, len => $args{freq} / 2 );
-
-  # $down = smooth( $down, %args, len => $args{freq} / 2 );
-
-  my $up = grow( $down, %args, len => $args{freq} );
+  my $up   = grow( $down, %args, len => $args{freq} );
 
   my $out = [];
 
@@ -2581,12 +2609,10 @@ sub dla {
       my $x = $points[$i]->[0] % $len;
       my $y = $points[$i]->[1] % $len;
 
-      my $offset = rand(3);
-      $offset *= -1 if rand() >= .5;
+      my $offset = rand(6) - 3;
       $points[$i]->[0] = $x + $offset % $len;
 
-      $offset = rand(3);
-      $offset *= -1 if rand() >= .5;
+      $offset = rand(6) - 3;
       $points[$i]->[1] = $y + $offset % $len;
     }
   }
@@ -2601,15 +2627,13 @@ sub glow {
   my $grid = shift;
   my %args = @_;
 
-  $args{len} ||= $DEFAULT_LEN;
+  my $len = $args{len} || $DEFAULT_LEN;
 
-  my $down = shrink($grid, len => $args{len}/2);
-  $down = smooth($down, len => $args{len}/2);
-  my $smoothed = grow($down, %args);
+  my $down = shrink($grid, len => $len/2);
+  $down = smooth($down, len => $len/2);
+  my $smoothed = grow($down, len => $len);
 
-  my $len = scalar @{$grid};
-
-  for ( my $x = 0 ; $x < $len ; $x++ ) {
+  for ( my $x = 0; $x < $len; $x++ ) {
     my $column         = $grid->[$x];
     my $smoothedColumn = $smoothed->[$x];
 
@@ -2713,20 +2737,20 @@ sub emboss {
 
   my $angle = rand(360);
 
-  for ( my $x = 0 ; $x < $xlen/2 ; $x += 1 ) {
+  for ( my $x = 0 ; $x < $xlen ; $x += 1 ) {
     $lightmap->[$x] = [];
 
-    my $lightmapColumn = $COLUMN_CLASS->new($ylen/2);
-    my $column         = $grid->[$x*2];
+    my $lightmapColumn = $COLUMN_CLASS->new($ylen);
+    my $column         = $grid->[$x];
 
-    for ( my $y = 0 ; $y < $ylen/2 ; $y += 1 ) {
+    for ( my $y = 0 ; $y < $ylen; $y += 1 ) {
       my $value;
 
-      my ( $neighborX, $neighborY ) = translate( $x*2, $y*2, $angle, 1.5 );
+      my ( $neighborX, $neighborY ) = translate( $x, $y, $angle, 1.5 );
 
       my $neighbor = noise( $grid, $neighborX, $neighborY );
 
-      my $diff = $column->get($y*2) - $neighbor;
+      my $diff = $column->get($y) - $neighbor;
 
       $lightmapColumn->set( $y, $MAX_COLOR - $diff );
     }
@@ -3387,11 +3411,10 @@ sub newton {
 sub lumber {
   my %args = defaultArgs(@_);
 
-  my $len = $args{len};
-
   my $multires = multires( %args, octaves => 3, freq => 2, amp => 4 );
-
   my $grid = grid(%args);
+
+  my $len = $args{len};
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my $column         = $grid->[$x];
@@ -3406,7 +3429,7 @@ sub lumber {
     }
   }
 
-  return glow($grid);
+  return glow($grid, %args);
 }
 
 #
@@ -3664,7 +3687,7 @@ sub simplex {
 sub simplex2 {
   my %args = defaultArgs(@_);
 
-  my $grid = simplex( %args, len => $args{freq} );
+  my $grid = simplex( %args, len => $args{freq}, tile => 0 );
 
   return grow( $grid, %args );
 }
@@ -3755,7 +3778,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.103 of Math::Fractal::Noisemaker.
+This document is for version 0.104 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
@@ -3765,8 +3788,8 @@ This document is for version 0.103 of Math::Fractal::Noisemaker.
 
 See MAKE ARGS.
 
-A wrapper script, C<make-noise>, is included with this distribution.
-C<make-noise> has several help options.
+A command-line utility, C<make-noise>, is included with this distribution.
+C<make-noise> is a complete wrapper to this module.
 
   make-noise -h
   make-noise -h types
@@ -3787,44 +3810,47 @@ toy.
 =over 4
 
 
-=item * make(type => $type, out => $filename, %ARGS)
+=item * make(%ARGS)
 
-Creates the specified noise type (see NOISE TYPES), writing the
-resulting image to the received filename.
+Generate a new noise set, and save the resulting image to disk.
 
-Returns the resulting dataset, as well as the L<Imager> object which
-was created from it and filename used.
+Returns an L<Imager> instance containing final noise values, and
+filename which was used.
 
-This function accepts a plethora of optional arguments; see MAKE ARGS.
+All args are optional. This function accepts many arguments; see
+MAKE ARGS, in this document.
 
   make();
 
-  #
-  # $img is an Imager object containing the noise output:
-  #
-  my ( $grid, $img, $filename ) = make(
+  # my ($img, $filename) = make(
     #
     # Any MAKE ARGS or noise args here!
     #
-  );
+  # );
 
-
-C<make-noise>, included with this distribution, provides a command-line
-wrapper:
+Noisemaker's typical usage is via this function's command-line
+wrapper, C<make-noise>.
 
   make-noise -h
 
+  make-noise -type worley    # does make(type => "worley")
 
 =back
 
 =head1 NOISE TYPES
 
+To specify a noise type, use the C<type> arg, for example:
+
+  make-noise -type gradient
+
+If generating multi-res noise, any single-res noise type may be
+specified as the slice type (C<stype>), for example:
+
+  make-noise -type ridged -stype gradient
+
 =head2 SINGLE-RES NOISE
 
-Single-res noise types may be specified as a multi-res slice type (C<stype>)
-
 =over 4
-
 
 =item * white
 
@@ -3931,6 +3957,8 @@ Diamond-Square
 
 See SINGLE-RES ARGS for allowed arguments.
 
+C<persist> arg is also permitted.
+
   make(type => "square", ...);
 
 
@@ -3966,6 +3994,8 @@ Self-displaced Diamond-Square noise.
 
 See SINGLE-RES ARGS and GEL TYPE ARGS for allowed arguments.
 
+C<persist> arg is also permitted.
+
   make(type => "sgel", ...);
 
 
@@ -3980,6 +4010,8 @@ See SINGLE-RES ARGS and GEL TYPE ARGS for allowed arguments.
 Diffusion-limited aggregation, seeded from multiple random points.
 
 See SINGLE-RES ARGS for allowed arguments.
+
+C<freq> arg determines number of seed points.
 
 C<bias> and C<amp> currently have no effect.
 
@@ -4274,11 +4306,17 @@ Specify Nth closest neighbor with C<nth> arg, or will default to an
 C<nth> of the C<freq>'s square root, which tends to produce a neat
 3D-looking effect.
 
+Specify an C<nth> of 0 for "traditional" voronoi cells.
+
+Specify a C<cell> argument of "1" to use gray-mapped cells, rather
+than distance gradient.
+
 Specify C<dist> function as 0 (Euclidean), 1 (Manhattan), 2 (Chebyshev),
 or 3 (Bendy?)
 
 Specify C<tile> to override seam blending (see docs).
 
+C<freq> arg determines number of seed points.
 
   make(type => "worley", nth => 1, dist => 3, ...);
 
@@ -4310,7 +4348,7 @@ Also accepts "nth" and "dist" worley args.
 =head2 MULTI-RES TYPES
 
 Multi-res noise combines the values from multiple 2D slices
-(octaves), which are generated using successively higher frequencies
+(octaves), which are generated using progressively higher frequencies
 and lower amplitudes.
 
 The slice type used for generating multi-res noise may be controlled
@@ -4469,6 +4507,8 @@ See MULTI-RES ARGS for allowed args.
 Multi-layered complex noise. Very slow.
 
 See TERRA ARGS for additional arguments.
+
+Example:
 
   make(
     type   => "terra",
@@ -4707,12 +4747,28 @@ Output stereo map
 =item * tile => <0|1|2|3>
 
 Image seam linear blending mode. Naturally tiling noise types don't
-consume this argument. For false spheremap blending, see C<sphere>.
+need this argument. For false spheremap blending, see C<sphere>.
 
   0: no blending
   1: horizontal and vertical
   2: horizontal
   3: vertical
+
+=item * xscale|yscale => $num
+
+Stretch or shrink the final noise values, along either axis. This
+does not alter the dimensions of the resulting image.
+
+  make(xscale => .5, yscale => 2);
+
+"Scale" in this context means input scaling. Numbers larger than 1
+will shrink noise, repeating values along the specified axis.
+Fractional numbers will stretch the noise, using the interpolation
+function.
+
+For naturally tiling noise types, providing a non-integer value
+here will break tiling. Stick to multiples of 1 for best results.
+Artifically tiled noise types do not require this workaround.
 
 
 =item * quiet => <0|1>
@@ -4915,8 +4971,8 @@ and optimized for speed.
 This module only produces single-channel two-dimensional noise--
 false colormaps don't count!
 
-Image file types are limited to the types supported by Imager on
-your host.
+Image file types are limited to the types supported by L<Imager>
+on your host.
 
 Some noise algorithms might not be implemented "by the book".
 

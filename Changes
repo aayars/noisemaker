@@ -1,3 +1,10 @@
+.104
+  - square and sgel types now consume -persist arg (like multires)
+  - added xscale/yscale args for stretching noise along either axis
+  - shadow/emboss not upsampled anymore, due to looking bad
+  - "lumber" type output was broken; fixed
+  - "simplex2" type was using forced tiling, this was wrong; fixed
+
 .103
   - will now use upsampled lower res noise by default. this is
     "about as good" in most cases, but renders much faster.
