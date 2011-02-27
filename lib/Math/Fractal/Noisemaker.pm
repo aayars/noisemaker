@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.104';
+our $VERSION = '0.105';
 
 use strict;
 use warnings;
@@ -1079,9 +1079,11 @@ sub displace {
     my $column = $COLUMN_CLASS->new($length);
 
     for ( my $y = 0 ; $y < $length ; $y++ ) {
-      my $displaceX = noise( $grid, $x, $y ) * $displace;
-      my $displaceY = noise( $grid, $x, $displaceX ) * $displace;
-      $displaceX = noise( $grid, $displaceX, $y );
+      my $tmpX = noise($grid, $x + $length/2, $y + $length/2);
+      my $displaceX = noise($grid, $tmpX, $y) * $displace;
+
+      my $tmpY = noise($grid, $x, $y);
+      my $displaceY = noise($grid, $x, $tmpY) * $displace;
 
       $column->set( $y, noise( $grid, $displaceX, $displaceY ) );
     }
@@ -3778,7 +3780,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.104 of Math::Fractal::Noisemaker.
+This document is for version 0.105 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 

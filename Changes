@@ -1,3 +1,6 @@
+.105
+  - corrected horizontal banding problem in gel noise types
+
 .104
   - square and sgel types now consume -persist arg (like multires)
   - added xscale/yscale args for stretching noise along either axis
