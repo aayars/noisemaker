@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.105';
+our $VERSION = '0.106';
 
 use strict;
 use warnings;
@@ -58,15 +58,15 @@ my $GROW_FN;
 #
 # Persistent gradient values
 #
-my @NUMS = ( -255 .. 255 );
+my $NUMS = [ -255 .. 255 ];
 do {
   my @r;
-  while (@NUMS) {
-    my $i = rand(@NUMS);
-    push @r, $NUMS[$i];
-    splice( @NUMS, $i, 1 );
+  while (@$NUMS) {
+    my $i = rand(@$NUMS);
+    push @r, $NUMS->[$i];
+    splice( @$NUMS, $i, 1 );
   }
-  @NUMS = @r;
+  $NUMS = \@r;
 };
 
 sub showVersion {
@@ -545,10 +545,11 @@ sub img {
 
   for ( my $x = 0 ; $x < $len*$stretch ; $x++ ) {
     my $scaledColumn = $COLUMN_CLASS->new($len);
+    my $stretchedX = $x/$stretch;
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
       # my $gray = $column->get($y);
-      my $gray = noise($grid,$x/$stretch,$y);
+      my $gray = noise($grid,$stretchedX,$y);
 
       my $scaled;
 
@@ -601,11 +602,13 @@ sub img {
     my $shadow = $args{shadow};
 
     for ( my $x = 0 ; $x < $len*$stretch ; $x++ ) {
+      my $stretchedX = $x/$stretch;
+
       for ( my $y = 0 ; $y < $len ; $y++ ) {
         my $color = $img->getpixel( x => $x, y => $y );
         my ( $r, $g, $b ) = $color->rgba;
 
-        my $embColor = noise($embossed,$x/$stretch,$y/$stretch) / $MAX_COLOR;
+        my $embColor = noise($embossed,$stretchedX,$y/$stretch) / $MAX_COLOR;
 
         if ( $embColor < .65 ) {
           my $amt = ( 1 - ( $embColor / .65 ) ) * $shadow;
@@ -686,13 +689,14 @@ sub grow_interp {
 
   for ( my $x = 0 ; $x < $wantLength ; $x++ ) {
     my $column = $grid->[$x];
+    my $thisX = $x / $scale;
+    if ( !$smooth ) {
+      $thisX = int($thisX);
+    }
 
     for ( my $y = 0 ; $y < $wantLength ; $y++ ) {
-      my $thisX = $x / $scale;
       my $thisY = $y / $scale;
-
       if ( !$smooth ) {
-        $thisX = int($thisX);
         $thisY = int($thisY);
       }
 
@@ -747,13 +751,15 @@ sub shrink {
   my $haveXLen = scalar @$noise;
   my $haveYLen = $noise->[0]->len();
 
+  my $halfYLen = $haveYLen/2;
+
   until ( $haveXLen <= $wantLength ) {
     my $shrunk = [];
 
     for ( my $x = 0 ; $x < $haveXLen / 2 ; $x++ ) {
-      my $shrunkColumn = $COLUMN_CLASS->new( $haveYLen / 2 );
+      my $shrunkColumn = $COLUMN_CLASS->new($halfYLen);
 
-      for ( my $y = 0 ; $y < $haveYLen / 2 ; $y++ ) {
+      for ( my $y = 0; $y < $halfYLen; $y++ ) {
         my $value = noise($grid, $x*2, $y*2);
         $value += noise($grid, ($x*2)+1, $y*2);
         $value += noise($grid, $x*2, ($y*2)+1);
@@ -779,12 +785,13 @@ sub grid {
   my $grid = [];
 
   my $len = $args{len};
+  my $bias = $args{bias} * $MAX_COLOR;
 
   for ( my $x = 0 ; $x < $len ; $x++ ) {
     my @row;
 
     for ( my $y = 0 ; $y < $len ; $y++ ) {
-      $row[$y] = ( $args{bias} / 1 ) * $MAX_COLOR;
+      $row[$y] = $bias;
     }
 
     $grid->[$x] = $COLUMN_CLASS->new( $len, \@row );
@@ -808,6 +815,8 @@ sub infile {
   my $height = $img->getheight();
 
   my $tempSize = ( $width > $height ) ? $width : $height;
+  $tempSize--;
+
   my $tempGrid = grid(%args, len => $tempSize);
 
   for ( my $x = 0 ; $x < $tempSize ; $x++ ) {
@@ -815,8 +824,8 @@ sub infile {
 
     for ( my $y = 0 ; $y < $tempSize ; $y++ ) {
       my $color = $img->getpixel(
-        x => ( $x / ( $tempSize / 1 ) ) * ( $width - 1 ),
-        y => ( $y / ( $tempSize - 1 ) ) * ( $height - 1 )
+        x => ( $x / $tempSize ) * ( $width - 1 ),
+        y => ( $y / $tempSize ) * ( $height - 1 )
       );
 
       my ( $r, $g, $b ) = $color->rgba;
@@ -863,15 +872,12 @@ sub gradient {
     my $thisX = $x / $freq;
 
     for ( my $y = 0 ; $y < $freq ; $y++ ) {
-
-      # my $randAmp = rand($ampVal);
-
       my $thisY = $y / $freq;
 
-      my $xval = $NUMS[ $thisX * 256 ] + $NUMS[ $thisY * 256 ];
-      my $yval = $NUMS[ $thisY * 256 ] + $NUMS[ $xval % 256 ];
-      $xval = ( $NUMS[ $xval % 256 ] / 255 ) * $amp;
-      $yval = ( $NUMS[ $yval % 256 ] / 255 ) * $amp;
+      my $xval = $NUMS->[ $thisX * 256 ] + $NUMS->[ $thisY * 256 ];
+      my $yval = $NUMS->[ $thisY * 256 ] + $NUMS->[ $xval % 256 ];
+      $xval = ( $NUMS->[ $xval % 256 ] / 255 ) * $amp;
+      $yval = ( $NUMS->[ $yval % 256 ] / 255 ) * $amp;
 
       my $randAmp = interp( $xval, $yval, .5 );
 
@@ -907,7 +913,7 @@ sub worley {
     for ( my $i = 0 ; $i < $freq ; $i++ ) {
       my $x = rand($len);
       my $y = rand($len);
-      my $white = $NUMS[$i];
+      my $white = $NUMS->[$i];
 
       push @points, [ $x, $y, $white ];
     }
@@ -950,7 +956,7 @@ sub worley {
         for (@thisDist) {
           $i++;
           push @foo, [
-            abs( $_->[0] - ( $NUMS[$i] / $MAX_COLOR ) * $len ), $_->[1]
+            abs( $_->[0] - ( $NUMS->[$i] / $MAX_COLOR ) * $len ), $_->[1]
           ];
         }
 
@@ -1069,17 +1075,17 @@ sub displace {
 
   $displace = .5 if !defined $displace;
 
-  $displace =
-    ( $displace / 1 ) * ( $length / $DEFAULT_LEN )
-    ;    # Same visual offset for diff size imgs
+  $displace *= $length / $DEFAULT_LEN; # Same visual offset for diff size imgs
 
   $grid = smooth( $grid, %args );
+
+  my $halfLen = $length/2;
 
   for ( my $x = 0 ; $x < $length ; $x++ ) {
     my $column = $COLUMN_CLASS->new($length);
 
     for ( my $y = 0 ; $y < $length ; $y++ ) {
-      my $tmpX = noise($grid, $x + $length/2, $y + $length/2);
+      my $tmpX = noise($grid, $x + $halfLen, $y + $halfLen);
       my $displaceX = noise($grid, $tmpX, $y) * $displace;
 
       my $tmpY = noise($grid, $x, $y);
@@ -1138,6 +1144,7 @@ sub square {
       $grown->[$thisX] = $grownColumn;
     }
 
+    $baseOffset *= $persist;
     for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
       my $thisX = $x * 2;
       $thisX += 1;
@@ -1163,7 +1170,6 @@ sub square {
     $haveLength *= 2;
 
     $baseOffset *= $persist;
-
     for ( my $x = 0 ; $x < $haveLength ; $x++ ) {
       my $base = ( $x + 1 ) % 2;
 
@@ -1221,25 +1227,25 @@ sub multires {
 
   spamConsole(%args) if !$QUIET;
 
+  my $generator;
+  for my $type (@SIMPLE_TYPES) {
+    if ( $args{stype} eq $type ) {
+      do {
+        no strict 'refs';
+        $generator = \&{"Math::Fractal::Noisemaker::$type"};
+      };
+      last;
+    }
+  }
+
+  if ( !$generator ) {
+    usage("Unknown slice type '$args{stype}' specified");
+  }
+
   for ( my $o = 0 ; $o < $octaves ; $o++ ) {
     last if $freq > $length;
 
     print "Octave " . ( $o + 1 ) . " ... \n" if !$QUIET;
-
-    my $generator;
-
-    for my $type (@SIMPLE_TYPES) {
-      if ( $args{stype} eq $type ) {
-        do {
-          no strict 'refs';
-          $generator = \&{"Math::Fractal::Noisemaker::$type"};
-        };
-      }
-    }
-
-    if ( !$generator ) {
-      usage("Unknown slice type '$args{stype}' specified");
-    }
 
     push @layers,
       &$generator(
@@ -3635,7 +3641,7 @@ sub _snoise {
   if ( $t0 < 0 ) { $n0 = 0; }
   else {
     $t0 *= $t0;
-    $n0 = $t0 * $t0 * _sgrad( $NUMS[ ( $ii + $NUMS[$jj] ) % 256 ], $x0, $y0 );
+    $n0 = $t0 * $t0 * _sgrad( $NUMS->[ ( $ii + $NUMS->[$jj] ) % 256 ], $x0, $y0 );
   }
 
   my $t1 = .5 - $x1 * $x1 - $y1 * $y1;
@@ -3645,7 +3651,7 @@ sub _snoise {
     $t1 *= $t1;
     $n1 =
       $t1 * $t1 *
-      _sgrad( $NUMS[ ( $ii + $i1 + $NUMS[ ( $jj + $j1 ) % 256 ] ) % 256 ],
+      _sgrad( $NUMS->[ ( $ii + $i1 + $NUMS->[ ( $jj + $j1 ) % 256 ] ) % 256 ],
       $x1, $y1 );
   }
 
@@ -3656,7 +3662,7 @@ sub _snoise {
     $t2 *= $t2;
     $n2 =
       $t2 * $t2 *
-      _sgrad( $NUMS[ ( $ii + 1 + $NUMS[ ( $jj + 1 ) % 256 ] ) % 256 ],
+      _sgrad( $NUMS->[ ( $ii + 1 + $NUMS->[ ( $jj + 1 ) % 256 ] ) % 256 ],
       $x2, $y2 );
   }
 
@@ -3780,7 +3786,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.105 of Math::Fractal::Noisemaker.
+This document is for version 0.106 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
