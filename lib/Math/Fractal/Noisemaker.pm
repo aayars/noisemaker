@@ -1,6 +1,6 @@
 package Math::Fractal::Noisemaker;
 
-our $VERSION = '0.106';
+our $VERSION = '0.107';
 
 use strict;
 use warnings;
@@ -815,7 +815,6 @@ sub infile {
   my $height = $img->getheight();
 
   my $tempSize = ( $width > $height ) ? $width : $height;
-  $tempSize--;
 
   my $tempGrid = grid(%args, len => $tempSize);
 
@@ -823,15 +822,20 @@ sub infile {
     my $column = $tempGrid->[$x];
 
     for ( my $y = 0 ; $y < $tempSize ; $y++ ) {
-      my $color = $img->getpixel(
-        x => ( $x / $tempSize ) * ( $width - 1 ),
-        y => ( $y / $tempSize ) * ( $height - 1 )
-      );
+      my $color = $img->getpixel(x => $x, y => $y);
 
       my ( $r, $g, $b ) = $color->rgba;
 
       $column->set( $y, ( $r + $g + $b ) / 3 );
     }
+  }
+
+  if ( $width > $len ) {
+    return shrink($tempGrid, %args);
+  } elsif ( $width < $len ) {
+    return grow($tempGrid, %args);
+  } else {
+    return $tempGrid;
   }
 
   return grow($tempGrid, %args);
@@ -2702,7 +2706,7 @@ sub fur {
       my $multiresColumn = $multires->[$x];
       my $column         = $grid->[$x];
 
-      my $heading = ( $multiresColumn->get($y) / $MAX_COLOR ) * 360;
+      my $heading = ( $multiresColumn->get($y) / $MAX_COLOR ) * 180;
 
       if ( $args{tesla} ) {
         ### kink it up
@@ -3786,7 +3790,7 @@ Math::Fractal::Noisemaker - Visual noise generator
 
 =head1 VERSION
 
-This document is for version 0.106 of Math::Fractal::Noisemaker.
+This document is for version 0.107 of Math::Fractal::Noisemaker.
 
 =head1 SYNOPSIS
 
