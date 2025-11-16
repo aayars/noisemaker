@@ -114,6 +114,8 @@ const logInfo = (...args) => appendLog('info', args);
 const logWarn = (...args) => appendLog('warn', args);
 const logError = (...args) => appendLog('error', args);
 
+const hasOwn = (object, property) => Object.prototype.hasOwnProperty.call(object ?? {}, property);
+
 function setStatus(message) {
   if (statusEl) {
     statusEl.textContent = message;
@@ -168,6 +170,52 @@ const {
   pipelineCache,
   blitShaderModuleCache,
 } = runtime;
+
+function getRegisteredEffects() {
+  if (!effectManager) {
+    return [];
+  }
+  return effectManager.getAvailableEffects();
+}
+
+function getActiveEffectMetadata(effectId) {
+  if (!effectManager) {
+    return null;
+  }
+  return effectManager.getEffectMetadata(effectId);
+}
+
+async function getActiveEffectUIState() {
+  if (!effectManager) {
+    return {};
+  }
+  return effectManager.getActiveUIState();
+}
+
+async function setActiveEffect(effectId) {
+  if (!effectManager) {
+    throw new Error('Effect manager is not initialized.');
+  }
+
+  const targetId = typeof effectId === 'string' && effectId.trim().length > 0
+    ? effectId
+    : effectManager.getActiveEffectId();
+
+  if (!targetId) {
+    throw new Error('setActiveEffect requires a valid effect id.');
+  }
+
+  await effectManager.setActiveEffect(targetId);
+  resetEffectReadbackCache();
+  return effectManager.getEffectMetadata(targetId);
+}
+
+async function updateActiveEffectParams(updates = {}) {
+  if (!effectManager) {
+    throw new Error('Effect manager is not initialized.');
+  }
+  return effectManager.updateActiveParams(updates);
+}
 
 effectManager = new EffectManager({
   helpers: {
@@ -663,6 +711,7 @@ effectManager.registerEffect({
   loadModule: () => import('../../shaders/effects/outline/effect.js'),
 });
 
+
 const BLIT_SHADER = `@vertex
 fn vertex_main(@builtin(vertex_index) idx : u32) -> @builtin(position) vec4<f32> {
     let x = f32((idx << 1u) & 2u) * 2.0 - 1.0;
@@ -684,118 +733,12 @@ fn fragment_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     return textureLoad(compute_output, vec2<i32>(x, flipped_y), 0);
 }`;
 
-const BUFFER_TO_TEXTURE_SHADER = `struct AberrationParams {
-  size : vec4<f32>,
-  anim : vec4<f32>,
-};
-
-@group(0) @binding(0) var<storage, read> input_buffer : array<f32>;
-@group(0) @binding(1) var output_texture : texture_storage_2d<rgba32float, write>;
-@group(0) @binding(2) var<uniform> params : AberrationParams;
-
-@compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-  let width : u32 = u32(max(params.size.x, 0.0));
-  let height : u32 = u32(max(params.size.y, 0.0));
-  if (gid.x >= width || gid.y >= height) {
-    return;
-  }
-
-  let index : u32 = (gid.y * width + gid.x) * 4u;
-  let color : vec4<f32> = vec4<f32>(
-    input_buffer[index + 0u],
-    input_buffer[index + 1u],
-    input_buffer[index + 2u],
-    input_buffer[index + 3u]
-  );
-
-  textureStore(output_texture, vec2<i32>(i32(gid.x), i32(gid.y)), color);
-}`;
-
-async function getBufferToTexturePipeline(device) {
-  let entry = bufferToTexturePipelineCache.get(device);
-  if (entry) {
-    return entry;
-  }
-
-  const module = await compileShaderModuleWithValidation(device, BUFFER_TO_TEXTURE_SHADER, { label: 'buffer-to-texture shader' });
-  const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
-      { binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba32float' } },
-      { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-    ],
-  });
-
-  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-
-  device.pushErrorScope('validation');
-  let pipeline;
-  try {
-    pipeline = device.createComputePipeline({
-      layout: pipelineLayout,
-      compute: { module, entryPoint: 'main' },
-    });
-  } catch (error) {
-    await device.popErrorScope();
-    fatal(`Failed to create buffer-to-texture pipeline: ${error?.message ?? error}`);
-  }
-
-  const pipelineError = await device.popErrorScope();
-  if (pipelineError) {
-    fatal(`Buffer-to-texture pipeline validation failed: ${pipelineError?.message ?? pipelineError}`);
-  }
-
-  entry = { pipeline, bindGroupLayout };
-  bufferToTexturePipelineCache.set(device, entry);
-  return entry;
-}
-
 let computeResources = null;
 let cachedReadbackBuffer = null;
 let cachedReadbackSize = 0;
 let cachedEffectReadbackBuffer = null;
 let cachedEffectReadbackSize = 0;
-
-async function compileShaderModuleWithValidation(device, code, { label } = {}) {
-  const descriptor = label ? { code, label } : { code };
-  let shaderModule;
-  try {
-    shaderModule = device.createShaderModule(descriptor);
-  } catch (error) {
-    fatal(`Failed to create ${label ?? 'unnamed'} shader module: ${error?.message ?? error}`);
-  }
-
-  if (shaderModule?.getCompilationInfo) {
-    try {
-      const info = await shaderModule.getCompilationInfo();
-      const messages = info?.messages ?? [];
-      const errors = messages.filter((message) => message.type === 'error');
-      const warnings = messages.filter((message) => message.type === 'warning');
-
-      if (warnings.length > 0) {
-        warnings.forEach((warning) => {
-          const loc = typeof warning.lineNum === 'number' ? `Line ${warning.lineNum}: ` : '';
-          logWarn(`[Shader Warning${label ? `: ${label}` : ''}] ${loc}${warning.message}`);
-        });
-      }
-
-      if (errors.length > 0) {
-        const details = errors
-          .map((message) => {
-            const lineInfo = typeof message.lineNum === 'number' ? `Line ${message.lineNum}: ` : '';
-            return `${lineInfo}${message.message}`;
-          })
-          .join('\n');
-        fatal(`${label ?? 'Shader'} compilation failed:\n${details}`);
-      }
-    } catch (error) {
-      fatal(`Failed to validate ${label ?? 'shader'} compilation: ${error?.message ?? error}`);
-    }
-  }
-
-  return shaderModule;
-}
+let needsResourceRecreation = false;
 
 function invalidateComputeResources() {
   if (computeResources?.resourceSet?.destroyAll) {
@@ -826,6 +769,18 @@ function resetReadbackCache() {
   }
   cachedReadbackBuffer = null;
   cachedReadbackSize = 0;
+}
+
+function resetEffectReadbackCache() {
+  if (cachedEffectReadbackBuffer?.destroy) {
+    try {
+      cachedEffectReadbackBuffer.destroy();
+    } catch (error) {
+      logWarn('Failed to destroy effect readback buffer during reset:', error);
+    }
+  }
+  cachedEffectReadbackBuffer = null;
+  cachedEffectReadbackSize = 0;
 }
 
 async function getComputeResources(device) {
