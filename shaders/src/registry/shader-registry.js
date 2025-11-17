@@ -55,7 +55,6 @@ import { additionalPasses as shadowPasses } from '../../effects/shadow/effect.js
 import simpleFrameMeta from '../../effects/simple_frame/meta.json' with { type: 'json' };
 import sineMeta from '../../effects/sine/meta.json' with { type: 'json' };
 import sketchMeta from '../../effects/sketch/meta.json' with { type: 'json' };
-import smoothstepMeta from '../../effects/smoothstep/meta.json' with { type: 'json' };
 import snowMeta from '../../effects/snow/meta.json' with { type: 'json' };
 import sobelMeta from '../../effects/sobel/meta.json' with { type: 'json' };
 import { additionalPasses as sobelPasses } from '../../effects/sobel/effect.js?v=2';
@@ -146,7 +145,6 @@ const SHADER_MANIFEST = {
   simple_frame: metaToDescriptor(simpleFrameMeta),
   sine: metaToDescriptor(sineMeta),
   sketch: metaToDescriptor(sketchMeta),
-  smoothstep: metaToDescriptor(smoothstepMeta),
   snow: metaToDescriptor(snowMeta),
   sobel: metaToDescriptor(sobelMeta),
   ...sobelPasses,

@@ -213,18 +213,25 @@ function evaluateSettings(template) {
 }
 
 let _SOURCE;
+const DSL_URL = new URL('../../dsl/presets.dsl', import.meta.url);
+
 if (typeof process !== 'undefined' && process.env?.NOISEMAKER_EMBEDDED_DSL) {
   // Embedded DSL for SEA runtime
   _SOURCE = Buffer.from(process.env.NOISEMAKER_EMBEDDED_DSL, 'base64').toString('utf-8');
 } else if (typeof NOISEMAKER_PRESETS_DSL !== 'undefined') {
   // Bundled DSL (browser or esbuild define)
   _SOURCE = NOISEMAKER_PRESETS_DSL;
+} else if (typeof window !== 'undefined' && typeof fetch === 'function') {
+  // Browser runtime: fetch the DSL via HTTP so we never rely on Node APIs
+  const response = await fetch(DSL_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to load presets DSL: ${response.status} ${response.statusText}`);
+  }
+  _SOURCE = await response.text();
 } else {
-  // Load from file system (Node.js ESM only - requires top-level await support)
-  // This path should never execute in bundled/SEA builds
-  const fs = (await import('node:fs')).default || (await import('node:fs'));
-  const url = new URL('../../dsl/presets.dsl', import.meta.url);
-  _SOURCE = fs.readFileSync(url, 'utf8');
+  // Node.js fallback for CLI and tests
+  const { readFileSync } = await import('node:fs');
+  _SOURCE = readFileSync(DSL_URL, 'utf8');
 }
 
 function buildPresets(names) {

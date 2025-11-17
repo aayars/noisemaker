@@ -228,10 +228,6 @@
     "path": "/shaders/effects/sketch/sketch.wgsl"
   },
   {
-    "label": "smoothstep/smoothstep",
-    "path": "/shaders/effects/smoothstep/smoothstep.wgsl"
-  },
-  {
     "label": "snow/snow",
     "path": "/shaders/effects/snow/snow.wgsl"
   },

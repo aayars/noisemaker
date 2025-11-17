@@ -42,7 +42,6 @@ import shadowMetadata from '../../shaders/effects/shadow/meta.json' with { type:
 import simpleFrameMetadata from '../../shaders/effects/simple_frame/meta.json' with { type: 'json' };
 import sineMetadata from '../../shaders/effects/sine/meta.json' with { type: 'json' };
 import sketchMetadata from '../../shaders/effects/sketch/meta.json' with { type: 'json' };
-import smoothstepMetadata from '../../shaders/effects/smoothstep/meta.json' with { type: 'json' };
 import snowMetadata from '../../shaders/effects/snow/meta.json' with { type: 'json' };
 import sobelMetadata from '../../shaders/effects/sobel/meta.json' with { type: 'json' };
 import spatterMetadata from '../../shaders/effects/spatter/meta.json' with { type: 'json' };
@@ -478,13 +477,6 @@ effectManager.registerEffect({
   label: sketchMetadata.label,
   metadata: sketchMetadata,
   loadModule: () => import('../../shaders/effects/sketch/effect.js'),
-});
-
-effectManager.registerEffect({
-  id: smoothstepMetadata.id,
-  label: smoothstepMetadata.label,
-  metadata: smoothstepMetadata,
-  loadModule: () => import('../../shaders/effects/smoothstep/effect.js'),
 });
 
 effectManager.registerEffect({

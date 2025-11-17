@@ -295,7 +295,6 @@ Special
 * **density_map** - Density visualization
 * **reverb** - Echo/reverb effect
 * **sine** - Sinusoidal transforms
-* **smoothstep** - Smooth interpolation
 * **value_refract** - Value-based refraction
 * **refract** - Refraction simulation
 * **wormhole** - Wormhole/tunnel effect
@@ -520,15 +519,6 @@ Missing Features
 * Performance profiling tools
 * Multi-effect chaining
 * Preset system integration
-
-Stability Warnings
-~~~~~~~~~~~~~~~~~~
-
-Effects known to cause issues:
-
-* Large DLA generations may hang browser
-* Multi-pass effects with feedback can overflow memory
-* Complex procedural effects may timeout GPU
 
 Further Reading
 ---------------
