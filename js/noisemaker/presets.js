@@ -245,16 +245,17 @@ function resolveDslCandidates() {
   }
 
   if (typeof document !== 'undefined' && document.currentScript?.src) {
-    const scriptUrl = new URL(
-      document.currentScript.src,
-      typeof location !== 'undefined' && location.href ? location.href : 'http://localhost/'
-    );
+    const baseHref =
+      typeof globalThis.location !== 'undefined' && globalThis.location?.href
+        ? globalThis.location.href
+        : 'http://localhost/';
+    const scriptUrl = new URL(document.currentScript.src, baseHref);
     const scriptBase = new URL('.', scriptUrl);
     addRelativeSet(scriptBase, relativePaths);
   }
 
-  if (typeof location !== 'undefined' && location.href) {
-    const pageBase = new URL('.', location.href);
+  if (typeof globalThis.location !== 'undefined' && globalThis.location?.href) {
+    const pageBase = new URL('.', globalThis.location.href);
     addRelativeSet(pageBase, ['_static/presets.dsl', 'dsl/presets.dsl']);
   }
 
