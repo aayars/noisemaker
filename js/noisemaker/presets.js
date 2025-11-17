@@ -213,7 +213,57 @@ function evaluateSettings(template) {
 }
 
 let _SOURCE;
-const DSL_URL = new URL('../../dsl/presets.dsl', import.meta.url);
+
+function resolveDslCandidates() {
+  const seen = new Set();
+  const candidates = [];
+
+  const addCandidate = (base, relative) => {
+    try {
+      const url = new URL(relative, base);
+      const href = url.href;
+      if (!seen.has(href)) {
+        seen.add(href);
+        candidates.push(url);
+      }
+    } catch {
+      // Ignore malformed URL attempts.
+    }
+  };
+
+  const addRelativeSet = (base, relatives) => {
+    for (const relative of relatives) {
+      addCandidate(base, relative);
+    }
+  };
+
+  const relativePaths = ['./presets.dsl', '../dsl/presets.dsl', '../../dsl/presets.dsl'];
+
+  if (typeof import.meta !== 'undefined' && import.meta.url) {
+    const moduleBase = new URL('.', import.meta.url);
+    addRelativeSet(moduleBase, relativePaths);
+  }
+
+  if (typeof document !== 'undefined' && document.currentScript?.src) {
+    const scriptUrl = new URL(
+      document.currentScript.src,
+      typeof location !== 'undefined' && location.href ? location.href : 'http://localhost/'
+    );
+    const scriptBase = new URL('.', scriptUrl);
+    addRelativeSet(scriptBase, relativePaths);
+  }
+
+  if (typeof location !== 'undefined' && location.href) {
+    const pageBase = new URL('.', location.href);
+    addRelativeSet(pageBase, ['_static/presets.dsl', 'dsl/presets.dsl']);
+  }
+
+  if (!candidates.length) {
+    throw new Error('Unable to resolve presets DSL URL');
+  }
+
+  return candidates;
+}
 
 if (typeof process !== 'undefined' && process.env?.NOISEMAKER_EMBEDDED_DSL) {
   // Embedded DSL for SEA runtime
@@ -223,15 +273,44 @@ if (typeof process !== 'undefined' && process.env?.NOISEMAKER_EMBEDDED_DSL) {
   _SOURCE = NOISEMAKER_PRESETS_DSL;
 } else if (typeof window !== 'undefined' && typeof globalThis.fetch === 'function') {
   // Browser runtime: fetch the DSL via HTTP so we never rely on Node APIs
-  const response = await globalThis.fetch(DSL_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to load presets DSL: ${response.status} ${response.statusText}`);
+  const candidates = resolveDslCandidates();
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      const response = await globalThis.fetch(url);
+      if (!response.ok) {
+        lastError = new Error(
+          `Failed to load presets DSL from ${url}: ${response.status} ${response.statusText}`
+        );
+        continue;
+      }
+      _SOURCE = await response.text();
+      break;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
   }
-  _SOURCE = await response.text();
+  if (!_SOURCE) {
+    throw lastError ?? new Error('Failed to load presets DSL from known locations');
+  }
 } else {
   // Node.js fallback for CLI and tests
+  const candidates = resolveDslCandidates();
   const { readFileSync } = await import('node:fs');
-  _SOURCE = readFileSync(DSL_URL, 'utf8');
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      if (url.protocol === 'file:' || url.protocol === 'node:') {
+        _SOURCE = readFileSync(url, 'utf8');
+        break;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  if (!_SOURCE) {
+    throw lastError ?? new Error('Failed to read presets DSL from known locations');
+  }
 }
 
 function buildPresets(names) {

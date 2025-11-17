@@ -8,6 +8,133 @@
 (function() {
     'use strict';
     
+    const BUNDLE_CANDIDATES = [
+        '_static/noisemaker.min.js',
+        '_static/noisemaker.bundle.js',
+        '_static/noisemaker.umd.js',
+        '_static/noisemaker.js',
+    ];
+    const BUNDLE_MAX_ATTEMPTS = 50;
+    const BUNDLE_WAIT_DELAY_MS = 100;
+    let bundleReadyPromise = null;
+
+    function delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function findExistingBundleScript() {
+        return document.querySelector('script[data-noisemaker-bundle="true"]') ||
+            document.querySelector('script[src*="noisemaker"]:not([src*="noisemaker-live"])');
+    }
+
+    function createBundleScript(src) {
+        const script = document.createElement('script');
+        script.src = src;
+        script.defer = true;
+        script.dataset.noisemakerBundle = 'true';
+        return script;
+    }
+
+    function loadBundleScript(script) {
+        return new Promise((resolve, reject) => {
+            script.addEventListener('load', () => resolve(script), { once: true });
+            script.addEventListener('error', () => {
+                script.remove();
+                reject(new Error(`Failed to load Noisemaker bundle at ${script.src}`));
+            }, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    async function resolveNoisemakerFromWindow() {
+        let module = window.Noisemaker;
+        if (!module) {
+            throw new Error('Noisemaker bundle did not attach to window');
+        }
+
+        if (typeof module.then === 'function') {
+            module = await module;
+        }
+
+        if (module && typeof module === 'object' && !module.Preset && module.default && typeof module.default === 'object') {
+            const candidate = module.default;
+            if (candidate && candidate.Preset) {
+                module = candidate;
+            }
+        }
+
+        if (!module || typeof module.Preset !== 'function' || typeof module.render !== 'function') {
+            throw new Error('Noisemaker bundle missing expected exports');
+        }
+
+        window.Noisemaker = module;
+        return module;
+    }
+
+    async function ensureNoisemakerReady() {
+        if (bundleReadyPromise) {
+            return bundleReadyPromise;
+        }
+
+        bundleReadyPromise = (async () => {
+            let lastError = null;
+            const existingModule = window.Noisemaker;
+            if (existingModule) {
+                try {
+                    return await resolveNoisemakerFromWindow();
+                } catch (error) {
+                    lastError = error instanceof Error ? error : new Error(String(error));
+                }
+            }
+
+            for (const candidate of BUNDLE_CANDIDATES) {
+                let script = null;
+                try {
+                    script = await loadBundleScript(createBundleScript(candidate));
+                    await Promise.resolve();
+                    const module = await resolveNoisemakerFromWindow();
+                    return module;
+                } catch (error) {
+                    if (script) {
+                        script.remove();
+                    }
+                    if (error instanceof Error) {
+                        lastError = error;
+                    } else {
+                        lastError = new Error(String(error));
+                    }
+                    try {
+                        window.Noisemaker = window.Noisemaker || undefined;
+                    } catch (_) {
+                        // Ignore cleanup issues; continue trying others
+                    }
+                }
+            }
+
+            let attempts = 0;
+            while (!window.Noisemaker && attempts < BUNDLE_MAX_ATTEMPTS) {
+                await delay(BUNDLE_WAIT_DELAY_MS);
+                attempts++;
+            }
+
+            if (!window.Noisemaker) {
+                throw lastError || new Error('Noisemaker bundle not loaded');
+            }
+
+            try {
+                return await resolveNoisemakerFromWindow();
+            } catch (error) {
+                throw (error instanceof Error ? error : new Error(String(error)));
+            }
+        })();
+
+        bundleReadyPromise.catch(() => {
+            bundleReadyPromise = null;
+        });
+
+        return bundleReadyPromise;
+    }
+    
     const ENUM_PARAM_MAP = {
         distMetric: 'DistanceMetric',
         sobel_metric: 'DistanceMetric',
@@ -318,17 +445,14 @@
     }
     
     async function initLiveExamples() {
-        // Wait a bit for the bundle to load if not ready yet
-        let attempts = 0;
-        while (!window.Noisemaker && attempts < 50) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-        }
-        
-        if (!window.Noisemaker) {
-            console.error('Noisemaker bundle not loaded after 5 seconds');
+        let noisemakerModule;
+        try {
+            noisemakerModule = await ensureNoisemakerReady();
+        } catch (error) {
+            console.error('Noisemaker live examples: failed to load bundle', error);
             return;
         }
+        const nm = noisemakerModule;
         
         // Find all canvas elements
         const canvases = document.querySelectorAll('.noisemaker-live-canvas');
@@ -380,15 +504,15 @@
             const effectName = canvas.dataset.effect;
             const generatorName = canvas.dataset.generator;
             
-            if (effectName && controlsContainer && window.Noisemaker?.EFFECTS) {
+            if (effectName && controlsContainer && nm?.EFFECTS) {
                 const effectNameSnake = effectName.replace(/-/g, '_');
-                const effect = window.Noisemaker.EFFECTS[effectName] || window.Noisemaker.EFFECTS[effectNameSnake];
+                const effect = nm.EFFECTS[effectName] || nm.EFFECTS[effectNameSnake];
                 
                 if (effect) {
                     // Clear existing controls (except structure)
                     controlsContainer.innerHTML = '';
 
-                    const effectMetadata = window.Noisemaker?.EFFECT_METADATA ?? {};
+                    const effectMetadata = nm?.EFFECT_METADATA ?? {};
                     const effectDefaults = effectMetadata[effectName] || effectMetadata[effectNameSnake] || effect;
 
                     // Get parameter names (everything except 'func')
@@ -616,9 +740,9 @@
                         controlsContainer.innerHTML = '<p class="no-params-message">No adjustable parameters</p>';
                     }
                 }
-            } else if (generatorName && controlsContainer && window.Noisemaker) {
+            } else if (generatorName && controlsContainer && nm) {
                 // Generator controls
-                const generator = window.Noisemaker[generatorName];
+                const generator = nm[generatorName];
                 
                 if (generator) {
                     const GENERATOR_PARAMS = {

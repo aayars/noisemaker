@@ -15,6 +15,139 @@
     let presetSource = {};
     const bundleDslCache = new Map();
 
+    const BUNDLE_CANDIDATES = [
+        '_static/noisemaker.min.js',
+        '_static/noisemaker.bundle.js',
+        '_static/noisemaker.umd.js',
+        '_static/noisemaker.js',
+    ];
+
+    const BUNDLE_MAX_ATTEMPTS = 50;
+    const BUNDLE_WAIT_DELAY_MS = 100;
+
+    let bundleLoadPromise = null;
+
+    function delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function findExistingBundleScript() {
+        return document.querySelector('script[data-noisemaker-bundle="true"]') ||
+            document.querySelector('script[src*="noisemaker"]:not([src*="noisemaker-live"])');
+    }
+
+    function createBundleScript(src) {
+        const script = document.createElement('script');
+        script.src = src;
+        script.defer = true;
+        script.dataset.noisemakerBundle = 'true';
+        return script;
+    }
+
+    function loadBundleScript(script) {
+        return new Promise((resolve, reject) => {
+            script.addEventListener('load', () => resolve(script), { once: true });
+            script.addEventListener('error', () => {
+                script.remove();
+                reject(new Error(`Failed to load Noisemaker bundle at ${script.src}`));
+            }, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    async function resolveNoisemakerFromWindow() {
+        let module = window.Noisemaker;
+        if (!module) {
+            throw new Error('Noisemaker bundle did not attach to window');
+        }
+
+        if (typeof module.then === 'function') {
+            module = await module;
+        }
+
+        if (module && typeof module === 'object' && !module.Preset && module.default && typeof module.default === 'object') {
+            const candidate = module.default;
+            if (candidate && candidate.Preset) {
+                module = candidate;
+            }
+        }
+
+        if (!module || typeof module.Preset !== 'function' || typeof module.render !== 'function') {
+            throw new Error('Noisemaker bundle missing expected exports');
+        }
+
+        window.Noisemaker = module;
+        return module;
+    }
+
+    async function ensureNoisemakerBundle() {
+        if (bundleLoadPromise) {
+            return bundleLoadPromise;
+        }
+
+        bundleLoadPromise = (async () => {
+            let lastError = null;
+            const existingModule = window.Noisemaker;
+            if (existingModule) {
+                try {
+                    const module = await resolveNoisemakerFromWindow();
+                    const script = findExistingBundleScript();
+                    return { module, bundleUrl: script ? script.src : null };
+                } catch (error) {
+                    lastError = error instanceof Error ? error : new Error(String(error));
+                }
+            }
+
+            for (const candidate of BUNDLE_CANDIDATES) {
+                let script = null;
+                try {
+                    script = await loadBundleScript(createBundleScript(candidate));
+                    await Promise.resolve();
+                    const module = await resolveNoisemakerFromWindow();
+                    return { module, bundleUrl: script.src };
+                } catch (error) {
+                    if (script) {
+                        script.remove();
+                    }
+                    if (error instanceof Error) {
+                        lastError = error;
+                    } else {
+                        lastError = new Error(String(error));
+                    }
+                    try {
+                        window.Noisemaker = window.Noisemaker || undefined;
+                    } catch (_) {
+                        // Ignore cleanup issues; continue to next candidate
+                    }
+                }
+            }
+
+            let attempts = 0;
+            while (!window.Noisemaker && attempts < BUNDLE_MAX_ATTEMPTS) {
+                await delay(BUNDLE_WAIT_DELAY_MS);
+                attempts++;
+            }
+
+            if (!window.Noisemaker) {
+                throw lastError || new Error('Unable to load Noisemaker bundle');
+            }
+
+            try {
+                const module = await resolveNoisemakerFromWindow();
+                const script = findExistingBundleScript();
+                return { module, bundleUrl: script ? script.src : null };
+            } catch (error) {
+                throw (error instanceof Error ? error : new Error(String(error)));
+            }
+        })();
+
+        bundleLoadPromise.catch(() => {
+            bundleLoadPromise = null;
+        });
+
+        return bundleLoadPromise;
+    }
+
     async function fetchPresetDslFromBundle(bundleUrl) {
         if (!bundleUrl) {
             return '';
@@ -122,29 +255,15 @@
         // Lazy load noisemaker bundle
         if (!Preset) {
             try {
-                // Load from _static (copied during build)
-                const script = document.createElement('script');
-                script.src = '_static/noisemaker.min.js';
-                script.defer = true;
-                await new Promise((resolve, reject) => {
-                    script.addEventListener('load', resolve);
-                    script.addEventListener('error', reject);
-                    document.head.appendChild(script);
-                });
+                const { module: noisemakerModule, bundleUrl } = await ensureNoisemakerBundle();
 
-                const module = window.Noisemaker;
-                if (!module) {
-                    throw new Error('Noisemaker bundle did not attach to window');
-                }
-                
                 // Import exactly like javascript.rst shows
-                Preset = module.Preset;
-                PRESETS = module.PRESETS();
-                render = module.render;
-                Context = module.Context;
-                rng = module.rng;
-                
-                const bundleUrl = script.src;
+                Preset = noisemakerModule.Preset;
+                PRESETS = noisemakerModule.PRESETS();
+                render = noisemakerModule.render;
+                Context = noisemakerModule.Context;
+                rng = noisemakerModule.rng;
+
                 const dslText = await fetchPresetDslFromBundle(bundleUrl);
 
                 // Extract preset source exactly like demo/js does
