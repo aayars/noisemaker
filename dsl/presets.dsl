@@ -711,7 +711,7 @@
   "convolution-feedback": {
     post: [
           conv_feedback(alpha: .5 * random() * 0.25,
-                 iterations: random_int(250, 500)),
+                 iterations: random_int(75, 150)),
     ],
   },
 
