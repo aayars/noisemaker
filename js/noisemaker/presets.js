@@ -221,9 +221,9 @@ if (typeof process !== 'undefined' && process.env?.NOISEMAKER_EMBEDDED_DSL) {
 } else if (typeof NOISEMAKER_PRESETS_DSL !== 'undefined') {
   // Bundled DSL (browser or esbuild define)
   _SOURCE = NOISEMAKER_PRESETS_DSL;
-} else if (typeof window !== 'undefined' && typeof fetch === 'function') {
+} else if (typeof window !== 'undefined' && typeof globalThis.fetch === 'function') {
   // Browser runtime: fetch the DSL via HTTP so we never rely on Node APIs
-  const response = await fetch(DSL_URL);
+  const response = await globalThis.fetch(DSL_URL);
   if (!response.ok) {
     throw new Error(`Failed to load presets DSL: ${response.status} ${response.statusText}`);
   }
