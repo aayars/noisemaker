@@ -262,6 +262,8 @@ def multires(
     .. noisemaker-live::
        :generator: multires
        :seed: 42
+       :octaves: 5
+       :ridges: True
        :width: 512
        :height: 256
        :lazy:

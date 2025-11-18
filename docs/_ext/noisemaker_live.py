@@ -53,6 +53,8 @@ class NoisemakerLiveDirective(Directive):
         'time': directives.unchanged,
         'frame': directives.unchanged,
         'lazy': directives.flag,  # Enable lazy loading
+        'octaves': directives.nonnegative_int,
+        'ridges': directives.unchanged,
     }
     
     def run(self):
@@ -69,6 +71,20 @@ class NoisemakerLiveDirective(Directive):
         lazy = 'lazy' in self.options
         
         # Build data attributes based on mode
+        base_options = {
+            'preset',
+            'effect',
+            'generator',
+            'input',
+            'seed',
+            'width',
+            'height',
+            'caption',
+            'time',
+            'frame',
+            'lazy',
+        }
+
         if preset:
             data_attrs = f'data-preset="{preset}"'
             loading_text = 'Rendering...'
@@ -81,6 +97,25 @@ class NoisemakerLiveDirective(Directive):
         else:
             raise self.error('Must specify :preset:, :effect:, or :generator:')
         
+        # Collect additional data attributes for custom parameters
+        extra_data_attrs = []
+        for key, value in self.options.items():
+            if key in base_options:
+                continue
+            if value is None:
+                value_str = 'true'
+            else:
+                value_str = str(value)
+                lowered = value_str.lower()
+                if lowered in ('true', 'false'):
+                    value_str = lowered
+            data_key = key.replace('_', '-')
+            extra_data_attrs.append(f'                    data-{data_key}="{value_str}"')
+
+        extra_attrs_block = ''
+        if extra_data_attrs:
+            extra_attrs_block = '\n' + '\n'.join(extra_data_attrs)
+
         # Add data-lazy attribute if lazy loading is enabled
         lazy_attr = ' data-lazy="true"' if lazy else ''
         
@@ -94,6 +129,7 @@ class NoisemakerLiveDirective(Directive):
                     data-seed="{seed}"
                     data-width="{width}"
                     data-height="{height}"
+{extra_attrs_block}
                     data-time="{time}"
                     data-frame="{frame}"{lazy_attr}
                     width="{width}"
