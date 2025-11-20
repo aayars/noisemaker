@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const entryPoint = path.join(repoRoot, 'js', 'bin', 'noisemaker-js');
 const cliDistDir = path.join(repoRoot, 'dist', 'cli');
-const presetsDslPath = path.join(repoRoot, 'dsl', 'presets.dsl');
+const presetsDslPath = path.join(repoRoot, 'share', 'dsl', 'presets.dsl');
 
 if (!fs.existsSync(entryPoint)) {
   console.error(`Noisemaker CLI entry not found at ${entryPoint}`);

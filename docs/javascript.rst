@@ -312,7 +312,7 @@ Both implementations use the same preset file:
 
 .. code-block:: text
 
-    /dsl/presets.dsl  # Shared by Python and JavaScript
+    /share/dsl/presets.dsl  # Shared by Python and JavaScript
 
 This ensures presets behave identically across languages.
 

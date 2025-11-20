@@ -4,7 +4,7 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
 
 ## Architecture Overview
 - **Python core**: Main implementation in `noisemaker/` (TensorFlow-based). Entry points: `cli.py`, `composer.py`, `generators.py`, `effects.py`.
-- **Presets**: Shared DSL file at `dsl/presets.dsl` used by both Python and JS. Never move or duplicate this file.
+- **Presets**: Shared DSL file at `share/dsl/presets.dsl` used by both Python and JS. Never move or duplicate this file.
 - **JS port**: Located in `js/`. Follows strict parity with Python. See `js/doc/VANILLA_JS_PORT_SPEC.md` and `js/doc/PY_JS_PARITY_SPEC.md`.
 - **Shaders**: WGSL shaders in `shaders/effects/`, demo viewer in `shaders/demo.html`. Shaders are independent from Python/JS code.
 
@@ -18,7 +18,7 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
 - **Docker**: See `docker/README.md` for running Noisemaker in containers. Output must be mounted to `/output`.
 
 ## Conventions & Patterns
-- **Presets**: Only edit `dsl/presets.dsl` if explicitly requested. Do not create new preset locations.
+- **Presets**: Only edit `share/dsl/presets.dsl` if explicitly requested. Do not create new preset locations.
 - **Randomness**: Never simulate weighted randomness by repeating values in collections. Use explicit probability checks (e.g., `random() < p`).
 - **JS/Node**: Node is allowed only for tests. Production JS is vanilla and browser-only.
 - **Parity**: When porting, JS must match Python reference. Do not change Python for JS parity.

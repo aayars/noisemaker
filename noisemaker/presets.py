@@ -20,7 +20,7 @@ def _cached_dsl_presets() -> dict[str, Any]:
     Returns:
         Dictionary of parsed preset definitions from presets.dsl.
     """
-    dsl_path = Path(__file__).resolve().parent.parent / "dsl" / "presets.dsl"
+    dsl_path = Path(__file__).resolve().parent.parent / "share" / "dsl" / "presets.dsl"
 
     seed_before = random.get_seed()
     random.set_seed(0)

@@ -266,7 +266,7 @@ Create an animated collage from multiple directories of image sequences.
 Working with Presets
 --------------------
 
-Presets are predefined combinations of layers, effects, and settings. They are defined in ``dsl/presets.dsl``.
+Presets are predefined combinations of layers, effects, and settings. They are defined in ``share/dsl/presets.dsl``.
 
 Common generator presets include:
 

@@ -57,7 +57,7 @@ readthedocs content is for the *Python version only*
 
 ## Presets
 
-Presets are located at /dsl/presets.dsl. This same file is used by both the Python and JS implementations. *Do not* invent new locations or modify presets unless explicitly requested.
+Presets are located at /share/dsl/presets.dsl. This same file is used by both the Python and JS implementations. *Do not* invent new locations or modify presets unless explicitly requested.
 
 ## Javascript
 

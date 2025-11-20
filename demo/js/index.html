@@ -251,7 +251,7 @@
       (name) => !name.startsWith('maybe-')
     );
 
-    const dslSource = await fetch('/dsl/presets.dsl').then((r) => r.text());
+    const dslSource = await fetch('/share/dsl/presets.dsl').then((r) => r.text());
 
     function extractPresetSource(source, name) {
       const quotedName = `"${name}"`;

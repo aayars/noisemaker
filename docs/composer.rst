@@ -20,7 +20,7 @@ The Composer DSL allows you to define presets as JSON-like objects with speciali
 * Apply effects per-octave, post-processing, and final passes
 * Reference other presets inline
 
-The canonical preset library lives in :file:`dsl/presets.dsl` and is parsed by :mod:`noisemaker.dsl`. Both the reference Python implementation and the JavaScript port consume that file, so any change to the DSL immediately applies to both environments.
+The canonical preset library lives in :file:`share/dsl/presets.dsl` and is parsed by :mod:`noisemaker.dsl`. Both the reference Python implementation and the JavaScript port consume that file, so any change to the DSL immediately applies to both environments.
 
 Philosophy
 ~~~~~~~~~~
@@ -442,7 +442,7 @@ Examples from actual presets:
 Complete Example
 ----------------
 
-Here's the ``acid`` preset from the standard library (one of many presets in :file:`dsl/presets.dsl`):
+Here's the ``acid`` preset from the standard library (one of many presets in :file:`share/dsl/presets.dsl`):
 
 .. code-block:: javascript
 
@@ -536,7 +536,7 @@ Best Practices
 
 4. **Reference the canonical library**
 
-   Study existing presets in :file:`dsl/presets.dsl` for patterns and techniques.
+   Study existing presets in :file:`share/dsl/presets.dsl` for patterns and techniques.
 
 Debugging
 ---------
@@ -668,7 +668,7 @@ The Noisemaker Composer system is built on three layers:
 
 1. **DSL Layer** (:mod:`noisemaker.dsl`)
    
-   Parses and evaluates the Composer DSL from :file:`dsl/presets.dsl`. The same DSL file is used by both Python and JavaScript implementations, ensuring cross-platform consistency.
+   Parses and evaluates the Composer DSL from :file:`share/dsl/presets.dsl`. The same DSL file is used by both Python and JavaScript implementations, ensuring cross-platform consistency.
 
 2. **Preset Layer** (:mod:`noisemaker.presets`, :mod:`noisemaker.composer`)
    
@@ -685,7 +685,7 @@ Cross-Platform Compatibility
 
 Both the Python and JavaScript implementations:
 
-* Parse the same DSL file (:file:`dsl/presets.dsl`)
+* Parse the same DSL file (:file:`share/dsl/presets.dsl`)
 * Use identical tokenizer, parser, and evaluator logic
 * Produce deterministic output given the same seed
 * Support the same set of helper functions and enums

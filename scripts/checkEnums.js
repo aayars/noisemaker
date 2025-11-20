@@ -44,7 +44,7 @@ print(json.dumps(result))
 }
 
 async function getJsEnums() {
-  const mod = await import(resolve(repoRoot, 'src/constants.js'));
+  const mod = await import(resolve(repoRoot, 'js/noisemaker/constants.js'));
   const enums = {};
   for (const [key, value] of Object.entries(mod)) {
     if (
@@ -60,8 +60,8 @@ async function getJsEnums() {
 }
 
 async function getJsMasks() {
-  const constMod = await import(resolve(repoRoot, 'src/constants.js'));
-  const { Masks } = await import(resolve(repoRoot, 'src/masks.js'));
+  const constMod = await import(resolve(repoRoot, 'js/noisemaker/constants.js'));
+  const { Masks } = await import(resolve(repoRoot, 'js/noisemaker/masks.js'));
   const masks = {};
   for (const [name, value] of Object.entries(constMod.ValueMask || {})) {
     const entry = Masks[value];
@@ -149,7 +149,7 @@ async function main() {
 
   if (update) {
     const generated = generateEnums(pyEnums);
-    const constantsPath = resolve(repoRoot, 'src/constants.js');
+    const constantsPath = resolve(repoRoot, 'js/noisemaker/constants.js');
     const original = fs.readFileSync(constantsPath, 'utf8');
     const start = original.indexOf('// Auto-generated enumeration maps');
     const end = original.indexOf('export function', start);
@@ -159,7 +159,7 @@ async function main() {
     }
     const updated = generated + '\n' + original.slice(end);
     fs.writeFileSync(constantsPath, updated);
-    console.log('Updated src/constants.js');
+    console.log('Updated js/noisemaker/constants.js');
   }
 
   if (!mismatches.length || update) {

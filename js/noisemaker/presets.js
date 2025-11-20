@@ -237,7 +237,7 @@ function resolveDslCandidates() {
     }
   };
 
-  const relativePaths = ['./presets.dsl', '../dsl/presets.dsl', '../../dsl/presets.dsl'];
+  const relativePaths = ['./presets.dsl', '../share/dsl/presets.dsl', '../../share/dsl/presets.dsl'];
 
   if (typeof import.meta !== 'undefined' && import.meta.url) {
     const moduleBase = new URL('.', import.meta.url);
@@ -256,7 +256,7 @@ function resolveDslCandidates() {
 
   if (typeof globalThis.location !== 'undefined' && globalThis.location?.href) {
     const pageBase = new URL('.', globalThis.location.href);
-    addRelativeSet(pageBase, ['_static/presets.dsl', 'dsl/presets.dsl']);
+    addRelativeSet(pageBase, ['_static/presets.dsl', 'share/dsl/presets.dsl']);
   }
 
   if (!candidates.length) {

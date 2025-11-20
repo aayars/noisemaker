@@ -5,7 +5,7 @@ from noisemaker.dsl.parser import parse, PRESET_KEYS
 
 
 def test_presets_dsl_parses():
-    path = Path(__file__).resolve().parent.parent / "dsl" / "presets.dsl"
+    path = Path(__file__).resolve().parent.parent / "share" / "dsl" / "presets.dsl"
     text = path.read_text()
     ast = parse(tokenize(text), enforce_preset_keys=False)
     presets = ast["body"]["properties"]
