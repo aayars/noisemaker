@@ -18,10 +18,10 @@ Explore the pipeline's effects with the interactive demo:
 
 ## Documentation
 
-- **[Effects Specification](EFFECTS.md)**: The schema and format for defining effects as JSON graphs.
-- **[Pipeline Specification](PIPELINE.md)**: Detailed overview of the pipeline architecture, including graph compilation, resource allocation, and execution phases.
-- **[Compiler Specification](COMPILER.md)**: Detailed breakdown of how the DSL is compiled into an executable GPU Render Graph.
-- **[Language Specification](LANGUAGE.md)**: Specification for the Polymorphic DSL used to chain effects.
+- **[Effects Specification](../docs/shaders/effects.rst)**: The schema and format for defining effects as JSON graphs.
+- **[Language Specification](../docs/shaders/language.rst)**: Specification for the Polymorphic DSL used to chain effects.
+- **[Pipeline Specification](../docs/shaders/pipeline.rst)**: Detailed overview of the pipeline architecture, including graph compilation, resource allocation, and execution phases.
+- **[Compiler Specification](../docs/shaders/compiler.rst)**: Detailed breakdown of how the DSL is compiled into an executable GPU Render Graph.
 
 ## Architecture
 
