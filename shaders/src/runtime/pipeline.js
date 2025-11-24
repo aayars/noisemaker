@@ -61,16 +61,17 @@ export class Pipeline {
     resolveProgramSpec(pass) {
         const programs = this.graph?.programs
 
+        // Check pass-level programSpec first (inline shaders take priority)
+        if (pass.programSpec) {
+            return pass.programSpec
+        }
+
         if (programs instanceof Map && programs.has(pass.program)) {
             return programs.get(pass.program)
         }
 
         if (programs && typeof programs === 'object' && programs[pass.program]) {
             return programs[pass.program]
-        }
-
-        if (pass.programSpec) {
-            return pass.programSpec
         }
 
         return null
@@ -279,12 +280,14 @@ export class Pipeline {
      * Update global uniforms (time, resolution, etc.)
      */
     updateGlobalUniforms(time, deltaTime) {
+        const aspectValue = this.width / this.height
         this.globalUniforms = {
             time: time,
             deltaTime: deltaTime,
             frame: this.frameIndex,
             resolution: [this.width, this.height],
-            aspect: this.width / this.height,
+            aspect: aspectValue,
+            aspectRatio: aspectValue, // Alias for shaders expecting this name
             // Add more global uniforms as needed
         }
     }

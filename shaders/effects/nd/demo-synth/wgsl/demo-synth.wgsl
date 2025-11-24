@@ -223,7 +223,7 @@ fn fbm(p: vec3<f32>, offset: f32, ridged: bool, oct: i32, seed: f32) -> f32 {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let uniformsData = loadUniforms();
     var st = pos.xy / uniformsData.resolution;
     st.x = st.x * uniformsData.aspect;

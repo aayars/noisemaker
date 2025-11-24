@@ -647,54 +647,48 @@ fn catmullRom4x4Value(st: vec2<f32>, xFreq: f32, yFreq: f32, s: f32) -> f32 {
 }
 
 fn value(st: vec2<f32>, xFreq: f32, yFreq: f32, s: f32) -> f32 {
-    let interp: i32 = i32(interp);
-    let bicubicLoopSample: f32 = textureBicubic(st, xFreq, yFreq, s + 50.0, time);
-    let bicubicScaledTime: f32 = bicubicLoopSample * loopAmp * 0.0025;
-    let bicubicTextureValue: f32 = textureBicubic(st, xFreq, yFreq, s, bicubicScaledTime);
+    let interpVal: i32 = i32(interp);
 
-    if (interp == 3) {
+    if (interpVal == 3) {
         // 3×3 quadratic B-spline (9 taps)
         return quadratic3x3Value(st, xFreq, yFreq, s);
     }
 
-    if (interp == 4) {
+    if (interpVal == 4) {
         // budget - texture bicubic
-        return bicubicTextureValue;
+        let bicubicLoopSample: f32 = textureBicubic(st, xFreq, yFreq, s + 50.0, time);
+        let bicubicScaledTime: f32 = bicubicLoopSample * loopAmp * 0.0025;
+        return textureBicubic(st, xFreq, yFreq, s, bicubicScaledTime);
     }
 
-    if (interp == 5) {
+    if (interpVal == 5) {
         // 4×4 cubic B-spline (16 taps)
         return bicubicValue(st, xFreq, yFreq, s);
     }
 
-    if (interp == 7) {
+    if (interpVal == 7) {
         // 3×3 Catmull-Rom (9 taps)
         return catmullRom3x3Value(st, xFreq, yFreq, s);
     }
 
-    if (interp == 8) {
+    if (interpVal == 8) {
         // 4×4 Catmull-Rom (16 taps)
         return catmullRom4x4Value(st, xFreq, yFreq, s);
     }
 
-    if (interp == 5) {
-        // 4×4 cubic (16 taps)
-        return bicubicValue(st, xFreq, yFreq, s);
-    }
-
-    if (interp == 10) {
+    if (interpVal == 10) {
         let simplexLoopSample: f32 = simplexValue(st, xFreq, yFreq, s + 50.0, time) * loopAmp * 0.0025;
         return simplexValue(st, xFreq, yFreq, s, simplexLoopSample);
     }
 
-    if (interp == 11) {
+    if (interpVal == 11) {
         let sineLoopSample: f32 = sineNoise(st, xFreq, yFreq, s + 50.0, time) * loopAmp * 0.0025;
         return sineNoise(st, xFreq, yFreq, s, sineLoopSample);
     }
 
     var x1y1: f32 = constant(st, xFreq, yFreq, s);
 
-    if (interp == 0) {
+    if (interpVal == 0) {
         return x1y1;
     }
 
@@ -708,10 +702,10 @@ fn value(st: vec2<f32>, xFreq: f32, yFreq: f32, s: f32) -> f32 {
 
     var uv: vec2<f32> = vec2<f32>(st.x * xFreq, st.y * yFreq);
 
-    var a: f32 = blendLinearOrCosine(x1y1, x2y1, fract(uv.x), interp);
-    var b: f32 = blendLinearOrCosine(x1y2, x2y2, fract(uv.x), interp);
+    var a: f32 = blendLinearOrCosine(x1y1, x2y1, fract(uv.x), interpVal);
+    var b: f32 = blendLinearOrCosine(x1y2, x2y2, fract(uv.x), interpVal);
 
-    return clamp(blendLinearOrCosine(a, b, fract(uv.y), interp), 0.0, 1.0);
+    return clamp(blendLinearOrCosine(a, b, fract(uv.y), interpVal), 0.0, 1.0);
 }
 
 fn noise(st: vec2<f32>, s: f32) -> vec3<f32> {
@@ -748,15 +742,15 @@ fn noise(st: vec2<f32>, s: f32) -> vec3<f32> {
 // end value noise
 
 @fragment
-fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
     var color: vec4<f32> = vec4<f32>(0.0, 0.0, 1.0, 1.0);
     var st: vec2<f32> = pos.xy / resolution.y;
     st -= vec2<f32>(resolution.x / resolution.y * 0.5, 0.5);
 
-    let noiseType: i32 = i32(uniforms.data[1].y);
+    let noiseTypeVal: i32 = noiseType;
 
-    if (noiseType == 0) {
+    if (noiseTypeVal == 0) {
         // caustic
         var leftColor: vec3<f32> = noise(st, seed);
         var rightColor: vec3<f32> = noise(st, seed + 10.0);
@@ -766,7 +760,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
         var right: vec3<f32> = min(rightColor * leftColor / (1.0 - leftColor * rightColor), vec3<f32>(1.0));
 
         color = vec4<f32>(brightnessContrast(mix(left, right, 0.5)), color.a);
-    } else if (noiseType == 1) {
+    } else if (noiseTypeVal == 1) {
         // moodscape
         var xFreq: f32 = 1.0;
         var yFreq: f32 = 1.0;
@@ -840,7 +834,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
             }
             color = vec4<f32>(hsv2rgb(color.rgb), color.a);
         }
-    } else if (noiseType == 2) {
+    } else if (noiseTypeVal == 2) {
         // quad tap
         st += vec2<f32>(resolution.x / resolution.y * 0.5, 0.5);
         var speed: f32 = loopAmp * 0.02;

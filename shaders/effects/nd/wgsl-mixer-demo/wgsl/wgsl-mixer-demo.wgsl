@@ -10,7 +10,7 @@ struct Uniforms {
 @group(0) @binding(3) var tex1 : texture_2d<f32>;
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution: vec2<f32> = uniforms.data[0].xy;
     let mixAmount: f32 = uniforms.data[1].x;
     // Fragment positions follow the WGSL upper-left origin convention.

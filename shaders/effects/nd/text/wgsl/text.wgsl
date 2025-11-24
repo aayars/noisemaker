@@ -14,7 +14,7 @@ struct Uniforms {
 @group(0) @binding(2) var fontTex : texture_2d<f32>;
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
 
     let glyphUV1 = uniforms.data[1].xy;

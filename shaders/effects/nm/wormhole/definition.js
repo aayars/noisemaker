@@ -1,8 +1,7 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Wormhole
- * /shaders/effects/wormhole/wormhole.wgsl
+ * Wormhole - per-pixel field flow driven by luminance
  */
 export default class Wormhole extends Effect {
   name = "Wormhole";
@@ -11,53 +10,61 @@ export default class Wormhole extends Effect {
 
   globals = {
     kink: {
-        type: "float",
-        default: 1,
-        min: 0,
-        max: 10,
-        step: 0.1,
-        ui: {
-            label: "Kink",
-            control: "slider"
-        }
+      type: "float",
+      default: 1,
+      min: 0,
+      max: 10,
+      step: 0.1,
+      ui: {
+        label: "Kink",
+        control: "slider"
+      }
     },
-    input_stride: {
-        type: "float",
-        default: 0.05,
-        min: 0,
-        max: 5,
-        step: 0.01,
-        ui: {
-            label: "Input Stride",
-            control: "slider"
-        }
+    stride: {
+      type: "float",
+      default: 0.5,
+      min: 0,
+      max: 5,
+      step: 0.01,
+      ui: {
+        label: "Stride",
+        control: "slider"
+      }
     },
     alpha: {
-        type: "float",
-        default: 1,
-        min: 0,
-        max: 1,
-        step: 0.01,
-        ui: {
-            label: "Alpha",
-            control: "slider"
-        }
+      type: "float",
+      default: 0.5,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      ui: {
+        label: "Alpha",
+        control: "slider"
+      }
+    },
+    speed: {
+      type: "float",
+      default: 1,
+      min: 0,
+      max: 5,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "compute",
+      type: "render",
       program: "wormhole",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

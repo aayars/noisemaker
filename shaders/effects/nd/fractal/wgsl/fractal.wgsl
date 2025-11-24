@@ -245,7 +245,7 @@ fn mandelbrot(st0: vec2<f32>, zoomAmt: f32, speed: f32, rotation: f32, centerX: 
 }
 
 @fragment
-fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z;
     let seed = uniforms.data[0].w; // unused

@@ -2,6 +2,19 @@
 
 set -e
 
+# Change to the project root directory (parent of shaders)
+cd "$(dirname "$0")/../.."
+
+# Default backend from environment, or use wgsl
+BACKEND="${BACKEND:-wgsl}"
+
+# Select the appropriate project based on backend
+if [[ "$BACKEND" == "wgsl" ]]; then
+	PROJECT="shaders-chromium-webgpu"
+else
+	PROJECT="shaders-chromium"
+fi
+
 if [[ $# -gt 0 ]]; then
 	if [[ $1 == "all" || $1 == "ALL" ]]; then
 		unset EFFECT_ONLY
@@ -13,7 +26,7 @@ else
 fi
 
 if [[ -n ${EFFECT_ONLY-} ]]; then
-	EFFECT_ONLY="$EFFECT_ONLY" npx playwright test --headed --reporter=line tests/playwright/effects.spec.js
+	BACKEND="$BACKEND" EFFECT_ONLY="$EFFECT_ONLY" npx playwright test --project="$PROJECT" --headed --reporter=line shaders/tests/playwright/effects.spec.js
 else
-	npx playwright test --headed --reporter=line tests/playwright/effects.spec.js
+	BACKEND="$BACKEND" npx playwright test --project="$PROJECT" --headed --reporter=line shaders/tests/playwright/effects.spec.js
 fi

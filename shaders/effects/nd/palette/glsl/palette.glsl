@@ -9,7 +9,7 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D src;
+uniform sampler2D inputTex;
 uniform vec2 resolution;
 uniform float time;
 uniform float seed;
@@ -211,7 +211,7 @@ void main() {
     vec2 uv = gl_FragCoord.xy / resolution;
     uv.y = 1.0 - uv.y;
 
-    vec4 color = texture(src, uv);
+    vec4 color = texture(inputTex, uv);
 
     if (paletteType == 0) {
         float d = luminance(color.rgb) * 0.9; // prevent black and white from returning the same color

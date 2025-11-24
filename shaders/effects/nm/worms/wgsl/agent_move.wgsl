@@ -2,6 +2,7 @@
 // Each thread handles one agent
 
 const TAU : f32 = 6.28318530717958647692;
+const MAX_FLOAT : f32 = 3.402823466e38;
 
 @group(0) @binding(0) var input_texture : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;

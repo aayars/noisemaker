@@ -1,1 +1,2 @@
-src().worms().out(o0)
+// Example usage of worms
+worms().out(o0);

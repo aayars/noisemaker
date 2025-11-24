@@ -135,7 +135,7 @@ fn fbm(p: vec3<f32>, ridged: i32, seed: f32) -> f32 {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z;
     let scale = uniforms.data[1].x;

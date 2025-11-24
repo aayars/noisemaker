@@ -440,7 +440,7 @@
         import { registerOp } from '../../shaders/src/lang/ops.js';
         import { registerStarterOps } from '../../shaders/src/lang/validator.js';
         import { createRuntime, recompile } from '../../shaders/src/runtime/compiler.js';
-        import { registerEffect } from '../../shaders/src/runtime/registry.js';
+        import { registerEffect, getEffect } from '../../shaders/src/runtime/registry.js';
         import { mergeIntoEnums } from '../../shaders/src/lang/enums.js';
         import { stdEnums } from '../../shaders/src/lang/std_enums.js';
 
@@ -455,6 +455,10 @@
         let currentBackend = 'glsl';
         let parameterValues = {};
         let pipeline = null;
+
+        // Expose backend and registry for testing
+        window.__noisemakerCurrentBackend = () => currentBackend;
+        window.__noisemakerRegistry = { getEffect };
         let animationFrameId = null;
         let animationTimerId = null;
         const TARGET_FPS = 60;
@@ -663,58 +667,88 @@
             }
         }
 
+        // Check if effect has a 'tex' surface parameter (for mixer-type effects)
+        function hasTexSurfaceParam(effect) {
+            if (!effect || !effect.instance || !effect.instance.globals) {
+                return false;
+            }
+            const texSpec = effect.instance.globals.tex;
+            return texSpec && texSpec.type === 'surface';
+        }
+
         function buildDslSource(effect) {
             if (!effect || !effect.instance) {
                 return '';
             }
 
-            const params = [];
-            const surfaceTargets = new Set();
-
-            if (effect.instance.globals) {
-                for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                    const value = parameterValues[key];
-                    if (value === undefined || value === null) {
-                        continue;
-                    }
-
-                    if (spec.type === 'surface' && typeof value === 'string') {
-                        surfaceTargets.add(value);
-                    }
-
-                    params.push(`${key}: ${formatValue(value, spec.type)}`);
-                }
-            }
-
-            const paramString = params.join(', ');
-
             // Use namespaced function call to avoid ambiguity
             const funcName = effect.namespace ? `${effect.namespace}.${effect.instance.func}` : effect.instance.func;
 
-            const preludeLines = [];
-            let seedBase = 11;
+            // Determine effect category
+            const starter = isStarterEffect(effect);
+            const hasTex = hasTexSurfaceParam(effect);
 
-            surfaceTargets.forEach(surface => {
-                if (!surface || surface === 'o0') {
-                    return;
+            if (starter) {
+                // Starter effect: effectName(...).out(o0)
+                const params = [];
+                if (effect.instance.globals) {
+                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        const value = parameterValues[key];
+                        if (value === undefined || value === null) {
+                            continue;
+                        }
+                        params.push(`${key}: ${formatValue(value, spec.type)}`);
+                    }
                 }
-                preludeLines.push(`noise(seed: ${seedBase}).out(${surface})`);
-                seedBase += 1;
-            });
-
-            let mainChain;
-            if (isStarterEffect(effect)) {
-                mainChain = `${funcName}(${paramString}).out(o0)`;
+                const paramString = params.join(', ');
+                // Special case: pass-through effects with surface param need source content
+                // e.g., src(tex: src(o1)) needs o1 to have content first
+                if (hasTex) {
+                    // Get the tex value and extract the surface name
+                    const texValue = parameterValues.tex || effect.instance.globals?.tex?.default || 'o1';
+                    // Extract surface name - handle both 'o1' and 'src(o1)' formats
+                    const surfaceMatch = texValue.match(/^(?:src\()?([o][0-7])(?:\))?$/);
+                    const targetSurface = surfaceMatch ? surfaceMatch[1] : 'o1';
+                    return `noise(seed: 1).out(${targetSurface})\n${funcName}(${paramString}).out(o0)`;
+                }
+                return `${funcName}(${paramString}).out(o0)`;
+            } else if (hasTex) {
+                // Mixer effect (has inputTex and tex): two noise sources
+                // noise(seed: 1).out(o0)
+                // noise(seed: 2).effectName(tex: src(o0), ...).out(o1)
+                const params = [];
+                if (effect.instance.globals) {
+                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        const value = parameterValues[key];
+                        if (value === undefined || value === null) {
+                            continue;
+                        }
+                        // Override 'tex' param to use src(o0)
+                        if (key === 'tex' && spec.type === 'surface') {
+                            params.push(`tex: src(o0)`);
+                        } else {
+                            params.push(`${key}: ${formatValue(value, spec.type)}`);
+                        }
+                    }
+                }
+                const paramString = params.join(', ');
+                return `noise(seed: 1).out(o0)
+noise(seed: 2).${funcName}(${paramString}).out(o1)`;
             } else {
-                mainChain = `noise().${funcName}(${paramString}).out(o0)`;
+                // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
+                const params = [];
+                if (effect.instance.globals) {
+                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        const value = parameterValues[key];
+                        if (value === undefined || value === null) {
+                            continue;
+                        }
+                        params.push(`${key}: ${formatValue(value, spec.type)}`);
+                    }
+                }
+                const paramString = params.join(', ');
+                return `noise(seed: 1).${funcName}(${paramString}).out(o0)`;
             }
-
-            if (preludeLines.length > 0) {
-                return `${preludeLines.join('\n')}
-${mainChain}`;
-            }
-
-            return mainChain;
         }
 
         async function rebuildPipeline({ silent = false } = {}) {
@@ -805,20 +839,31 @@ ${mainChain}`;
                             if (EffectClass) {
                                 const instance = new EffectClass();
                                 
-                                // Load shaders for each pass
+                                // Load shaders for each pass (both GLSL and WGSL)
                                 if (instance.passes) {
                                     if (!instance.shaders) instance.shaders = {};
                                     for (const pass of instance.passes) {
                                         if (pass.program) {
                                             const existingShaders = instance.shaders[pass.program];
-                                            const hasInlineShaders = !!(pass.programSpec && (pass.programSpec.fragment || pass.programSpec.vertex)) ||
-                                                !!(existingShaders && (existingShaders.fragment || existingShaders.vertex || existingShaders.glsl || existingShaders.wgsl));
+                                            const hasInlineGLSL = !!(pass.programSpec && (pass.programSpec.fragment || pass.programSpec.vertex)) ||
+                                                !!(existingShaders && (existingShaders.fragment || existingShaders.vertex || existingShaders.glsl));
+                                            const hasInlineWGSL = !!(existingShaders && existingShaders.wgsl);
                                             try {
-                                                if (!hasInlineShaders) {
+                                                const shaderBucket = instance.shaders[pass.program] ?? (instance.shaders[pass.program] = {});
+                                                
+                                                // Load GLSL shader if no inline GLSL
+                                                if (!hasInlineGLSL) {
                                                     const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${pass.program}.glsl`);
                                                     if (glslRes.ok) {
-                                                        const shaderBucket = instance.shaders[pass.program] ?? (instance.shaders[pass.program] = {});
                                                         shaderBucket.glsl = await glslRes.text();
+                                                    }
+                                                }
+                                                
+                                                // Load WGSL shader if no inline WGSL (even if inline GLSL exists)
+                                                if (!hasInlineWGSL) {
+                                                    const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${pass.program}.wgsl`);
+                                                    if (wgslRes.ok) {
+                                                        shaderBucket.wgsl = await wgslRes.text();
                                                     }
                                                 }
                                             } catch (e) {
@@ -834,9 +879,12 @@ ${mainChain}`;
                                     instance: instance
                                 });
 
-                                // Register effect
+                                // Register effect with multiple names for lookup flexibility
                                 registerEffect(instance.func, instance);
                                 registerEffect(`${dir.namespace}.${instance.func}`, instance);
+                                // Also register with directory name (for select option value lookup)
+                                registerEffect(`${dir.namespace}/${effectName}`, instance);
+                                registerEffect(`${dir.namespace}.${effectName}`, instance);
 
                                 // Register as operator
                                 if (instance.func) {
@@ -878,7 +926,7 @@ ${mainChain}`;
                     'add', 'alpha', 'blend', 'blue', 'brightness', 'color', 'colorparty', 'contrast', 'diff', 'gradient', 'green', 'hue', 'invert', 'kaleid', 'layer', 'luma', 'mask', 'modulate', 'modulateHue', 'modulateKaleid', 'modulatePixelate', 'modulateRepeat', 'modulateRepeatX', 'modulateRepeatY', 'modulateRotate', 'modulateScale', 'modulateScrollX', 'modulateScrollY', 'mult', 'noise', 'osc', 'pixelate', 'posterize', 'prev', 'red', 'repeat', 'repeatX', 'repeatY', 'rot', 'saturate', 'scale', 'scroll', 'scrollX', 'scrollY', 'shape', 'shift', 'solid', 'src', 'sub', 'sum', 'thresh', 'translate', 'voronoi'
                 ],
                 '../../shaders/effects/nd': [
-                    'atmosphere', 'background', 'bit-effects', 'cell-noise', 'cell-refract', 'cellular-automata', 'cellular-automata-mn', 'coalesce', 'color-lab', 'composite', 'demo-synth', 'depth-of-field', 'displace-mixer', 'effects', 'erosion-worms', 'feedback-mixer', 'feedback-post', 'feedback-synth', 'final', 'fractal', 'glitch', 'kaleido', 'lens-distortion', 'media-input', 'media-mixer', 'media-post', 'noise', 'noise-3d', 'palette', 'pattern', 'physarum', 'reaction-diffusion', 'refract', 'shape-mixer', 'shapes', 'shapes-3d', 'splat', 'text', 'tunnel', 'warp', 'wgsl-mixer-demo', 'wgsl-post-demo', 'worms'
+                    'atmosphere', 'background', 'bit-effects', 'cell-noise', 'cell-refract', 'cellular-automata', 'cellular-automata-mn', 'coalesce', 'color-lab', 'composite', 'demo-synth', 'depth-of-field', 'displace-mixer', 'effects', 'feedback-mixer', 'feedback-post', 'feedback-synth', 'final', 'fractal', 'glitch', 'kaleido', 'lens-distortion', 'media-input', 'media-mixer', 'media-post', 'noise', 'noise-3d', 'palette', 'pattern', 'physarum', 'reaction-diffusion', 'refract', 'shape-mixer', 'shapes', 'shapes-3d', 'splat', 'text', 'tunnel', 'warp', 'wgsl-mixer-demo', 'wgsl-post-demo'
                 ],
                 '../../shaders/effects/nm': [
                     'aberration', 'adjust_brightness', 'adjust_contrast', 'adjust_hue', 'adjust_saturation', 'bloom', 'blur', 'clouds', 'color_map', 'conv_feedback', 'convolve', 'crt', 'degauss', 'density_map', 'derivative', 'dla', 'erosion_worms', 'false_color', 'fibers', 'frame', 'fxaa', 'glowing_edges', 'glyph_map', 'grain', 'grime', 'jpeg_decimate', 'kaleido', 'lens_distortion', 'lens_warp', 'light_leak', 'lowpoly', 'nebula', 'normal_map', 'normalize', 'on_screen_display', 'outline', 'palette', 'pixel_sort', 'posterize', 'refract', 'reindex', 'reverb', 'ridge', 'ripple', 'rotate', 'scanline_error', 'scratches', 'shadow', 'simple_frame', 'sine', 'sketch', 'snow', 'sobel', 'spatter', 'spooky_ticker', 'stray_hair', 'texture', 'tint', 'value_refract', 'vaseline', 'vhs', 'vignette', 'voronoi', 'vortex', 'warp', 'wobble', 'wormhole', 'worms'
@@ -1261,6 +1309,8 @@ ${mainChain}`;
             currentEffect = effect;
             createParameterControls(currentEffect);
             showStatus(`selected ${namespace}/${name}`, 'success');
+            // Force pipeline recreation when switching effects to ensure clean state
+            pipeline = null;
             await rebuildPipeline();
         }
 
@@ -1268,10 +1318,18 @@ ${mainChain}`;
         document.querySelectorAll('input[name="backend"]').forEach(radio => {
             radio.addEventListener('change', async (e) => {
                 currentBackend = e.target.value;
+                // Force pipeline recreation when switching backends
+                pipeline = null;
                 showStatus(`switched to ${currentBackend}`, 'success');
                 await rebuildPipeline({ silent: true });
             });
         });
+
+        // Check for backend in URL query parameter
+        function getBackendFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('backend');
+        }
 
         // Effect selector
         let allLoadedEffects = [];
@@ -1306,6 +1364,15 @@ ${mainChain}`;
                 
                 loadingEl.style.display = 'none';
                 appEl.style.display = 'block';
+
+                // Check for backend in URL query parameter
+                const urlBackend = getBackendFromURL();
+                if (urlBackend === 'wgsl' || urlBackend === 'glsl') {
+                    currentBackend = urlBackend;
+                    // Update radio button to match
+                    const radio = document.querySelector(`input[name="backend"][value="${urlBackend}"]`);
+                    if (radio) radio.checked = true;
+                }
 
                 // Check for effect in URL query parameter
                 const urlEffect = getEffectFromURL();

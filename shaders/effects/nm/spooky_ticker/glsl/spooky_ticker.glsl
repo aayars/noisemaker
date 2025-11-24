@@ -3,93 +3,19 @@
 precision highp float;
 precision highp int;
 
-// Spooky ticker effect that renders flickering segmented glyphs crawling across the image.
-// Mirrors the behaviour of noisemaker.effects.spooky_ticker.
+// Spooky ticker effect - flickering segmented glyphs crawling across the image
 
-const uint CHANNEL_COUNT = 4u;
-const float INV_U32_MAX = 1.0 / 4294967295.0;
-
-
-uniform sampler2D input_texture;
-uniform float width;
-uniform float height;
-uniform float channels;
+uniform sampler2D inputTex;
 uniform float time;
 uniform float speed;
 
-const uint MASK_ARECIBO_NUCLEOTIDE = 0u;
-const uint MASK_ARECIBO_NUM = 1u;
-const uint MASK_BANK_OCR = 2u;
-const uint MASK_BAR_CODE = 3u;
-const uint MASK_BAR_CODE_SHORT = 4u;
-const uint MASK_EMOJI = 5u;
-const uint MASK_FAT_LCD_HEX = 6u;
-const uint MASK_ALPHANUM_HEX = 7u;
-const uint MASK_ICHING = 8u;
-const uint MASK_IDEOGRAM = 9u;
-const uint MASK_INVADERS = 10u;
-const uint MASK_LCD = 11u;
-const uint MASK_LETTERS = 12u;
-const uint MASK_MATRIX = 13u;
-const uint MASK_ALPHANUM_NUMERIC = 14u;
-const uint MASK_SCRIPT = 15u;
-const uint MASK_WHITE_BEAR = 16u;
+in vec2 v_texCoord;
+out vec4 fragColor;
 
-const MASK_CHOICES : array<u32, 17> = array<u32, 17>(
-const uint MASK_CHOICES_COUNT = 17u;
+const float INV_U32_MAX = 1.0 / 4294967295.0;
 
-const HEX_SEGMENTS : array<u32, 16> = array<u32, 16>(
-
-
-uint as_u32(float value) {
-    return uint(max(round(value), 0.0));
-}
-
-uint sanitized_channel_count(float channel_value) {
-    int rounded = int(round(channel_value));
-    if (rounded <= 1) {
-        return 1u;
-    }
-    if (rounded >= int(CHANNEL_COUNT)) {
-        return CHANNEL_COUNT;
-    }
-    return uint(rounded);
-}
-
-uint pixel_base_index(uint x, uint y, uint width) {
-    return (y * width + x) * CHANNEL_COUNT;
-}
-
-int clamp_i32(int value, int lo, int hi) {
-    int min_v = lo;
-    int max_v = hi;
-    if (min_v > max_v) {
-        int tmp = min_v;
-        min_v = max_v;
-        max_v = tmp;
-    }
-    if (value < min_v) {
-        return min_v;
-    }
-    if (value > max_v) {
-        return max_v;
-    }
-    return value;
-}
-
-int wrap_coord(int value, int size) {
-    if (size <= 0) {
-        return 0;
-    }
-    int wrapped = value % size;
-    if (wrapped < 0) {
-        wrapped = wrapped + size;
-    }
-    return wrapped;
-}
-
-uint hash_mix(uint value) {
-    uint v = value;
+// Hash functions
+uint hash_mix(uint v) {
     v = v ^ (v >> 16u);
     v = v * 0x7feb352du;
     v = v ^ (v >> 15u);
@@ -98,215 +24,101 @@ uint hash_mix(uint value) {
     return v;
 }
 
-uint combine_seed(uint base, uint salt) {
-    return hash_mix(base ^ (salt * 0x9e3779b9u + 0x85ebca6bu));
+float random_float(uint seed, uint salt) {
+    return float(hash_mix(seed ^ salt)) * INV_U32_MAX;
 }
 
-uint random_u32(uint base, uint salt) {
-    return hash_mix(base ^ salt);
-}
-
-float random_float(uint base, uint salt) {
-    return float(random_u32(base, salt)) * INV_U32_MAX;
-}
-
-int random_int_inclusive(uint base, uint salt, int lo, int hi) {
-    if (hi <= lo) {
-        return lo;
+// Simple digital segment pattern (7-segment-like display)
+float segment_pattern(vec2 uv, uint seed) {
+    // Create a grid of segments
+    vec2 cell = floor(uv * 4.0);
+    vec2 local = fract(uv * 4.0);
+    
+    uint cellSeed = hash_mix(uint(cell.x) + uint(cell.y) * 100u + seed);
+    float on = step(0.5, random_float(cellSeed, 42u));
+    
+    // Segment shape: thin rectangles
+    float segment = 0.0;
+    if (local.x > 0.1 && local.x < 0.9 && local.y > 0.3 && local.y < 0.7) {
+        segment = on;
     }
-    uint span = uint(hi - lo + 1);
-    if (span == 0u) {
-        return lo;
+    if (local.y > 0.1 && local.y < 0.9 && local.x > 0.3 && local.x < 0.7) {
+        segment = max(segment, on * random_float(cellSeed, 43u));
     }
-    uint value = random_u32(base, salt);
-    return lo + int(value % span);
+    
+    return segment;
 }
 
-float lerp_f32(float a, float b, float t) {
-    return a + (b - a) * t;
+// Generate ticker row pattern
+float ticker_row(float x, float y, float rowSeed, float t) {
+    // Horizontal scrolling
+    float scrollSpeed = 0.1 + random_float(uint(rowSeed), 17u) * 0.2;
+    float scrollX = x + t * scrollSpeed * 50.0;
+    
+    // Glyph width varies per row
+    float glyphWidth = 8.0 + floor(random_float(uint(rowSeed), 23u) * 16.0);
+    
+    // Which glyph are we in?
+    float glyphIndex = floor(scrollX / glyphWidth);
+    float localX = mod(scrollX, glyphWidth) / glyphWidth;
+    
+    // Each glyph has its own seed
+    uint glyphSeed = hash_mix(uint(glyphIndex) + uint(rowSeed) * 1000u);
+    
+    // Flickering: some glyphs randomly turn off
+    float flicker = step(0.3, random_float(glyphSeed, uint(t * 10.0)));
+    
+    // Generate the segment pattern
+    float pattern = segment_pattern(vec2(localX, y), glyphSeed);
+    
+    return pattern * flicker;
 }
-
-float mask_noise(uint seed, int x, int y, uint salt) {
-    uint packed = (uint(x & 0xffff) << 16) ^ uint(y & 0xffff) ^ (salt * 0x45d9f3b8u);
-    return random_float(seed, packed);
-}
-
-void digital_segment_value(MaskShape mask_shape(uint mask_type, uint seed) {
-    switch mask_type {
-        case MASK_ARECIBO_NUCLEOTIDE: {
-            return MaskShape(6, 6);
-        }
-        case MASK_ARECIBO_NUM: {
-            return MaskShape(6, 3);
-        }
-        case MASK_BANK_OCR: {
-            return MaskShape(8, 7);
-        }
-        case MASK_BAR_CODE: {
-            return MaskShape(24, 1);
-        }
-        case MASK_BAR_CODE_SHORT: {
-            return MaskShape(10, 1);
-        }
-        case MASK_EMOJI: {
-            return MaskShape(13, 13);
-        }
-        case MASK_FAT_LCD_HEX: {
-            return MaskShape(10, 10);
-        }
-        case MASK_ALPHANUM_HEX: {
-            return MaskShape(6, 6);
-        }
-        case MASK_ICHING: {
-            return MaskShape(14, 8);
-        }
-        case MASK_IDEOGRAM: {
-            int size = random_int_inclusive(seed, 3u, 4, 6) * 2;
-            return MaskShape(size, size);
-        }
-        case MASK_INVADERS: {
-            int h = random_int_inclusive(seed, 5u, 5, 7);
-            int w = random_int_inclusive(seed, 7u, 6, 12);
-            return MaskShape(h, w);
-        }
-        case MASK_LCD: {
-            return MaskShape(8, 5);
-        }
-        case MASK_LETTERS: {
-            int height = random_int_inclusive(seed, 11u, 3, 4) * 2 + 1;
-            int width = random_int_inclusive(seed, 13u, 3, 4) * 2 + 1;
-            return MaskShape(height, width);
-        }
-        case MASK_MATRIX: {
-            return MaskShape(6, 4);
-        }
-        case MASK_ALPHANUM_NUMERIC: {
-            return MaskShape(6, 6);
-        }
-        case MASK_SCRIPT: {
-            int h = random_int_inclusive(seed, 13u, 7, 9);
-            int w = random_int_inclusive(seed, 17u, 12, 24);
-            return MaskShape(h, w);
-        }
-        case MASK_WHITE_BEAR: {
-            return MaskShape(4, 4);
-        }
-        default: {
-            return MaskShape(6, 6);
-        }
-    }
-}
-
-int mask_multiplier(uint mask_type, int mask_width) {
-    // Uniform larger multiplier for all rows
-    return 8;
-}
-
-int mask_padding(uint mask_type, int glyph_width) {
-    if (glyph_width <= 0) {
-        return 0;
-    }
-    if (mask_type == MASK_BAR_CODE || mask_type == MASK_BAR_CODE_SHORT) {
-        return 0;
-    }
-    // Fixed single trailing pixel gap to mirror Python kerning behaviour.
-    return 1;
-}
-
-uint digital_pattern(uint mask_type, uint glyph_seed) {
-    if (mask_type == MASK_ALPHANUM_HEX || mask_type == MASK_FAT_LCD_HEX) {
-        uint index = random_u32(glyph_seed, 23u) % 16u;
-        return HEX_SEGMENTS[index];
-    }
-    uint digit_index = random_u32(glyph_seed, 29u) % 10u;
-    return HEX_SEGMENTS[digit_index];
-}
-
-void sample_mask_pattern(fn sample_padded_mask(  fn ticker_mask(      // Force maximum rows (3) {
-
-    // Simple approach: each row uses its natural mask height * multiplier, no artificial scaling
-
-
-
-        // Use natural mask height * multiplier
-
-
-            // Direct mapping: row_height pixels map to shape.height * multiplier mask pixels
-
-            // Compute horizontal repeats to fill width
-            // Python: width = int(shape[1] / multiplier) quantized to mask_shape[1]
-            // Quantize to be evenly divisible by mask width (matches Python line 3007)
-
-            // Each row scrolls independently, with speed proportional to character width
-
-            // Smooth sub-pixel scrolling; positive offset scrolls content to the left.
-
-
-            // Sample current and next x position for horizontal interpolation
-
-            // Bilinear interpolation for smooth scrolling
-
-
-
-
-float apply_blend(float src, float offset_value, float mask_val, float alpha) {
-    float shadow_alpha = alpha * (1.0 / 3.0);
-    float first = mix(src, offset_value, shadow_alpha);
-    float highlight = max(mask_val, first);
-    float final_val = mix(first, highlight, alpha);
-    return clamp(final_val, 0.0, 1.0);
-}
-
-
-out vec4 fragColor;
 
 void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
-
-    uint width = max(as_u32(width), 1u);
-    uint height = max(as_u32(height), 1u);
-    if (global_id.x >= width || global_id.y >= height) {
-        return;
-    }
-
-    int width_i = int(width);
-    int height_i = int(height);
-    uint channel_count = sanitized_channel_count(channels);
-
-    vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 src = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
-
-    // Use a stable seed independent of time/speed so glyphs do not change each frame.
-    uint base_seed = combine_seed(
-        hash_mix(floatBitsToUint(width)),
-        hash_mix(floatBitsToUint(height)) ^ 0x9e3779b9u,
-    );
-    float alpha = clamp(0.5 + random_float(base_seed, 197u) * 0.25, 0.0, 1.0);
-
-    // Flip Y so ticker rows anchor to the bottom of the final image instead of the top.
-    int ticker_y = height_i - 1 - coords.y;
-    float mask_val = ticker_mask(coords.x, ticker_y, width_i, height_i, base_seed, time, speed);
-    float offset_mask = ticker_mask(coords.x - 1, ticker_y + 1, width_i, height_i, base_seed, time, speed);
-
-    float offset_value_r = src.x - offset_mask;
-    float offset_value_g = src.y - offset_mask;
-    float offset_value_b = src.z - offset_mask;
-
-    vec4 result = vec4(0.0);
-    result.x = apply_blend(src.x, offset_value_r, mask_val, alpha);
-    result.y = apply_blend(src.y, offset_value_g, mask_val, alpha);
-    result.z = apply_blend(src.z, offset_value_b, mask_val, alpha);
-    result.w = src.w;
-
-    uint base_index = pixel_base_index(global_id.x, global_id.y, width);
-    if (channel_count >= 1u) {
-    }
-    if (channel_count >= 2u) {
-    }
-    if (channel_count >= 3u) {
-    }
-    if (channel_count >= 4u) {
-    }
-    for (uint c = channel_count; c < CHANNEL_COUNT; c = c + 1u) {
-    }
+    vec2 dims = vec2(textureSize(inputTex, 0));
+    vec4 src = texture(inputTex, v_texCoord);
+    
+    // Time factor
+    float t = time * speed;
+    
+    // Base seed from dimensions
+    uint baseSeed = hash_mix(uint(dims.x) * 31u + uint(dims.y) * 17u);
+    
+    // Divide into rows
+    float numRows = 3.0;
+    float rowHeight = 1.0 / numRows;
+    
+    // Which row are we in? (flip Y so rows scroll from bottom)
+    float flippedY = 1.0 - v_texCoord.y;
+    float rowIndex = floor(flippedY / rowHeight);
+    float localY = mod(flippedY, rowHeight) / rowHeight;
+    
+    // Only draw in the row area (leave gaps)
+    float inRow = step(0.1, localY) * step(localY, 0.9);
+    localY = (localY - 0.1) / 0.8;  // Remap to 0-1 within row
+    
+    // Get ticker pattern
+    float rowSeed = float(hash_mix(uint(rowIndex) + baseSeed));
+    float mask = ticker_row(v_texCoord.x * dims.x, localY, rowSeed, t) * inRow;
+    
+    // Blend with source
+    float alpha = 0.5 + random_float(baseSeed, 197u) * 0.25;
+    
+    // Shadow offset
+    vec2 shadowOffset = vec2(-1.0, 1.0) / dims;
+    vec4 shadowSrc = texture(inputTex, v_texCoord + shadowOffset);
+    float shadowMask = ticker_row((v_texCoord.x + shadowOffset.x) * dims.x, 
+                                   localY, rowSeed, t) * inRow;
+    
+    // Apply blending
+    vec3 result = src.rgb;
+    
+    // Shadow effect
+    float shadowAlpha = alpha * 0.33;
+    result = mix(result, shadowSrc.rgb - shadowMask, shadowAlpha);
+    
+    // Highlight
+    result = mix(result, max(result, vec3(mask)), alpha);
+    
+    fragColor = vec4(clamp(result, 0.0, 1.0), src.a);
 }

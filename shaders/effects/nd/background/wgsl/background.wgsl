@@ -25,7 +25,7 @@ fn rotate2D(coord: vec2<f32>, rot: f32, aspect: f32) -> vec2<f32> {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     var st: vec2<f32> = pos.xy / resolution;
     let aspectRatio: f32 = resolution.x / resolution.y;
     var centered: vec2<f32> = st * vec2<f32>(aspectRatio, 1.0);

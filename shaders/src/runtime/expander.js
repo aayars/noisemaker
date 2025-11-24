@@ -94,7 +94,7 @@ export function expand(compilationResult) {
 
                 // Initialize uniforms with defaults
                 if (effectDef.globals) {
-                    for (const [_, def] of Object.entries(effectDef.globals)) {
+                    for (const [key, def] of Object.entries(effectDef.globals)) {
                         if (def.uniform && def.default !== undefined) {
                             let val = def.default;
                             if (def.type === 'member' && typeof val === 'string') {
@@ -175,6 +175,18 @@ export function expand(compilationResult) {
                                 } else {
                                     pass.inputs[uniformName] = arg;
                                 }
+                            }
+                        } else if (effectDef.globals && effectDef.globals[texRef] && effectDef.globals[texRef].default !== undefined) {
+                            // Parameter with default value - resolve the default
+                            const defaultVal = effectDef.globals[texRef].default;
+                            if (defaultVal === 'inputTex' || defaultVal === 'inputColor' || defaultVal === 'src') {
+                                pass.inputs[uniformName] = currentInput || defaultVal;
+                            } else if (/^o[0-7]$/.test(defaultVal)) {
+                                pass.inputs[uniformName] = `global_${defaultVal}`;
+                            } else if (defaultVal.startsWith('global_')) {
+                                pass.inputs[uniformName] = defaultVal;
+                            } else {
+                                pass.inputs[uniformName] = defaultVal;
                             }
                         } else if (texRef.startsWith('global_')) {
                             // Explicit global reference

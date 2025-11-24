@@ -1,8 +1,7 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Vortex
- * /shaders/effects/vortex/vortex.wgsl
+ * Vortex - swirling distortion from center
  */
 export default class Vortex extends Effect {
   name = "Vortex";
@@ -11,31 +10,39 @@ export default class Vortex extends Effect {
 
   globals = {
     displacement: {
-        type: "float",
-        default: 64,
-        min: 0,
-        max: 256,
-        step: 1,
-        ui: {
-            label: "Displacement",
-            control: "slider"
-        }
+      type: "float",
+      default: 1.0,
+      min: 0,
+      max: 4,
+      step: 0.01,
+      ui: {
+        label: "Displacement",
+        control: "slider"
+      }
+    },
+    speed: {
+      type: "float",
+      default: 1.0,
+      min: 0,
+      max: 5,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "compute",
+      type: "render",
       program: "vortex",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

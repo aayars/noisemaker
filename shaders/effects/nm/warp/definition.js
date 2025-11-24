@@ -1,8 +1,7 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Warp
- * /shaders/effects/warp/warp.wgsl
+ * Warp - multi-octave displacement using noise
  */
 export default class Warp extends Effect {
   name = "Warp";
@@ -10,54 +9,73 @@ export default class Warp extends Effect {
   func = "warp";
 
   globals = {
-    freq: {
-        type: "float",
-        default: 2,
-        min: 0.1,
-        max: 10,
-        step: 0.1,
-        ui: {
-            label: "Frequency",
-            control: "slider"
-        }
+    frequency: {
+      type: "float",
+      default: 2,
+      min: 0.1,
+      max: 10,
+      step: 0.1,
+      ui: {
+        label: "Frequency",
+        control: "slider"
+      }
     },
     octaves: {
-        type: "integer",
-        default: 5,
-        min: 1,
-        max: 10,
-        step: 1,
-        ui: {
-            label: "Octaves",
-            control: "slider"
-        }
+      type: "float",
+      default: 5,
+      min: 1,
+      max: 10,
+      step: 1,
+      ui: {
+        label: "Octaves",
+        control: "slider"
+      }
     },
     displacement: {
-        type: "float",
-        default: 1,
-        min: 0,
-        max: 5,
-        step: 0.1,
-        ui: {
-            label: "Displacement",
-            control: "slider"
-        }
+      type: "float",
+      default: 0.1,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      ui: {
+        label: "Displacement",
+        control: "slider"
+      }
+    },
+    speed: {
+      type: "float",
+      default: 1,
+      min: 0,
+      max: 5,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
+    },
+    spline_order: {
+      type: "float",
+      default: 2,
+      min: 0,
+      max: 3,
+      step: 1,
+      ui: {
+        label: "Spline Order",
+        control: "slider"
+      }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "compute",
+      type: "render",
       program: "warp",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

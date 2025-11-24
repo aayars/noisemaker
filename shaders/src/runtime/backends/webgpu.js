@@ -1,5 +1,8 @@
 /**
  * WebGPU Backend Implementation
+ * 
+ * Implements the Noisemaker Rendering Pipeline specification for WebGPU.
+ * Handles render and compute passes, texture management, and uniform buffers.
  */
 
 import { Backend } from '../backend.js'
@@ -9,15 +12,40 @@ import {
     DEFAULT_VERTEX_SHADER_WGSL
 } from '../default-shaders.js'
 
-// Full-screen triangle vertex shader for render passes
-// const FULLSCREEN_TRIANGLE_WGSL = `
-// @vertex
-// fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4<f32> {
-//     let x = f32((vertexIndex << 1u) & 2u);
-//     let y = f32(vertexIndex & 2u);
-//     return vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
-// }
-// `
+/**
+ * Convert a float16 value (stored as uint16) to float32
+ */
+function float16ToFloat32(h) {
+    const sign = (h >> 15) & 0x1
+    const exponent = (h >> 10) & 0x1f
+    const mantissa = h & 0x3ff
+    
+    if (exponent === 0) {
+        // Denormalized number or zero
+        if (mantissa === 0) {
+            return sign ? -0 : 0
+        }
+        // Denormalized
+        const f = mantissa / 1024
+        return (sign ? -1 : 1) * f * Math.pow(2, -14)
+    } else if (exponent === 31) {
+        // Infinity or NaN
+        if (mantissa === 0) {
+            return sign ? -Infinity : Infinity
+        }
+        return NaN
+    }
+    
+    // Normalized number
+    const f = 1 + mantissa / 1024
+    return (sign ? -1 : 1) * f * Math.pow(2, exponent - 15)
+}
+
+/**
+ * Standard uniform struct that all shaders can expect.
+ * Packed according to std140/WGSL alignment rules for uniform buffers.
+ */
+const UNIFORM_BUFFER_INITIAL_SIZE = 256
 
 export class WebGPUBackend extends Backend {
     constructor(device, context) {
@@ -33,24 +61,42 @@ export class WebGPUBackend extends Backend {
         this.canvasFormat = (typeof navigator !== 'undefined' && navigator.gpu?.getPreferredCanvasFormat)
             ? navigator.gpu.getPreferredCanvasFormat()
             : null
+        
+        // Uniform buffer pool for efficient buffer reuse
+        this.uniformBufferPool = []
+        this.activeUniformBuffers = []
     }
 
     async init() {
-        // Create default sampler
-        const sampler = this.device.createSampler({
+        // Create default sampler (linear filtering)
+        this.samplers.set('default', this.device.createSampler({
             minFilter: 'linear',
             magFilter: 'linear',
             addressModeU: 'clamp-to-edge',
             addressModeV: 'clamp-to-edge'
-        })
-        this.samplers.set('default', sampler)
+        }))
+        
+        // Create nearest sampler for pixel-perfect sampling
+        this.samplers.set('nearest', this.device.createSampler({
+            minFilter: 'nearest',
+            magFilter: 'nearest',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge'
+        }))
+        
+        // Create repeat sampler for tiling textures
+        this.samplers.set('repeat', this.device.createSampler({
+            minFilter: 'linear',
+            magFilter: 'linear',
+            addressModeU: 'repeat',
+            addressModeV: 'repeat'
+        }))
         
         return Promise.resolve()
     }
 
     createTexture(id, spec) {
         const format = this.resolveFormat(spec.format)
-        
         const usage = this.resolveUsage(spec.usage || ['render', 'sample'])
         
         const texture = this.device.createTexture({
@@ -85,34 +131,83 @@ export class WebGPUBackend extends Backend {
         }
     }
 
+    /**
+     * Resolve the WGSL shader source from a program spec.
+     * Looks for sources in order: wgsl, source, fragment (for render shaders)
+     */
+    resolveWGSLSource(spec) {
+        // Prefer explicit WGSL source
+        if (spec.wgsl) return spec.wgsl
+        
+        // Fall back to generic source field
+        if (spec.source) return spec.source
+        
+        // For fragment shaders, might be under 'fragment' key
+        if (spec.fragment && !spec.fragment.includes('#version')) {
+            return spec.fragment
+        }
+        
+        return null
+    }
+
     async compileProgram(id, spec) {
+        const source = this.resolveWGSLSource(spec)
+        
+        if (!source) {
+            throw {
+                code: 'ERR_NO_WGSL_SOURCE',
+                detail: `No WGSL shader source found for program '${id}'. Available keys: ${Object.keys(spec).join(', ')}`,
+                program: id
+            }
+        }
+        
         // Inject defines
-        const source = this.injectDefines(spec.source || spec.wgsl, spec.defines || {})
+        const processedSource = this.injectDefines(source, spec.defines || {})
         
         if (spec.type === 'compute') {
-            const module = this.device.createShaderModule({ code: source })
-            const compilationInfo = await module.getCompilationInfo()
-            const errors = compilationInfo.messages.filter(m => m.type === 'error')
+            return this.compileComputeProgram(id, processedSource, spec)
+        }
+        
+        return this.compileRenderProgram(id, processedSource, spec)
+    }
 
-            if (errors.length > 0) {
-                throw {
-                    code: 'ERR_SHADER_COMPILE',
-                    detail: errors.map(e => e.message).join('\n'),
-                    program: id
-                }
+    async compileComputeProgram(id, source, spec) {
+        const module = this.device.createShaderModule({ code: source })
+        const compilationInfo = await module.getCompilationInfo()
+        const errors = compilationInfo.messages.filter(m => m.type === 'error')
+
+        if (errors.length > 0) {
+            throw {
+                code: 'ERR_SHADER_COMPILE',
+                detail: errors.map(e => `Line ${e.lineNum}: ${e.message}`).join('\n'),
+                program: id
             }
-
-            const pipeline = await this.createComputePipeline(module, spec)
-
-            this.programs.set(id, {
-                module,
-                pipeline,
-                type: 'compute'
-            })
-
-            return { module, pipeline }
         }
 
+        const pipeline = this.device.createComputePipeline({
+            layout: 'auto',
+            compute: {
+                module,
+                entryPoint: spec.computeEntryPoint || 'cs_main'
+            }
+        })
+
+        const programInfo = {
+            module,
+            pipeline,
+            type: 'compute',
+            entryPoint: spec.computeEntryPoint || 'cs_main'
+        }
+
+        this.programs.set(id, programInfo)
+        return programInfo
+    }
+
+    async compileRenderProgram(id, source, spec) {
+        // Parse binding declarations from the shader
+        const bindings = this.parseShaderBindings(source)
+        
+        // Compile fragment module
         const fragmentModule = this.device.createShaderModule({ code: source })
         const fragmentInfo = await fragmentModule.getCompilationInfo()
         const fragmentErrors = fragmentInfo.messages.filter(m => m.type === 'error')
@@ -120,23 +215,25 @@ export class WebGPUBackend extends Backend {
         if (fragmentErrors.length > 0) {
             throw {
                 code: 'ERR_SHADER_COMPILE',
-                detail: fragmentErrors.map(e => e.message).join('\n'),
+                detail: fragmentErrors.map(e => `Line ${e.lineNum}: ${e.message}`).join('\n'),
                 program: id
             }
         }
 
+        // Handle vertex module
         let vertexModule
         let vertexEntryPoint
 
-        if (spec.vertexWGSL) {
-            vertexModule = this.device.createShaderModule({ code: spec.vertexWGSL })
+        if (spec.vertexWGSL || spec.vertexWgsl) {
+            const vertexSource = spec.vertexWGSL || spec.vertexWgsl
+            vertexModule = this.device.createShaderModule({ code: vertexSource })
             const vertexInfo = await vertexModule.getCompilationInfo()
             const vertexErrors = vertexInfo.messages.filter(m => m.type === 'error')
 
             if (vertexErrors.length > 0) {
                 throw {
                     code: 'ERR_SHADER_COMPILE',
-                    detail: vertexErrors.map(e => e.message).join('\n'),
+                    detail: vertexErrors.map(e => `Line ${e.lineNum}: ${e.message}`).join('\n'),
                     program: id
                 }
             }
@@ -148,39 +245,9 @@ export class WebGPUBackend extends Backend {
         }
 
         const fragmentEntryPoint = spec.fragmentEntryPoint || spec.entryPoint || DEFAULT_FRAGMENT_ENTRY_POINT
-
         const outputFormat = this.resolveFormat(spec?.outputFormat || 'rgba16float')
-        const pipeline = await this.createRenderPipeline({
-            vertexModule,
-            fragmentModule,
-            vertexEntryPoint,
-            fragmentEntryPoint,
-            format: outputFormat,
-            blend: spec?.blend,
-            topology: spec?.topology
-        })
 
-        const pipelineCache = new Map()
-        const pipelineKey = this.getPipelineKey({ topology: spec?.topology, blend: spec?.blend, format: outputFormat })
-        pipelineCache.set(pipelineKey, pipeline)
-
-        this.programs.set(id, {
-            module: fragmentModule,
-            pipeline,
-            type: spec.type || 'render',
-            vertexModule,
-            fragmentModule,
-            vertexEntryPoint,
-            fragmentEntryPoint,
-            outputFormat,
-            pipelineCache
-        })
-
-        return { module: fragmentModule, pipeline }
-    }
-
-    async createRenderPipeline({ vertexModule, fragmentModule, vertexEntryPoint, fragmentEntryPoint, spec, format, blend, topology }) {
-        // Create a basic render pipeline layout
+        // Create initial pipeline
         const pipeline = this.device.createRenderPipeline({
             layout: 'auto',
             vertex: {
@@ -191,28 +258,144 @@ export class WebGPUBackend extends Backend {
                 module: fragmentModule,
                 entryPoint: fragmentEntryPoint,
                 targets: [{
-                    format: format || this.resolveFormat(spec?.outputFormat || 'rgba16float'),
-                    blend: this.resolveBlendState(blend)
+                    format: outputFormat,
+                    blend: this.resolveBlendState(spec?.blend)
                 }]
             },
             primitive: {
-                topology: topology || 'triangle-list'
+                topology: spec?.topology || 'triangle-list'
             }
         })
 
-        return pipeline
+        // Create pipeline cache for different output formats/blend modes
+        const pipelineCache = new Map()
+        const initialKey = this.getPipelineKey({ 
+            topology: spec?.topology, 
+            blend: spec?.blend, 
+            format: outputFormat 
+        })
+        pipelineCache.set(initialKey, pipeline)
+
+        const programInfo = {
+            module: fragmentModule,
+            pipeline,
+            type: spec.type || 'render',
+            vertexModule,
+            fragmentModule,
+            vertexEntryPoint,
+            fragmentEntryPoint,
+            outputFormat,
+            pipelineCache,
+            bindings, // Store parsed bindings for bind group creation
+            packedUniformLayout: this.parsePackedUniformLayout(source) // Store packed uniform layout if present
+        }
+
+        this.programs.set(id, programInfo)
+        return programInfo
     }
 
-    async createComputePipeline(module, _spec) {
-        const pipeline = this.device.createComputePipeline({
-            layout: 'auto',
-            compute: {
-                module,
-                entryPoint: 'cs_main'
-            }
+    /**
+     * Parse WGSL shader to extract packed uniform layout from unpacking statements.
+     * Looks for patterns like: varName = uniforms.data[N].xyz;
+     * Returns an array of {name, slot, components} sorted by slot then component offset.
+     * 
+     * @param {string} source - WGSL shader source
+     * @returns {Array<{name: string, slot: number, components: string}>|null}
+     */
+    parsePackedUniformLayout(source) {
+        // Check if shader uses packed uniforms struct
+        if (!source.includes('uniforms.data[')) {
+            return null
+        }
+        
+        const layout = []
+        // Match various unpacking patterns:
+        // - varName = uniforms.data[N].xyz;
+        // - let varName: type = uniforms.data[N].xyz;  
+        // - varName = i32(uniforms.data[N].x);
+        // - varName = uniforms.data[N].xyz > 0.5; (for booleans)
+        // - varName = max(1, i32(uniforms.data[N].w)); (for clamped values)
+        // The regex captures the variable name (which may follow 'let' and have a type annotation)
+        // IMPORTANT: [^\n=]+ prevents matching across newlines/equals, avoiding greedy struct field capture
+        const unpackRegex = /(?:let\s+)?(\w+)(?:\s*:\s*[^\n=]+)?\s*=\s*(?:max\s*\([^,]+,\s*)?(?:i32\s*\(\s*)?uniforms\.data\[(\d+)\]\.([xyzw]+)/g
+        
+        let match
+        while ((match = unpackRegex.exec(source)) !== null) {
+            const name = match[1]
+            const slot = parseInt(match[2], 10)
+            const components = match[3]
+            
+            layout.push({ name, slot, components })
+        }
+        
+        if (layout.length === 0) {
+            return null
+        }
+        
+        // Sort by slot, then by component offset (x=0, y=1, z=2, w=3)
+        const componentOrder = { x: 0, y: 1, z: 2, w: 3 }
+        layout.sort((a, b) => {
+            if (a.slot !== b.slot) return a.slot - b.slot
+            return componentOrder[a.components[0]] - componentOrder[b.components[0]]
         })
         
-        return pipeline
+        return layout
+    }
+
+    /**
+     * Parse WGSL shader source to extract binding declarations.
+     * Returns an array of binding info objects sorted by binding index.
+     * 
+     * @param {string} source - WGSL shader source
+     * @returns {Array<{binding: number, group: number, type: string, name: string}>}
+     */
+    parseShaderBindings(source) {
+        const bindings = []
+        
+        // Match @group(N) @binding(M) var<...> name or @group(N) @binding(M) var name
+        // Patterns:
+        // @group(0) @binding(0) var<uniform> name: type;
+        // @group(0) @binding(0) var name: texture_2d<f32>;
+        // @group(0) @binding(0) var name: sampler;
+        const bindingRegex = /@group\s*\(\s*(\d+)\s*\)\s*@binding\s*\(\s*(\d+)\s*\)\s*var(?:<([^>]+)>)?\s+(\w+)\s*:\s*([^;]+)/g
+        
+        let match
+        while ((match = bindingRegex.exec(source)) !== null) {
+            const group = parseInt(match[1], 10)
+            const binding = parseInt(match[2], 10)
+            const storage = match[3] || '' // e.g., 'uniform', 'storage, read_write'
+            const name = match[4]
+            const typeDecl = match[5].trim()
+            
+            // Determine binding type
+            let bindingType = 'unknown'
+            if (typeDecl.includes('texture_2d') || typeDecl.includes('texture_storage_2d')) {
+                bindingType = 'texture'
+            } else if (typeDecl === 'sampler') {
+                bindingType = 'sampler'
+            } else if (storage.includes('uniform')) {
+                bindingType = 'uniform'
+            } else if (storage.includes('storage')) {
+                bindingType = 'storage'
+            }
+            
+            bindings.push({
+                group,
+                binding,
+                type: bindingType,
+                name,
+                storage,
+                typeDecl
+            })
+        }
+        
+        // Sort by group then binding
+        bindings.sort((a, b) => {
+            if (a.group !== b.group) return a.group - b.group
+            return a.binding - b.binding
+        })
+        
+        return bindings
     }
 
     getDefaultVertexModule() {
@@ -225,11 +408,25 @@ export class WebGPUBackend extends Backend {
     }
 
     injectDefines(source, defines) {
+        if (!defines || Object.keys(defines).length === 0) {
+            return source
+        }
+        
         let injected = ''
         
         for (const [key, value] of Object.entries(defines)) {
             // WGSL uses const declarations instead of #define
-            injected += `const ${key} = ${value};\n`
+            if (typeof value === 'boolean') {
+                injected += `const ${key}: bool = ${value};\n`
+            } else if (typeof value === 'number') {
+                if (Number.isInteger(value)) {
+                    injected += `const ${key}: i32 = ${value};\n`
+                } else {
+                    injected += `const ${key}: f32 = ${value};\n`
+                }
+            } else {
+                injected += `const ${key} = ${value};\n`
+            }
         }
         
         return injected + source
@@ -254,8 +451,9 @@ export class WebGPUBackend extends Backend {
     }
 
     executeRenderPass(pass, program, state) {
-        // Get output texture
+        // Resolve output texture
         let outputId = pass.outputs.color || Object.values(pass.outputs)[0]
+        const originalOutputId = outputId
 
         if (outputId.startsWith('global_')) {
             const surfaceName = outputId.replace('global_', '')
@@ -267,6 +465,7 @@ export class WebGPUBackend extends Backend {
         let outputTex = this.textures.get(outputId) || state.surfaces?.[outputId]
         let targetView = outputTex?.view
 
+        // Handle screen output (direct to canvas)
         if (!outputTex && outputId === 'screen' && this.context) {
             const currentTexture = this.context.getCurrentTexture()
             outputTex = {
@@ -291,7 +490,10 @@ export class WebGPUBackend extends Backend {
         // Create bind group for this pass
         const bindGroup = this.createBindGroup(pass, program, state)
 
+        // Resolve viewport
         const viewport = this.resolveViewport(pass, outputTex)
+        
+        // Configure color attachment
         const colorAttachment = {
             view: targetView,
             clearValue: { r: 0, g: 0, b: 0, a: 0 },
@@ -301,25 +503,32 @@ export class WebGPUBackend extends Backend {
 
         // Begin render pass
         const renderPassDescriptor = { colorAttachments: [colorAttachment] }
-
         const passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor)
+        
+        // Get or create pipeline for this output format
+        const resolvedFormat = outputTex.gpuFormat || outputTex.format || program.outputFormat
+        
         const pipeline = this.resolveRenderPipeline(program, {
             blend: pass.blend,
             topology: pass.drawMode === 'points' ? 'point-list' : 'triangle-list',
-            format: outputTex.gpuFormat || outputTex.format || program.outputFormat
+            format: resolvedFormat
         })
+        
         passEncoder.setPipeline(pipeline)
         passEncoder.setBindGroup(0, bindGroup)
+        
         if (viewport) {
             passEncoder.setViewport(viewport.x, viewport.y, viewport.w, viewport.h, 0, 1)
         }
 
+        // Draw
         if (pass.drawMode === 'points') {
             const count = this.resolvePointCount(pass, state, outputId, outputTex)
             passEncoder.draw(count, 1, 0, 0)
         } else {
             passEncoder.draw(3, 1, 0, 0) // Full-screen triangle
         }
+        
         passEncoder.end()
     }
 
@@ -477,13 +686,26 @@ export class WebGPUBackend extends Backend {
         ]
     }
 
+    /**
+     * Create a bind group for a pass.
+     * 
+     * Uses the parsed shader bindings to create entries that match what the shader expects.
+     * This handles the various binding conventions used in existing WGSL shaders:
+     * - Individual uniform bindings (one per uniform variable)
+     * - Texture + sampler pairs
+     * - Uniform buffer structs
+     */
     createBindGroup(pass, program, state) {
         const entries = []
-        let binding = 0
+        const bindings = program.bindings || []
         
-        // Bind input textures
+        // Get merged uniforms
+        const uniforms = { ...state.globalUniforms, ...pass.uniforms }
+        
+        // Map input names to texture views
+        const textureMap = new Map()
         if (pass.inputs) {
-            for (const [_, texId] of Object.entries(pass.inputs)) {
+            for (const [inputName, texId] of Object.entries(pass.inputs)) {
                 let textureView
                 
                 if (texId.startsWith('global_')) {
@@ -494,16 +716,196 @@ export class WebGPUBackend extends Backend {
                 }
                 
                 if (textureView) {
-                    // Add texture binding
+                    textureMap.set(inputName, textureView)
+                    // Also map by common alias patterns
+                    if (inputName === 'inputTex') {
+                        textureMap.set('tex0', textureView)
+                        textureMap.set('inputColor', textureView)
+                        textureMap.set('src', textureView)
+                    }
+                }
+            }
+        }
+        
+        // Create entries based on parsed shader bindings
+        for (const binding of bindings) {
+            if (binding.group !== 0) continue // Only support group 0 for now
+            
+            const entry = { binding: binding.binding }
+            
+            if (binding.type === 'texture') {
+                // Find the texture view for this binding
+                let view = textureMap.get(binding.name)
+                if (!view) {
+                    // Try to find by common patterns
+                    if (binding.name.startsWith('tex')) {
+                        const idx = parseInt(binding.name.slice(3), 10)
+                        const inputKeys = Object.keys(pass.inputs || {})
+                        if (!isNaN(idx) && idx < inputKeys.length) {
+                            view = textureMap.get(inputKeys[idx])
+                        }
+                    }
+                    if (!view) {
+                        // Use first available texture as fallback
+                        view = textureMap.values().next().value
+                    }
+                }
+                
+                if (view) {
+                    entry.resource = view
+                    entries.push(entry)
+                }
+            } else if (binding.type === 'sampler') {
+                const samplerType = pass.samplerTypes?.[binding.name] || 'default'
+                entry.resource = this.samplers.get(samplerType) || this.samplers.get('default')
+                entries.push(entry)
+            } else if (binding.type === 'uniform') {
+                // Check if this is a struct or individual uniform
+                const isStruct = binding.typeDecl && !binding.typeDecl.includes('<') && 
+                    binding.typeDecl !== 'f32' && binding.typeDecl !== 'i32' && 
+                    binding.typeDecl !== 'u32' && binding.typeDecl !== 'bool' &&
+                    !binding.typeDecl.startsWith('vec') && !binding.typeDecl.startsWith('mat')
+
+                if (isStruct) {
+                    // This looks like a struct - create full uniform buffer
+                    // Pass program to access packedUniformLayout
+                    const uniformBuffer = this.createUniformBuffer(pass, state, program)
+                    if (uniformBuffer) {
+                        entry.resource = { buffer: uniformBuffer }
+                        entries.push(entry)
+                    }
+                } else {
+                    // Individual uniform - create small buffer for this value
+                    // Use 0 as default for missing uniforms to ensure bind group completeness
+                    let value = uniforms[binding.name]
+                    if (value === undefined) {
+                        // Provide sensible defaults based on type
+                        if (binding.typeDecl === 'i32' || binding.typeDecl === 'u32') {
+                            value = 0
+                        } else if (binding.typeDecl.startsWith('vec2')) {
+                            value = [0, 0]
+                        } else if (binding.typeDecl.startsWith('vec3')) {
+                            value = [0, 0, 0]
+                        } else if (binding.typeDecl.startsWith('vec4')) {
+                            value = [0, 0, 0, 0]
+                        } else {
+                            value = 0 // Default for f32 and others
+                        }
+                    }
+                    const buffer = this.createSingleUniformBuffer(value, binding.typeDecl)
+                    if (buffer) {
+                        entry.resource = { buffer }
+                        this.activeUniformBuffers.push(buffer)
+                        entries.push(entry)
+                    }
+                }
+            } else if (binding.type === 'storage') {
+                // Storage buffers - create or get storage buffer
+                const storage = this.createStorageBuffer(binding, pass)
+                if (storage) {
+                    entry.resource = { buffer: storage }
+                    entries.push(entry)
+                }
+            }
+        }
+        
+        // If no bindings were parsed (maybe older shader format), fall back to legacy approach
+        if (bindings.length === 0) {
+            return this.createLegacyBindGroup(pass, program, state)
+        }
+        
+
+        
+        // Create bind group
+        try {
+            const bindGroup = this.device.createBindGroup({
+                layout: program.pipeline.getBindGroupLayout(0),
+                entries
+            })
+            return bindGroup
+        } catch (err) {
+            console.error('Failed to create bind group:', err)
+            console.log('Entries:', entries)
+            console.log('Bindings:', bindings)
+            throw err
+        }
+    }
+
+    /**
+     * Create a buffer for a single uniform value.
+     */
+    createSingleUniformBuffer(value, typeDecl) {
+        let data
+        
+        if (typeof value === 'boolean') {
+            data = new Int32Array([value ? 1 : 0])
+        } else if (typeof value === 'number') {
+            if (typeDecl === 'i32' || typeDecl === 'u32') {
+                data = new Int32Array([Math.round(value)])
+            } else {
+                data = new Float32Array([value])
+            }
+        } else if (Array.isArray(value)) {
+            if (value.length === 2) {
+                // vec2 - needs 8 byte alignment
+                data = new Float32Array(value)
+            } else if (value.length === 3 || value.length === 4) {
+                // vec3/vec4 - needs 16 byte alignment, pad vec3 to vec4
+                data = new Float32Array(value.length === 3 ? [...value, 0] : value)
+            } else {
+                data = new Float32Array(value)
+            }
+        }
+        
+        if (!data) return null
+        
+        const buffer = this.device.createBuffer({
+            size: Math.max(data.byteLength, 16), // Minimum 16 bytes for alignment
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        })
+        
+        this.queue.writeBuffer(buffer, 0, data)
+        return buffer
+    }
+
+    /**
+     * Create a storage buffer for compute shaders.
+     */
+    createStorageBuffer(binding, pass) {
+        // For now, return null - storage buffers need more context
+        // This would be expanded for compute shader support
+        return null
+    }
+
+    /**
+     * Legacy bind group creation for shaders that don't have parsed bindings.
+     */
+    createLegacyBindGroup(pass, program, state) {
+        const entries = []
+        let binding = 0
+        
+        // Bind input textures (alternating texture/sampler)
+        if (pass.inputs) {
+            for (const [samplerName, texId] of Object.entries(pass.inputs)) {
+                let textureView
+                
+                if (texId.startsWith('global_')) {
+                    const surfaceName = texId.replace('global_', '')
+                    textureView = state.surfaces?.[surfaceName]?.view
+                } else {
+                    textureView = this.textures.get(texId)?.view
+                }
+                
+                if (textureView) {
                     entries.push({
                         binding: binding++,
                         resource: textureView
                     })
                     
-                    // Add sampler binding
+                    const samplerType = pass.samplerTypes?.[samplerName] || 'default'
                     entries.push({
                         binding: binding++,
-                        resource: this.samplers.get('default')
+                        resource: this.samplers.get(samplerType) || this.samplers.get('default')
                     })
                 }
             }
@@ -522,7 +924,6 @@ export class WebGPUBackend extends Backend {
             }
         }
         
-        // Create bind group
         const bindGroup = this.device.createBindGroup({
             layout: program.pipeline.getBindGroupLayout(0),
             entries
@@ -531,52 +932,248 @@ export class WebGPUBackend extends Backend {
         return bindGroup
     }
 
-    createUniformBuffer(pass, state) {
+    /**
+     * Create a uniform buffer with proper std140 alignment.
+     * 
+     * Alignment rules (simplified for common types):
+     * - float, int, uint, bool: 4-byte align
+     * - vec2: 8-byte align
+     * - vec3, vec4: 16-byte align
+     * - mat3: 48 bytes (3 x vec4 with 16-byte align)
+     * - mat4: 64 bytes (4 x vec4)
+     */
+    createUniformBuffer(pass, state, program = null) {
         const uniforms = { ...state.globalUniforms, ...pass.uniforms }
         
         if (Object.keys(uniforms).length === 0) {
             return null
         }
         
-        // Pack uniforms into buffer (simplified - would need proper std140 layout)
-        const data = this.packUniforms(uniforms)
+        // Check if program has a packed uniform layout
+        const packedLayout = program?.packedUniformLayout
         
-        const buffer = this.device.createBuffer({
-            size: data.byteLength,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        })
+        // Pack uniforms into buffer using layout if available
+        const data = packedLayout 
+            ? this.packUniformsWithLayout(uniforms, packedLayout)
+            : this.packUniforms(uniforms)
+        
+        // Get or create buffer from pool
+        let buffer = this.getBufferFromPool(data.byteLength)
+        
+        if (!buffer) {
+            buffer = this.device.createBuffer({
+                size: Math.max(data.byteLength, 16), // Minimum 16 bytes
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            })
+        }
         
         this.queue.writeBuffer(buffer, 0, data)
+        this.activeUniformBuffers.push(buffer)
         
         return buffer
     }
 
+    /**
+     * Get a buffer from the pool or return null if none available.
+     */
+    getBufferFromPool(requiredSize) {
+        for (let i = 0; i < this.uniformBufferPool.length; i++) {
+            const buffer = this.uniformBufferPool[i]
+            if (buffer.size >= requiredSize) {
+                this.uniformBufferPool.splice(i, 1)
+                return buffer
+            }
+        }
+        return null
+    }
+
+    /**
+     * Pack uniforms into an ArrayBuffer following std140 alignment rules.
+     */
     packUniforms(uniforms) {
-        // Simplified uniform packing
-        // In production, would need proper std140 layout alignment
-        const values = Object.values(uniforms)
-        const floatCount = values.reduce((acc, v) => {
-            if (typeof v === 'number') return acc + 1
-            if (Array.isArray(v)) return acc + v.length
-            return acc
-        }, 0)
-        
-        const buffer = new Float32Array(floatCount)
-        let offset = 0
-        
-        for (const value of values) {
+        // Calculate required size (rough estimate)
+        let estimatedSize = 0
+        for (const value of Object.values(uniforms)) {
             if (typeof value === 'number') {
-                buffer[offset++] = value
+                estimatedSize += 4
             } else if (Array.isArray(value)) {
-                buffer.set(value, offset)
-                offset += value.length
+                estimatedSize += value.length * 4 + 12 // Add padding for alignment
+            } else if (typeof value === 'boolean') {
+                estimatedSize += 4
             }
         }
         
-        return buffer
+        // Round up to next 16 bytes and add some buffer
+        const bufferSize = Math.max(64, Math.ceil((estimatedSize + 32) / 16) * 16)
+        const buffer = new ArrayBuffer(bufferSize)
+        const view = new DataView(buffer)
+        let offset = 0
+
+        const alignTo = (currentOffset, alignment) => {
+            return Math.ceil(currentOffset / alignment) * alignment
+        }
+
+        for (const [name, value] of Object.entries(uniforms)) {
+            if (value === undefined || value === null) continue
+            
+            if (typeof value === 'boolean') {
+                // bool -> i32
+                offset = alignTo(offset, 4)
+                view.setInt32(offset, value ? 1 : 0, true)
+                offset += 4
+            } else if (typeof value === 'number') {
+                // Determine if int or float based on whether it's an integer
+                offset = alignTo(offset, 4)
+                if (Number.isInteger(value) && name !== 'time' && name !== 'deltaTime' && name !== 'aspect') {
+                    view.setInt32(offset, value, true)
+                } else {
+                    view.setFloat32(offset, value, true)
+                }
+                offset += 4
+            } else if (Array.isArray(value)) {
+                // Handle vectors
+                if (value.length === 2) {
+                    // vec2: 8-byte align
+                    offset = alignTo(offset, 8)
+                    view.setFloat32(offset, value[0], true)
+                    view.setFloat32(offset + 4, value[1], true)
+                    offset += 8
+                } else if (value.length === 3) {
+                    // vec3: 16-byte align (stored as vec4 in std140)
+                    offset = alignTo(offset, 16)
+                    view.setFloat32(offset, value[0], true)
+                    view.setFloat32(offset + 4, value[1], true)
+                    view.setFloat32(offset + 8, value[2], true)
+                    // padding
+                    offset += 16
+                } else if (value.length === 4) {
+                    // vec4: 16-byte align
+                    offset = alignTo(offset, 16)
+                    for (let i = 0; i < 4; i++) {
+                        view.setFloat32(offset + i * 4, value[i], true)
+                    }
+                    offset += 16
+                } else if (value.length === 9) {
+                    // mat3: 3 vec4s (each vec3 padded to vec4)
+                    offset = alignTo(offset, 16)
+                    for (let col = 0; col < 3; col++) {
+                        for (let row = 0; row < 3; row++) {
+                            view.setFloat32(offset + row * 4, value[col * 3 + row], true)
+                        }
+                        offset += 16
+                    }
+                } else if (value.length === 16) {
+                    // mat4: 4 vec4s
+                    offset = alignTo(offset, 16)
+                    for (let i = 0; i < 16; i++) {
+                        view.setFloat32(offset + i * 4, value[i], true)
+                    }
+                    offset += 64
+                } else {
+                    // Generic array
+                    for (let i = 0; i < value.length; i++) {
+                        offset = alignTo(offset, 4)
+                        view.setFloat32(offset, value[i], true)
+                        offset += 4
+                    }
+                }
+            }
+        }
+
+        // Return only the used portion, but ensure at least 16 bytes
+        const usedSize = Math.max(16, alignTo(offset, 16))
+        return new Uint8Array(buffer, 0, Math.min(usedSize, bufferSize))
+    }
+
+    /**
+     * Pack uniforms into an ArrayBuffer according to a parsed layout.
+     * The layout specifies where each uniform should be placed in the array<vec4<f32>, N> struct.
+     * 
+     * @param {Object} uniforms - Map of uniform names to values
+     * @param {Array<{name: string, slot: number, components: string}>} layout - Parsed layout
+     * @returns {Uint8Array}
+     */
+    packUniformsWithLayout(uniforms, layout) {
+        // Find the maximum slot index to determine buffer size
+        let maxSlot = 0
+        for (const entry of layout) {
+            maxSlot = Math.max(maxSlot, entry.slot)
+        }
+        
+        // Each slot is a vec4 (16 bytes)
+        const bufferSize = (maxSlot + 1) * 16
+        const buffer = new ArrayBuffer(bufferSize)
+        const view = new DataView(buffer)
+        
+        // Component offset mapping
+        const componentOffset = { x: 0, y: 4, z: 8, w: 12 }
+        
+        for (const entry of layout) {
+            const value = uniforms[entry.name]
+            if (value === undefined || value === null) {
+                continue
+            }
+            
+            const slotOffset = entry.slot * 16
+            
+            if (entry.components.length === 1) {
+                // Single component (x, y, z, or w)
+                const compOff = componentOffset[entry.components]
+                const offset = slotOffset + compOff
+                
+                if (typeof value === 'boolean') {
+                    view.setFloat32(offset, value ? 1.0 : 0.0, true)
+                } else if (typeof value === 'number') {
+                    view.setFloat32(offset, value, true)
+                }
+            } else if (entry.components.length === 2) {
+                // Two components (xy, yz, etc.)
+                const startComp = entry.components[0]
+                const offset = slotOffset + componentOffset[startComp]
+                
+                if (Array.isArray(value)) {
+                    for (let i = 0; i < Math.min(value.length, 2); i++) {
+                        view.setFloat32(offset + i * 4, value[i], true)
+                    }
+                } else if (typeof value === 'number') {
+                    view.setFloat32(offset, value, true)
+                }
+            } else if (entry.components.length === 3) {
+                // Three components (xyz)
+                const startComp = entry.components[0]
+                const offset = slotOffset + componentOffset[startComp]
+                
+                if (Array.isArray(value)) {
+                    for (let i = 0; i < Math.min(value.length, 3); i++) {
+                        view.setFloat32(offset + i * 4, value[i], true)
+                    }
+                } else if (typeof value === 'number') {
+                    view.setFloat32(offset, value, true)
+                }
+            } else if (entry.components.length === 4) {
+                // Four components (xyzw)
+                const offset = slotOffset
+                
+                if (Array.isArray(value)) {
+                    for (let i = 0; i < Math.min(value.length, 4); i++) {
+                        view.setFloat32(offset + i * 4, value[i], true)
+                    }
+                } else if (typeof value === 'number') {
+                    view.setFloat32(offset, value, true)
+                }
+            }
+        }
+        
+        return new Uint8Array(buffer)
     }
 
     beginFrame(_state) {
+        // Return active buffers to pool
+        while (this.activeUniformBuffers.length > 0) {
+            const buffer = this.activeUniformBuffers.pop()
+            this.uniformBufferPool.push(buffer)
+        }
+        
         // Create command encoder for this frame
         this.commandEncoder = this.device.createCommandEncoder()
     }
@@ -596,19 +1193,108 @@ export class WebGPUBackend extends Backend {
         const tex = this.textures.get(textureId)
         if (!tex) return
         
+        // Use a render pass to blit the texture to the canvas
+        // This handles format conversion (e.g., rgba16float -> bgra8unorm)
+        const pipeline = this.getBlitPipeline()
+        const bindGroup = this.createBlitBindGroup(tex)
+        
         const commandEncoder = this.device.createCommandEncoder()
         const canvasTexture = this.context.getCurrentTexture()
+        const canvasView = canvasTexture.createView()
         
-        // Simple copy if dimensions match
-        if (tex.width === canvasTexture.width && tex.height === canvasTexture.height) {
-             commandEncoder.copyTextureToTexture(
-                 { texture: tex.handle },
-                 { texture: canvasTexture },
-                 { width: tex.width, height: tex.height, depthOrArrayLayers: 1 }
-             )
-        }
+        const renderPass = commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: canvasView,
+                clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                loadOp: 'clear',
+                storeOp: 'store'
+            }]
+        })
+        
+        renderPass.setPipeline(pipeline)
+        renderPass.setBindGroup(0, bindGroup)
+        renderPass.draw(3, 1, 0, 0) // Full-screen triangle
+        renderPass.end()
         
         this.queue.submit([commandEncoder.finish()])
+    }
+    
+    /**
+     * Get or create the blit pipeline for presenting to canvas
+     */
+    getBlitPipeline() {
+        if (this._blitPipeline) return this._blitPipeline
+        
+        const blitShaderSource = `
+            struct VertexOutput {
+                @builtin(position) position: vec4<f32>,
+                @location(0) uv: vec2<f32>,
+            }
+            
+            @vertex
+            fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+                var pos = array<vec2<f32>, 3>(
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>(3.0, -1.0),
+                    vec2<f32>(-1.0, 3.0)
+                );
+                var uv = array<vec2<f32>, 3>(
+                    vec2<f32>(0.0, 1.0),
+                    vec2<f32>(2.0, 1.0),
+                    vec2<f32>(0.0, -1.0)
+                );
+                var output: VertexOutput;
+                output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+                output.uv = uv[vertexIndex];
+                return output;
+            }
+            
+            @group(0) @binding(0) var srcTex: texture_2d<f32>;
+            @group(0) @binding(1) var srcSampler: sampler;
+            
+            @fragment
+            fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+                return textureSample(srcTex, srcSampler, input.uv);
+            }
+        `
+        
+        const module = this.device.createShaderModule({ code: blitShaderSource })
+        
+        this._blitPipeline = this.device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module,
+                entryPoint: 'vs_main'
+            },
+            fragment: {
+                module,
+                entryPoint: 'fs_main',
+                targets: [{
+                    format: this.canvasFormat || 'bgra8unorm'
+                }]
+            },
+            primitive: {
+                topology: 'triangle-list'
+            }
+        })
+        
+        return this._blitPipeline
+    }
+    
+    /**
+     * Create a bind group for blitting a texture to the canvas
+     */
+    createBlitBindGroup(tex) {
+        const pipeline = this.getBlitPipeline()
+        const sampler = this.samplers.get('default')
+        
+        return this.device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: tex.view },
+                { binding: 1, resource: sampler }
+            ]
+        })
     }
 
     resize(_width, _height) {
@@ -623,12 +1309,20 @@ export class WebGPUBackend extends Backend {
             'r8': 'r8unorm',
             'r16f': 'r16float',
             'r32f': 'r32float',
+            'rg8': 'rg8unorm',
+            'rg16f': 'rg16float',
+            'rg32f': 'rg32float',
+            // Pass-through for already-resolved formats
             'rgba8unorm': 'rgba8unorm',
             'rgba16float': 'rgba16float',
-            'rgba32float': 'rgba32float'
+            'rgba32float': 'rgba32float',
+            'r8unorm': 'r8unorm',
+            'r16float': 'r16float',
+            'r32float': 'r32float',
+            'bgra8unorm': 'bgra8unorm'
         }
         
-        return formats[format] || 'rgba8unorm'
+        return formats[format] || format || 'rgba8unorm'
     }
 
     resolveUsage(usageArray) {
@@ -661,8 +1355,104 @@ export class WebGPUBackend extends Backend {
         return 'WebGPU'
     }
 
+    /**
+     * Read pixels from a texture for testing purposes.
+     * Note: This is async due to WebGPU's buffer mapping requirements.
+     * @param {string} textureId - The texture ID to read from
+     * @returns {Promise<{width: number, height: number, data: Uint8Array}>}
+     */
+    async readPixels(textureId) {
+        const tex = this.textures.get(textureId)
+        if (!tex) {
+            throw new Error(`Texture ${textureId} not found`)
+        }
+
+        const { handle, width, height, gpuFormat } = tex
+        
+        // Determine bytes per pixel based on format
+        let bytesPerPixel = 4 // Default for rgba8unorm
+        let isFloat = false
+        if (gpuFormat === 'rgba16float') {
+            bytesPerPixel = 8 // 2 bytes per channel * 4 channels
+            isFloat = true
+        } else if (gpuFormat === 'rgba32float') {
+            bytesPerPixel = 16 // 4 bytes per channel * 4 channels
+            isFloat = true
+        }
+        
+        const bytesPerRow = Math.ceil(width * bytesPerPixel / 256) * 256 // Align to 256 bytes
+        const bufferSize = bytesPerRow * height
+
+        // Create staging buffer for reading
+        const stagingBuffer = this.device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        })
+
+        // Copy texture to staging buffer
+        const commandEncoder = this.device.createCommandEncoder()
+        commandEncoder.copyTextureToBuffer(
+            { texture: handle },
+            { buffer: stagingBuffer, bytesPerRow },
+            { width, height, depthOrArrayLayers: 1 }
+        )
+        this.queue.submit([commandEncoder.finish()])
+
+        // Map and read the buffer
+        await stagingBuffer.mapAsync(GPUMapMode.READ)
+        const mappedRange = stagingBuffer.getMappedRange()
+        
+        // Convert to Uint8Array output (0-255 per channel)
+        const data = new Uint8Array(width * height * 4)
+        
+        if (gpuFormat === 'rgba16float') {
+            // Read as float16 and convert to uint8
+            const srcData = new Uint16Array(mappedRange)
+            for (let row = 0; row < height; row++) {
+                const srcRowOffset = (row * bytesPerRow) / 2 // Uint16Array offset
+                for (let col = 0; col < width; col++) {
+                    const srcPixel = srcRowOffset + col * 4
+                    const dstPixel = (row * width + col) * 4
+                    // Convert float16 to float32 then to uint8
+                    for (let c = 0; c < 4; c++) {
+                        const f16 = srcData[srcPixel + c]
+                        const f32 = float16ToFloat32(f16)
+                        data[dstPixel + c] = Math.max(0, Math.min(255, Math.round(f32 * 255)))
+                    }
+                }
+            }
+        } else if (gpuFormat === 'rgba32float') {
+            // Read as float32 and convert to uint8
+            const srcData = new Float32Array(mappedRange)
+            for (let row = 0; row < height; row++) {
+                const srcRowOffset = (row * bytesPerRow) / 4 // Float32Array offset
+                for (let col = 0; col < width; col++) {
+                    const srcPixel = srcRowOffset + col * 4
+                    const dstPixel = (row * width + col) * 4
+                    for (let c = 0; c < 4; c++) {
+                        const f32 = srcData[srcPixel + c]
+                        data[dstPixel + c] = Math.max(0, Math.min(255, Math.round(f32 * 255)))
+                    }
+                }
+            }
+        } else {
+            // Assume rgba8unorm - direct copy (removing row padding)
+            const srcData = new Uint8Array(mappedRange)
+            for (let row = 0; row < height; row++) {
+                const srcOffset = row * bytesPerRow
+                const dstOffset = row * width * 4
+                data.set(srcData.subarray(srcOffset, srcOffset + width * 4), dstOffset)
+            }
+        }
+
+        stagingBuffer.unmap()
+        stagingBuffer.destroy()
+
+        return { width, height, data }
+    }
+
     static async isAvailable() {
-        if (!navigator.gpu) {
+        if (typeof navigator === 'undefined' || !navigator.gpu) {
             return false
         }
         

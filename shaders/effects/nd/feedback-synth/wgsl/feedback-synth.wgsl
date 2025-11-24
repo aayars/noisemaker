@@ -33,7 +33,7 @@ fn rotate2D(st: vec2<f32>, rot: f32, aspectRatio: f32) -> vec2<f32> {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let scaleAmt = uniforms.data[1].x;
     let rotation = uniforms.data[1].y;

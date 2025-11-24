@@ -35,7 +35,7 @@ fn depthOfField(scene: texture_2d<f32>, depth: texture_2d<f32>, uv: vec2<f32>, r
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z; // unused
     let seed = uniforms.data[0].w; // unused

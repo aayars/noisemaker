@@ -249,7 +249,7 @@ fn cells(st0: vec2<f32>, freq: f32, cellSize: f32, metric: i32, seed: f32, loopA
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z;
     let seed = uniforms.data[0].w;

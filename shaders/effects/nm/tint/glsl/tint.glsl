@@ -4,27 +4,16 @@ precision highp float;
 precision highp int;
 
 // Tint effect: remap hue with deterministic RNG and blend with the source.
-// Mirrors ``noisemaker.effects.tint``.
 
-const uint CHANNEL_COUNT = 4u;
-const vec3 ZERO_RGB = vec3(0.0);
-const vec3 ONE_RGB = vec3(1.0);
+uniform sampler2D inputTex;
+uniform float time;
+uniform float alpha;
+
+in vec2 v_texCoord;
+out vec4 fragColor;
+
 const float ONE_THIRD = 1.0 / 3.0;
 const float UINT32_SCALE = 1.0 / 4294967296.0;
-
-
-uniform sampler2D input_texture;
-uniform float width;
-uniform float height;
-uniform float channels;
-uniform float time;
-uniform float speed;
-uniform float alpha;
-uniform float seed;
-
-uint as_u32(float value) {
-    return uint(max(round(value), 0.0));
-}
 
 float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
@@ -34,32 +23,10 @@ float positive_fract(float value) {
     return value - floor(value);
 }
 
-}
-
-uint rotate_left(uint value, uint shift) {
-    uint amount = shift & 31u;
-    return (value << amount) | (value >> (32u - amount));
-}
-
-uint seed_from_params(TintParams p) {
-    uint width_bits = floatBitsToUint(p.width);
-    uint height_bits = floatBitsToUint(p.height);
-    uint seed_bits = floatBitsToUint(p.seed);
-    uint hash = 0x12345678u ^ width_bits;
-    hash = hash ^ rotate_left(height_bits ^ 0x9e3779b9u, 7u);
-    hash = hash ^ rotate_left(seed_bits ^ 0xc2b2ae35u, 3u);
-    return hash;
-}
-
-float rng_next() {
-    uint state = *(state_ptr);
-    uint t = state + 0x6d2b79f5u;
-    t = (t ^ (t >> 15u)) * (t | 1u);
-    t = t ^ (t + ((t ^ (t >> 7u)) * (t | 61u)));
-    uint masked = t & 0xffffffffu;
-    state_ptr = masked;
-    uint sample = (t ^ (t >> 14u)) & 0xffffffffu;
-    return float(sample) * UINT32_SCALE;
+// Simple hash function for random numbers
+float hash21(vec2 p) {
+    float h = dot(p, vec2(127.1, 311.7));
+    return fract(sin(h) * 43758.5453123);
 }
 
 vec3 rgb_to_hsv(vec3 rgb) {
@@ -117,49 +84,28 @@ vec3 hsv_to_rgb(vec3 hsv) {
     return vec3(r, g, b);
 }
 
-
-out vec4 fragColor;
-
 void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
-
-    uint width = max(as_u32(width), 1u);
-    uint height = max(as_u32(height), 1u);
-    if (global_id.x >= width || global_id.y >= height) {
-        return;
-    }
-
-    vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
-
-    uint channel_count = max(as_u32(channels), 1u);
-    bool has_color = channel_count >= 3u;
-    bool has_alpha = channel_count >= 4u;
-    float base_alpha = select(1.0, texel.w, has_alpha);
-
-    if (!has_color) {
-        fragColor = clamp(texel.xyz, ZERO_RGB, ONE_RGB), base_alpha;
-        return;
-    }
+    vec4 texel = texture(inputTex, v_texCoord);
+    vec2 dims = vec2(textureSize(inputTex, 0));
 
     float blend_alpha = clamp01(alpha);
     if (blend_alpha <= 0.0) {
-        fragColor = clamp(texel.xyz, ZERO_RGB, ONE_RGB), base_alpha;
+        fragColor = vec4(clamp(texel.rgb, 0.0, 1.0), texel.a);
         return;
     }
 
-    uint rng_state = seed_from_params(params);
-    float random_a = rng_next(&rng_state);
-    float random_b = rng_next(&rng_state);
+    // Generate random values based on time and seed
+    float random_a = hash21(vec2(time * 17.3, dims.x));
+    float random_b = hash21(vec2(time * 31.7, dims.y));
 
-    vec3 base_rgb = clamp(texel.xyz, ZERO_RGB, ONE_RGB);
+    vec3 base_rgb = clamp(texel.rgb, 0.0, 1.0);
     float hue_source = base_rgb.x * ONE_THIRD + random_a * ONE_THIRD + random_b;
     float hue = positive_fract(hue_source);
 
     vec3 base_hsv = rgb_to_hsv(base_rgb);
     vec3 tinted_hsv = vec3(hue, clamp01(base_rgb.y), clamp01(base_hsv.z));
-    vec3 tinted_rgb = clamp(hsv_to_rgb(tinted_hsv), ZERO_RGB, ONE_RGB);
+    vec3 tinted_rgb = clamp(hsv_to_rgb(tinted_hsv), 0.0, 1.0);
 
-    vec3 blended_rgb = mix(base_rgb, tinted_rgb, vec3(blend_alpha));
-    fragColor = blended_rgb, base_alpha;
+    vec3 blended_rgb = mix(base_rgb, tinted_rgb, blend_alpha);
+    fragColor = vec4(blended_rgb, texel.a);
 }

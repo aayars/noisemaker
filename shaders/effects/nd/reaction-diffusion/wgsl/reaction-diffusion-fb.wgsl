@@ -9,7 +9,7 @@ struct Uniforms {
     // data[1] = (feed, kill, rate1, rate2)
     // data[2] = (speed, inputWeight, feedSource, killSource)
     // data[3] = (rate1Source, rate2Source, paletteMode, smooth)
-    // data[4] = (inputSource, cyclePalette, rotatePalette, repeatPalette)
+    // data[4] = (unused, cyclePalette, rotatePalette, repeatPalette)
     // data[5] = (paletteOffset.x, paletteOffset.y, paletteOffset.z, colorMode)
     // data[6] = (paletteAmp.x, paletteAmp.y, paletteAmp.z, unused)
     // data[7] = (paletteFreq.x, paletteFreq.y, paletteFreq.z, unused)
@@ -19,13 +19,7 @@ struct Uniforms {
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(1) var samp : sampler;
 @group(0) @binding(2) var bufTex : texture_2d<f32>;
-@group(0) @binding(3) var synth1Tex : texture_2d<f32>;
-@group(0) @binding(4) var synth2Tex : texture_2d<f32>;
-@group(0) @binding(5) var mixerTex : texture_2d<f32>;
-@group(0) @binding(6) var post1Tex : texture_2d<f32>;
-@group(0) @binding(7) var post2Tex : texture_2d<f32>;
-@group(0) @binding(8) var post3Tex : texture_2d<f32>;
-@group(0) @binding(9) var finalTex : texture_2d<f32>;
+@group(0) @binding(3) var inputTex : texture_2d<f32>;
 
 fn lp(tex: texture_2d<f32>, uv: vec2<f32>, size: vec2<f32>) -> vec3<f32> {
     // Fixed 1px neighbourhood sampling (matches GLSL behavior)
@@ -53,7 +47,7 @@ fn lum(color: vec3<f32>) -> f32 {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z; // unused
     let zoom = uniforms.data[0].w;
@@ -68,23 +62,7 @@ fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     var prevFrameCoord = pos.xy / texSize;
     prevFrameCoord.y = 1.0 - prevFrameCoord.y;
 
-    let source = i32(uniforms.data[4].x);
-    var prevFrame = vec3<f32>(1.0);
-    if (source == 1) {
-        prevFrame = textureSampleLevel(synth1Tex, samp, prevFrameCoord, 0.0).rgb;
-    } else if (source == 2) {
-        prevFrame = textureSampleLevel(synth2Tex, samp, prevFrameCoord, 0.0).rgb;
-    } else if (source == 3) {
-        prevFrame = textureSampleLevel(mixerTex, samp, prevFrameCoord, 0.0).rgb;
-    } else if (source == 4) {
-        prevFrame = textureSampleLevel(post1Tex, samp, prevFrameCoord, 0.0).rgb;
-    } else if (source == 5) {
-        prevFrame = textureSampleLevel(post2Tex, samp, prevFrameCoord, 0.0).rgb;
-    } else if (source == 6) {
-        prevFrame = textureSampleLevel(post3Tex, samp, prevFrameCoord, 0.0).rgb;
-    } else {
-        prevFrame = textureSampleLevel(finalTex, samp, prevFrameCoord, 0.0).rgb;
-    }
+    let prevFrame = textureSampleLevel(inputTex, samp, prevFrameCoord, 0.0).rgb;
 
     let prevLum = lum(prevFrame);
 

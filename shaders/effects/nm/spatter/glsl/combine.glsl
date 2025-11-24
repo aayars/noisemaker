@@ -26,7 +26,7 @@ float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
 }
 
-float sample_grayscale(texture_2d<f32> tex, ivec2 coords) {
+float sample_grayscale(sampler2D tex, ivec2 coords) {
     return clamp01(texture(tex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(tex, 0))).x);
 }
 
@@ -46,10 +46,10 @@ void main() {
     }
 
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    float smear_value = sample_grayscale(smear_texture, coords);
-    float primary_value = sample_grayscale(spatter_primary_texture, coords);
-    float secondary_value = sample_grayscale(spatter_secondary_texture, coords);
-    float removal_value = sample_grayscale(removal_texture, coords);
+    float smear_value = sample_grayscale(smear_texture, ivec2(coords));
+    float primary_value = sample_grayscale(spatter_primary_texture, ivec2(coords));
+    float secondary_value = sample_grayscale(spatter_secondary_texture, ivec2(coords));
+    float removal_value = sample_grayscale(removal_texture, ivec2(coords));
 
     float combined = max(smear_value, max(primary_value, secondary_value));
     float masked = max(0.0, combined - removal_value);

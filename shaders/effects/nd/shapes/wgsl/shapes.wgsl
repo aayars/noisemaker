@@ -556,7 +556,7 @@ fn pal(t: f32) -> vec3<f32> {
 }
 
 @fragment
-fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     resolution = uniforms.data[0].xy;
     time = uniforms.data[0].z;
     seed = uniforms.data[0].w;

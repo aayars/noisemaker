@@ -73,7 +73,34 @@ vec2 periodic_offset(float time_value, float speed, float seed) {
     return vec2(cos(angle), sin(angle)) * radius;
 }
 
-void simple_multires_exp(float ridge(float value) {
+float simple_multires_exp(
+    vec2 uv,
+    vec2 base_freq,
+    uint octaves,
+    float time_value,
+    float speed_value,
+    float seed
+) {
+    vec2 freq = base_freq;
+    float amplitude = 0.5;
+    float accum = 0.0;
+    float weight = 0.0;
+    for (uint octave = 0u; octave < octaves; octave = octave + 1u) {
+        float octave_seed = seed + float(octave) * 37.17;
+        vec2 offset = periodic_offset(time_value + float(octave) * 0.31, speed_value, octave_seed);
+        float sample_val = value_noise(uv * freq + offset, octave_seed);
+        accum = accum + pow(sample_val, 4.0) * amplitude;
+        weight = weight + amplitude;
+        freq = freq * 2.0;
+        amplitude = amplitude * 0.5;
+    }
+    if (weight > 0.0) {
+        accum = accum / weight;
+    }
+    return clamp01(accum);
+}
+
+float ridge(float value) {
     return 1.0 - abs(value * 2.0 - 1.0);
 }
 

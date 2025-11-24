@@ -9,7 +9,7 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D src;
+uniform sampler2D inputTex;
 uniform vec2 resolution;
 uniform float time;
 uniform float seed;
@@ -219,12 +219,12 @@ void main() {
     float aberrationOffset = map(aberrationAmt, 0.0, 100.0, 0.0, 0.05) * centerDist * PI * 0.5;
 
     float redOffset = mix(clamp(lensedCoords.x + aberrationOffset, 0.0, 1.0), lensedCoords.x, lensedCoords.x);
-    vec4 red = texture(src, vec2(redOffset, lensedCoords.y));
+    vec4 red = texture(inputTex, vec2(redOffset, lensedCoords.y));
 
-    vec4 green = texture(src, lensedCoords);
+    vec4 green = texture(inputTex, lensedCoords);
 
     float blueOffset = mix(lensedCoords.x, clamp(lensedCoords.x - aberrationOffset, 0.0, 1.0), lensedCoords.x);
-    vec4 blue = texture(src, vec2(blueOffset, lensedCoords.y));
+    vec4 blue = texture(inputTex, vec2(blueOffset, lensedCoords.y));
 
     //color = vec4(red.r, green.g, blue.b, color.a);
 

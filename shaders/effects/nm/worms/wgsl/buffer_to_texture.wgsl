@@ -5,7 +5,7 @@ struct WormsParams {
     behavior_density_stride_padding : vec4<f32>,
     stride_deviation_alpha_kink : vec3<f32>,
     quantize_time_padding_intensity : vec4<f32>,
-    inputIntensity_lifetime_padding : vec4<f32>,
+    inputIntensity_padding : vec4<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> output_buffer : array<f32>;

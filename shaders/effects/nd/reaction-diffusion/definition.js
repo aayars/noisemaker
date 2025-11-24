@@ -175,23 +175,6 @@ export default class ReactionDiffusion extends Effect {
         label: "smoothing",
         control: "dropdown"
       }
-    },
-    inputSource: {
-      type: "int",
-      default: 1,
-      choices: {
-        "Self (Feedback)": 0,
-        "Synth 1": 1,
-        "Synth 2": 2,
-        "Mixer": 3,
-        "Post 1": 4,
-        "Post 2": 5,
-        "Post 3": 6
-      },
-      ui: {
-        label: "input source",
-        control: "dropdown"
-      }
     }
   };
 
@@ -201,7 +184,7 @@ export default class ReactionDiffusion extends Effect {
       type: "render",
       program: "reaction-diffusion-fb",
       inputs: {
-        stateTex: "global_reaction_diffusion_state",
+        bufTex: "global_reaction_diffusion_state",
         inputTex: "inputTex"
       },
       outputs: {

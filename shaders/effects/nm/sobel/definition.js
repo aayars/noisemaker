@@ -13,6 +13,7 @@ export default class Sobel extends Effect {
     dist_metric: {
         type: "enum",
         default: 1,
+        uniform: "dist_metric",
         ui: {
             label: "Distance Metric"
         }
@@ -23,6 +24,7 @@ export default class Sobel extends Effect {
         min: 0,
         max: 1,
         step: 0.01,
+        uniform: "alpha",
         ui: {
             label: "Alpha",
             control: "slider"
@@ -30,13 +32,10 @@ export default class Sobel extends Effect {
     }
 };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "compute",
+      type: "render",
       program: "sobel",
       inputs: {
         inputTex: "inputTex"

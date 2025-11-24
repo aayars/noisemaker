@@ -213,7 +213,7 @@ export default class ShapeMixer extends Effect {
       program: "shape-mixer",
       inputs: {
               tex0: "inputTex",
-              tex1: "tex"
+              tex1: "inputTex"
             }
 ,
       outputs: {

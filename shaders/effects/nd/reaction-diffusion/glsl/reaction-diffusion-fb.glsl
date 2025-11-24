@@ -25,14 +25,7 @@ uniform int sourceR1;
 uniform int sourceR2;
 uniform float zoom;
 
-uniform int source;
-uniform sampler2D synth1Tex;
-uniform sampler2D synth2Tex;
-uniform sampler2D mixerTex;
-uniform sampler2D post1Tex;
-uniform sampler2D post2Tex;
-uniform sampler2D post3Tex;
-uniform sampler2D finalTex;
+uniform sampler2D inputTex;
 
 out vec4 fragColor;
 #define aspectRatio resolution.x / resolution.y
@@ -85,22 +78,7 @@ void main() {
     vec2 prevFrameCoord = gl_FragCoord.xy/vec2(texSize);
     prevFrameCoord.y = 1.0 - prevFrameCoord.y;
 
-    vec3 prevFrame = vec3(1.0);
-    if (source == 1) {
-        prevFrame = texture(synth1Tex, prevFrameCoord).rgb;
-    } else if (source == 2) {
-        prevFrame = texture(synth2Tex, prevFrameCoord).rgb;
-    } else if (source == 3) {
-        prevFrame = texture(mixerTex, prevFrameCoord).rgb;
-    } else if (source == 4) {
-        prevFrame = texture(post1Tex, prevFrameCoord).rgb;
-    } else if (source == 5) {
-        prevFrame = texture(post2Tex, prevFrameCoord).rgb;
-    } else if (source == 6) {
-        prevFrame = texture(post3Tex, prevFrameCoord).rgb;
-    } else {
-        prevFrame = texture(finalTex, prevFrameCoord).rgb;
-    }
+    vec3 prevFrame = texture(inputTex, prevFrameCoord).rgb;
 
     float prevLum = lum(prevFrame);
 

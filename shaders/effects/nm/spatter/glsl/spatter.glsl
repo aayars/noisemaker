@@ -3,158 +3,171 @@
 precision highp float;
 precision highp int;
 
-// Final spatter blend pass. Expects a precomputed mask texture and reuses the
-// previously implemented blend_layers logic for feathered transitions between
-// the original image and the tinted splash layer.
+// Single-pass spatter effect: generates noise mask and applies tinted blend.
+// Combines the functionality of noise_seed, combine, and spatter passes.
 
-const uint CHANNEL_CAP = 4u;
-const float BLEND_FEATHER = 0.005;
+uniform sampler2D inputTex;
+uniform float time;
+uniform float color;  // 0 = no color, 1 = randomized hue, 2+ = fixed color
 
+in vec2 v_texCoord;
+out vec4 fragColor;
 
-uniform sampler2D input_texture;
-uniform vec4 size;
-uniform vec4 color;
-uniform vec4 timing;
-uniform sampler2D mask_texture;
-
-float clamp01(float value) {
-    return clamp(value, 0.0, 1.0);
-}
-
-vec3 pick_layer(uint index, vec3 base_rgb, vec3 tinted_rgb) {
-    if (index == 0u) {
-        return base_rgb;
-    }
-    return tinted_rgb;
-}
-
-vec3 blend_spatter_layers(float control, vec3 base_rgb, vec3 tinted_rgb) {
-    float normalized = clamp01(control);
-    uint layer_count = 2u;
-    uint extended_count = layer_count + 1u;
-    float scaled = normalized * float(extended_count);
-    float floor_value = floor(scaled);
-    uint floor_index = min(uint(floor_value), extended_count - 1u);
-    uint next_index = (floor_index + 1u) % extended_count;
-    vec3 lower_layer = pick_layer(floor_index, base_rgb, tinted_rgb);
-    vec3 upper_layer = pick_layer(next_index, base_rgb, tinted_rgb);
-    float fract_value = scaled - floor_value;
-    float safe_feather = max(BLEND_FEATHER, 1e-6);
-    float feather_mix = clamp01((fract_value - (1.0 - safe_feather)) / safe_feather);
-    return mix(lower_layer, upper_layer, feather_mix);
-}
-
-uint sanitized_channel_count(float channel_value) {
-    int rounded = int(round(channel_value));
-    if (rounded <= 1) {
-        return 1u;
-    }
-    if (rounded >= int(CHANNEL_CAP)) {
-        return CHANNEL_CAP;
-    }
-    return uint(rounded);
-}
-
+// Hash functions for procedural noise
 float hash21(vec2 p) {
     float h = dot(p, vec2(127.1, 311.7));
     return fract(sin(h) * 43758.5453123);
 }
 
-vec3 rgb_to_hsv(vec3 rgb) {
-    float c_max = max(max(rgb.x, rgb.y), rgb.z);
-    float c_min = min(min(rgb.x, rgb.y), rgb.z);
-    float delta = c_max - c_min;
+float hash31(vec3 p) {
+    float h = dot(p, vec3(127.1, 311.7, 74.7));
+    return fract(sin(h) * 43758.5453123);
+}
 
+// Smooth interpolation
+float fade(float t) {
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// Value noise
+float value_noise(vec2 p, float seed) {
+    vec2 cell = floor(p);
+    vec2 f = fract(p);
+    float tl = hash31(vec3(cell, seed));
+    float tr = hash31(vec3(cell + vec2(1.0, 0.0), seed));
+    float bl = hash31(vec3(cell + vec2(0.0, 1.0), seed));
+    float br = hash31(vec3(cell + vec2(1.0, 1.0), seed));
+    vec2 st = vec2(fade(f.x), fade(f.y));
+    return mix(mix(tl, tr, st.x), mix(bl, br, st.x), st.y);
+}
+
+// Offset for animation
+vec2 periodic_offset(float t, float speed, float seed) {
+    float angle = t * (0.35 + speed * 0.15) + seed * 1.97;
+    float radius = 0.25 + 0.45 * hash21(vec2(seed, seed + 19.0));
+    return vec2(cos(angle), sin(angle)) * radius;
+}
+
+// Multi-octave noise with exponential falloff
+float multires_noise(vec2 uv, vec2 base_freq, int octaves, float t, float speed, float seed) {
+    vec2 freq = base_freq;
+    float amplitude = 0.5;
+    float accum = 0.0;
+    float weight = 0.0;
+    for (int i = 0; i < octaves; i++) {
+        float octave_seed = seed + float(i) * 37.17;
+        vec2 offset = periodic_offset(t + float(i) * 0.31, speed, octave_seed);
+        float sample_val = value_noise(uv * freq + offset, octave_seed);
+        accum += pow(sample_val, 4.0) * amplitude;
+        weight += amplitude;
+        freq *= 2.0;
+        amplitude *= 0.5;
+    }
+    return weight > 0.0 ? clamp(accum / weight, 0.0, 1.0) : 0.0;
+}
+
+// Ridge function for mask
+float ridge(float v) {
+    return 1.0 - abs(v * 2.0 - 1.0);
+}
+
+// Random range helper
+float random_range(vec2 seed, float min_val, float max_val) {
+    return min_val + hash21(seed) * (max_val - min_val);
+}
+
+// HSV conversion
+vec3 rgb_to_hsv(vec3 rgb) {
+    float c_max = max(max(rgb.r, rgb.g), rgb.b);
+    float c_min = min(min(rgb.r, rgb.g), rgb.b);
+    float delta = c_max - c_min;
     float hue = 0.0;
     if (delta > 0.0) {
-        if (c_max == rgb.x) {
-            hue = (rgb.y - rgb.z) / delta;
-        } else if (c_max == rgb.y) {
-            hue = (rgb.z - rgb.x) / delta + 2.0;
+        if (c_max == rgb.r) {
+            hue = (rgb.g - rgb.b) / delta;
+        } else if (c_max == rgb.g) {
+            hue = (rgb.b - rgb.r) / delta + 2.0;
         } else {
-            hue = (rgb.x - rgb.y) / delta + 4.0;
+            hue = (rgb.r - rgb.g) / delta + 4.0;
         }
         hue = fract(hue / 6.0);
     }
-
-    float sat = select(0.0, delta / c_max, c_max > 0.0);
+    float sat = c_max > 0.0 ? delta / c_max : 0.0;
     return vec3(hue, sat, c_max);
 }
 
 vec3 hsv_to_rgb(vec3 hsv) {
-    float hue = fract(hsv.x) * 6.0;
-    float sat = clamp01(hsv.y);
-    float val = clamp01(hsv.z);
-    float c = val * sat;
-    float x = c * (1.0 - abs(fract(hue) * 2.0 - 1.0));
-    float m = val - c;
-    if (hue < 1.0) {
-        return vec3(c + m, x + m, m);
-    }
-    if (hue < 2.0) {
-        return vec3(x + m, c + m, m);
-    }
-    if (hue < 3.0) {
-        return vec3(m, c + m, x + m);
-    }
-    if (hue < 4.0) {
-        return vec3(m, x + m, c + m);
-    }
-    if (hue < 5.0) {
-        return vec3(x + m, m, c + m);
-    }
-    return vec3(c + m, m, x + m);
+    float h = fract(hsv.x) * 6.0;
+    float s = clamp(hsv.y, 0.0, 1.0);
+    float v = clamp(hsv.z, 0.0, 1.0);
+    float c = v * s;
+    float x = c * (1.0 - abs(mod(h, 2.0) - 1.0));
+    float m = v - c;
+    vec3 rgb;
+    if (h < 1.0) rgb = vec3(c, x, 0.0);
+    else if (h < 2.0) rgb = vec3(x, c, 0.0);
+    else if (h < 3.0) rgb = vec3(0.0, c, x);
+    else if (h < 4.0) rgb = vec3(0.0, x, c);
+    else if (h < 5.0) rgb = vec3(x, 0.0, c);
+    else rgb = vec3(c, 0.0, x);
+    return rgb + m;
 }
 
-
-out vec4 fragColor;
-
 void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
-
-    uint width = uint(max(round(size.x), 0.0));
-    uint height = uint(max(round(size.y), 0.0));
-    if (width == 0u || height == 0u) {
-        return;
-    }
-    if (global_id.x >= width || global_id.y >= height) {
-        return;
-    }
-
-    vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 base_color = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
-    vec4 mask_sample = texture(mask_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(mask_texture, 0)));
-
-    uint channel_count = sanitized_channel_count(size.z);
-    float color_toggle = color.x;
-    float time_value = timing.x;
-
-    vec3 base_splash_rgb = clamp(
-        vec3(color.y, color.z, color.w),
-        vec3(0.0),
-        vec3(1.0),
-    );
-
-    vec3 splash_rgb = vec3(0.0, 0.0, 0.0);
-    if (color_toggle > 0.5 && channel_count >= 3u) {
-        if (color_toggle > 1.5) {
-            splash_rgb = base_splash_rgb;
+    vec4 base_color = texture(inputTex, v_texCoord);
+    vec2 dims = vec2(textureSize(inputTex, 0));
+    
+    // Seed for reproducible randomness
+    float base_seed = floor(time * 0.5) * 17.3;
+    float speed = 0.5;
+    
+    // Generate aspect-corrected frequency
+    float aspect = dims.x / dims.y;
+    
+    // Smear: low frequency base (3-6 octaves)
+    float smear_freq = random_range(vec2(time * 0.17 + base_seed + 3.0, base_seed + 29.0), 3.0, 6.0);
+    vec2 smear_freq_adj = vec2(smear_freq, smear_freq * aspect);
+    float smear = multires_noise(v_texCoord, smear_freq_adj, 6, time, speed, base_seed + 23.0);
+    
+    // Primary spatter: medium frequency dots (32-64)
+    float primary_freq = random_range(vec2(time * 0.37 + base_seed + 5.0, base_seed + 59.0), 32.0, 64.0);
+    vec2 primary_freq_adj = vec2(primary_freq, primary_freq * aspect);
+    float primary = multires_noise(v_texCoord, primary_freq_adj, 4, time, speed, base_seed + 43.0);
+    
+    // Secondary spatter: high frequency fine dots (150-200)
+    float secondary_freq = random_range(vec2(time * 0.41 + base_seed + 13.0, base_seed + 97.0), 150.0, 200.0);
+    vec2 secondary_freq_adj = vec2(secondary_freq, secondary_freq * aspect);
+    float secondary = multires_noise(v_texCoord, secondary_freq_adj, 4, time, speed, base_seed + 71.0);
+    
+    // Removal mask: ridge-filtered low frequency (2-3)
+    float removal_freq = random_range(vec2(time * 0.23 + base_seed + 31.0, base_seed + 149.0), 2.0, 3.0);
+    vec2 removal_freq_adj = vec2(removal_freq, removal_freq * aspect);
+    float removal_base = multires_noise(v_texCoord, removal_freq_adj, 3, time, speed, base_seed + 89.0);
+    float removal = ridge(removal_base);
+    
+    // Combine masks
+    float combined = max(smear, max(primary, secondary));
+    float mask = clamp(combined - removal, 0.0, 1.0);
+    
+    // Determine splash color
+    vec3 splash_rgb = vec3(0.7, 0.2, 0.1);  // Default reddish-brown color
+    
+    if (color > 0.5) {
+        if (color > 1.5) {
+            // Fixed color mode - keep default
         } else {
-            vec3 base_hsv = rgb_to_hsv(base_splash_rgb);
-            float hue_jitter = hash21(vec2(floor(time_value * 60.0) + 211.0, 307.0)) - 0.5;
-            vec3 randomized_hsv = vec3(
-                base_hsv.x + hue_jitter,
-                base_hsv.y,
-                base_hsv.z,
-            );
-            splash_rgb = hsv_to_rgb(randomized_hsv);
+            // Randomized hue mode
+            vec3 base_hsv = rgb_to_hsv(splash_rgb);
+            float hue_jitter = hash21(vec2(floor(time * 60.0) + 211.0, 307.0)) - 0.5;
+            splash_rgb = hsv_to_rgb(vec3(base_hsv.x + hue_jitter, base_hsv.y, base_hsv.z));
         }
+    } else {
+        splash_rgb = vec3(0.0);  // No color - black
     }
-
-    vec3 tinted_rgb = base_color.xyz * splash_rgb;
-    float mask_value = clamp01(mask_sample.x);
-    vec3 final_rgb = blend_spatter_layers(mask_value, base_color.xyz, tinted_rgb);
-
-    uint base_index = (global_id.y * width + global_id.x) * CHANNEL_CAP;
-    fragColor = vec4(clamp01(final_rgb.x), clamp01(final_rgb.y), clamp01(final_rgb.z), base_color.w);
+    
+    // Blend with original based on mask
+    vec3 tinted = base_color.rgb * splash_rgb;
+    vec3 final_rgb = mix(base_color.rgb, tinted, mask);
+    
+    fragColor = vec4(final_rgb, base_color.a);
 }

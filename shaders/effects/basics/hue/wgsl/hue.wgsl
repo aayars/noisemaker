@@ -1,6 +1,6 @@
 // WGSL version – WebGPU
 @group(0) @binding(0) var tex0: texture_2d<f32>;
-@group(0) @binding(2) var sampler: sampler;
+@group(0) @binding(2) var samp: sampler;
 @group(0) @binding(3) var<uniform> hue: f32;
 
 fn rgb2hsv(c: vec3<f32>) -> vec3<f32> {
@@ -22,7 +22,7 @@ fn hsv2rgb(c: vec3<f32>) -> vec3<f32> {
 @fragment
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
   let st = position.xy / vec2<f32>(textureDimensions(tex0));
-  let c = textureSample(tex0, sampler, st);
+  let c = textureSample(tex0, samp, st);
   var hsv = rgb2hsv(c.rgb);
   hsv.x = fract(hsv.x + hue);
   let rgb = hsv2rgb(hsv);

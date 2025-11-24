@@ -9,7 +9,7 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D src;
+uniform sampler2D inputTex;
 uniform vec2 resolution;
 uniform float time;
 uniform bool useSplats;
@@ -120,7 +120,7 @@ void main() {
 	vec2 uv = gl_FragCoord.xy / resolution;	
 	uv.y = 1.0 - uv.y;
 
-	vec4 color = texture(src, uv);
+	vec4 color = texture(inputTex, uv);
 
     vec2 noiseCoord = uv * vec2(aspectRatio, 1.0);
 
@@ -130,7 +130,7 @@ void main() {
         if (speckMode == 0) {
             color.rgb = mix(color.rgb, speckColor, speckMask); // color
         } else if (speckMode == 1) {
-            color = texture(src, uv + speckMask * 0.1); // displace
+            color = texture(inputTex, uv + speckMask * 0.1); // displace
         } else if (speckMode == 2) {
             color.rgb = mix(color.rgb, 1.0 - color.rgb, speckMask); // invert
         } else if (speckMode == 3) {
@@ -144,7 +144,7 @@ void main() {
         if (splatMode == 0) {
             color.rgb = mix(color.rgb, splatColor, splatMask); // color
         } else if (splatMode == 1) {
-            vec4 texColor = texture(src, uv + splatMask * 0.1); // displace
+            vec4 texColor = texture(inputTex, uv + splatMask * 0.1); // displace
             color = mix(color, texColor, splatMask);
         } else if (splatMode == 2) {
             color.rgb = mix(color.rgb, 1.0 - color.rgb, splatMask); // invert
