@@ -1,0 +1,75 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Noise extends Effect {
+  name = "Noise";
+  namespace = "basics";
+  func = "noise";
+
+  globals = {
+    "scale": {
+        "type": "float",
+        "default": 3,
+        "min": 0,
+        "max": 100,
+        "uniform": "scale"
+    },
+    "offset": {
+        "type": "float",
+        "default": 0,
+        "min": -100,
+        "max": 100,
+        "uniform": "offset"
+    },
+    "octaves": {
+        "type": "int",
+        "default": 1,
+        "min": 1,
+        "max": 6,
+        "uniform": "octaves"
+    },
+    "colorMode": {
+        "type": "member",
+        "default": "color.rgb",
+        "enum": "color",
+        "uniform": "colorMode"
+    },
+    "hueRot": {
+        "type": "float",
+        "default": 0,
+        "min": 0,
+        "max": 360,
+        "uniform": "hueRotation"
+    },
+    "hueRange": {
+        "type": "float",
+        "default": 100,
+        "min": 0,
+        "max": 100,
+        "uniform": "hueRange"
+    },
+    "ridged": {
+        "type": "boolean",
+        "default": false,
+        "uniform": "ridged"
+    },
+    "seed": {
+        "type": "float",
+        "default": 0,
+        "min": 0,
+        "max": 100,
+        "uniform": "seed"
+    }
+};
+
+  passes = [
+    {
+      name: "main",
+      type: "render",
+      program: "noise",
+      inputs: {},
+      outputs: {
+        color: "outputColor"
+      }
+    }
+  ];
+}

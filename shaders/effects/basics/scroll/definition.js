@@ -1,0 +1,52 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Scroll extends Effect {
+  name = "Scroll";
+  namespace = "basics";
+  func = "scroll";
+
+  globals = {
+    "x": {
+        "type": "float",
+        "default": 0,
+        "min": -10,
+        "max": 10,
+        "uniform": "x"
+    },
+    "y": {
+        "type": "float",
+        "default": 0,
+        "min": -10,
+        "max": 10,
+        "uniform": "y"
+    },
+    "speedX": {
+        "type": "float",
+        "default": 0,
+        "min": -10,
+        "max": 10,
+        "uniform": "speedX"
+    },
+    "speedY": {
+        "type": "float",
+        "default": 0,
+        "min": -10,
+        "max": 10,
+        "uniform": "speedY"
+    }
+};
+
+  passes = [
+    {
+      name: "main",
+      type: "render",
+      program: "scroll",
+      inputs: {
+      "tex0": "inputTex"
+},
+      outputs: {
+        color: "outputColor"
+      }
+    }
+  ];
+}

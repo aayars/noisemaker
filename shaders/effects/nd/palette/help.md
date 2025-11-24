@@ -1,0 +1,3 @@
+# Palette
+
+Effect description.

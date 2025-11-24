@@ -1,0 +1,74 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * Scratches
+ * /shaders/effects/scratches/scratches.wgsl
+ */
+export default class Scratches extends Effect {
+  name = "Scratches";
+  namespace = "nm";
+  func = "scratches";
+
+  globals = {
+    speed: {
+      type: "float",
+      default: 1,
+      min: 0,
+      max: 5,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
+    },
+    seed: {
+      type: "float",
+      default: 0,
+      min: 0,
+      max: 100,
+      step: 0.1,
+      ui: {
+        label: "Seed",
+        control: "slider"
+      }
+    },
+    enabled: {
+      type: "boolean",
+      default: true,
+      ui: {
+        label: "Enabled",
+        control: "checkbox"
+      }
+    }
+  };
+
+  textures = {
+    scratchMask: { width: "100%", height: "100%", format: "rgba16f" }
+  };
+
+  passes = [
+    {
+      name: "mask",
+      type: "render",
+      program: "scratches_mask",
+      inputs: {
+        input_texture: "inputTex"
+      },
+      outputs: {
+        color: "scratchMask"
+      }
+    },
+    {
+      name: "combine",
+      type: "render",
+      program: "scratches",
+      inputs: {
+        input_texture: "inputTex",
+        mask_texture: "scratchMask"
+      },
+      outputs: {
+        color: "outputColor"
+      }
+    }
+  ];
+}

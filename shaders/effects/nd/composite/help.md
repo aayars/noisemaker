@@ -1,0 +1,3 @@
+# Composite
+
+Effect description.

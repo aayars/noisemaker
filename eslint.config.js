@@ -1,13 +1,27 @@
+import globals from 'globals';
+import pluginJs from '@eslint/js';
+
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'venv/**', '__pycache__/**', 'docs/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'venv/**',
+      '__pycache__/**',
+      'docs/**',
+      'shaders/to-port/**',
+    ],
   },
   {
-    files: ['js/**/*.js', 'scripts/**/*.js', 'test/**/*.js'],
+    ...pluginJs.configs.recommended,
+    files: ['js/**/*.js', 'scripts/**/*.js', 'test/**/*.js', 'shaders/**/*.js'],
     languageOptions: {
+      ...pluginJs.configs.recommended.languageOptions,
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: {
+        ...globals.browser,
+        ...globals.node,
         console: 'readonly',
         process: 'readonly',
         Buffer: 'readonly',
@@ -26,15 +40,20 @@ export default [
         global: 'writable',
         NOISEMAKER_PRESETS_DSL: 'readonly',
         glData: 'readonly',
+        None: 'readonly',
       },
     },
     rules: {
-      'no-unused-vars': ['error', { 
-        argsIgnorePattern: '^_|^shape$|^time$|^speed$', 
-        varsIgnorePattern: '^_|^h$|^w$|^c$',
-        destructuredArrayIgnorePattern: '^_',
-        caughtErrors: 'none'
-      }],
+      ...pluginJs.configs.recommended.rules,
+      'no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_|^shape$|^time$|^speed$',
+          varsIgnorePattern: '^_|^h$|^w$|^c$',
+          destructuredArrayIgnorePattern: '^_',
+          caughtErrors: 'none',
+        },
+      ],
       'no-undef': 'error',
     },
   },

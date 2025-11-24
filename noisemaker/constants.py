@@ -14,8 +14,10 @@ _CONSTANTS_FILE = os.path.join(_SHARE_DIR, "constants.json")
 with open(_CONSTANTS_FILE) as f:
     _CONSTANTS = json.load(f)
 
+
 def _get_enum_members(name: str) -> dict[str, int]:
     return _CONSTANTS[name]
+
 
 class DistanceMetricMixin:
     """
@@ -30,7 +32,7 @@ class DistanceMetricMixin:
         Returns:
             List of all non-none distance metrics
         """
-        return [m for m in cls if m.name != 'none']
+        return [m for m in cls if m.name != "none"]
 
     @classmethod
     def absolute_members(cls: Type[Enum]) -> list[Enum]:
@@ -53,7 +55,7 @@ class DistanceMetricMixin:
         Returns:
             True if metric requires absolute inputs
         """
-        return member.name != 'none' and member.value < cls.triangular.value
+        return member.name != "none" and member.value < cls.triangular.value
 
     @classmethod
     def signed_members(cls: Type[Enum]) -> list[Enum]:
@@ -76,20 +78,21 @@ class DistanceMetricMixin:
         Returns:
             True if metric requires signed inputs
         """
-        return member.name != 'none' and not cls.is_absolute(member)
+        return member.name != "none" and not cls.is_absolute(member)
 
 
-DistanceMetric = Enum('DistanceMetric', _get_enum_members('DistanceMetric'), type=DistanceMetricMixin)
+DistanceMetric = Enum("DistanceMetric", _get_enum_members("DistanceMetric"), type=DistanceMetricMixin)
 
 
 class InterpolationTypeMixin:
     """
     Specify the spline point count for interpolation operations.
     """
+
     pass
 
 
-InterpolationType = Enum('InterpolationType', _get_enum_members('InterpolationType'), type=InterpolationTypeMixin)
+InterpolationType = Enum("InterpolationType", _get_enum_members("InterpolationType"), type=InterpolationTypeMixin)
 
 
 class PointDistributionMixin:
@@ -144,7 +147,7 @@ class PointDistributionMixin:
         return member.value >= cls.circular.value
 
 
-PointDistribution = Enum('PointDistribution', _get_enum_members('PointDistribution'), type=PointDistributionMixin)
+PointDistribution = Enum("PointDistribution", _get_enum_members("PointDistribution"), type=PointDistributionMixin)
 
 
 class ValueDistributionMixin:
@@ -188,7 +191,7 @@ class ValueDistributionMixin:
         return cls.is_center_distance(member)
 
 
-ValueDistribution = Enum('ValueDistribution', _get_enum_members('ValueDistribution'), type=ValueDistributionMixin)
+ValueDistribution = Enum("ValueDistribution", _get_enum_members("ValueDistribution"), type=ValueDistributionMixin)
 
 
 class ValueMaskMixin:
@@ -327,7 +330,7 @@ class ValueMaskMixin:
         return member in cls.glyph_members()
 
 
-ValueMask = Enum('ValueMask', _get_enum_members('ValueMask'), type=ValueMaskMixin)
+ValueMask = Enum("ValueMask", _get_enum_members("ValueMask"), type=ValueMaskMixin)
 
 
 class VoronoiDiagramTypeMixin:
@@ -359,7 +362,7 @@ class VoronoiDiagramTypeMixin:
         return member in cls.flow_members()
 
 
-VoronoiDiagramType = Enum('VoronoiDiagramType', _get_enum_members('VoronoiDiagramType'), type=VoronoiDiagramTypeMixin)
+VoronoiDiagramType = Enum("VoronoiDiagramType", _get_enum_members("VoronoiDiagramType"), type=VoronoiDiagramTypeMixin)
 
 
 class WormBehaviorMixin:
@@ -379,18 +382,19 @@ class WormBehaviorMixin:
         Returns:
             List of all non-none worm behaviors
         """
-        return [m for m in cls if m.name != 'none']
+        return [m for m in cls if m.name != "none"]
 
 
-WormBehavior = Enum('WormBehavior', _get_enum_members('WormBehavior'), type=WormBehaviorMixin)
+WormBehavior = Enum("WormBehavior", _get_enum_members("WormBehavior"), type=WormBehaviorMixin)
 
 
 class OctaveBlendingMixin:
     """Specify the mode for flattening octaves."""
+
     pass
 
 
-OctaveBlending = Enum('OctaveBlending', _get_enum_members('OctaveBlending'), type=OctaveBlendingMixin)
+OctaveBlending = Enum("OctaveBlending", _get_enum_members("OctaveBlending"), type=OctaveBlendingMixin)
 
 
 class ColorSpaceMixin:
@@ -420,4 +424,4 @@ class ColorSpaceMixin:
         return [m for m in cls if cls.is_color(m)]
 
 
-ColorSpace = Enum('ColorSpace', _get_enum_members('ColorSpace'), type=ColorSpaceMixin)
+ColorSpace = Enum("ColorSpace", _get_enum_members("ColorSpace"), type=ColorSpaceMixin)

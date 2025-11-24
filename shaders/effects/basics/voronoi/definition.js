@@ -1,0 +1,43 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Voronoi extends Effect {
+  name = "Voronoi";
+  namespace = "basics";
+  func = "voronoi_basics";
+
+  globals = {
+    "scale": {
+        "type": "float",
+        "default": 5,
+        "min": 0,
+        "max": 100,
+        "uniform": "scale"
+    },
+    "speed": {
+        "type": "float",
+        "default": 0,
+        "min": -10,
+        "max": 10,
+        "uniform": "speed"
+    },
+    "blend": {
+        "type": "float",
+        "default": 0,
+        "min": 0,
+        "max": 1,
+        "uniform": "blend"
+    }
+};
+
+  passes = [
+    {
+      name: "main",
+      type: "render",
+      program: "voronoi",
+      inputs: {},
+      outputs: {
+        color: "outputColor"
+      }
+    }
+  ];
+}

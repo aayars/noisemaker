@@ -1,93 +1,32 @@
-# Noisemaker Shaders
+# Noisemaker Rendering Pipeline
 
-WebGPU/WGSL implementations of selected Noisemaker effects. This directory is a distinct, standalone track separate from the Python and JavaScript implementations—changes here do not affect the Python/JS pipelines, and vice‑versa.
+The Noisemaker Rendering Pipeline is a high-performance, backend-agnostic system designed to execute complex, multi-pass visual effects on the GPU. It supports both WebGL 2 and WebGPU, allowing for declarative effect definitions and a powerful live-coding experience via the Polymorphic DSL that powers the Noisemaker Shader Effects Collection.
 
-## Current status
+## Core Philosophy
 
-- Effects should load and run in the viewer without console errors.
-- Many effects are still prototypes; quality and parameters may evolve.
-- Visual parity with the Python reference is an active work in progress.
-- PROTO marks shaders where a rough first pass is already in place. TODO flags effects that still need significant work or are only partially explored.
+- **Declarative Effects**: Effects are defined as data (JSON graphs), enabling easy composition and modification.
+- **Graph-Based Execution**: The pipeline treats the entire frame as a Directed Acyclic Graph (DAG) of passes, optimizing execution order and resource usage.
+- **Backend Agnostic**: The runtime abstracts away the differences between WebGL 2 and WebGPU.
+- **Zero CPU Readback**: All data flow happens on the GPU to maximize performance.
+- **Compute First**: First-class support for compute shaders.
 
-### Effect checklist
+## Live Demo
 
-- [[ TODO ]] **clouds**
-- [[ TODO ]] **dla**
-- [[ TODO ]] **frame**
-- [[ TODO ]] **jpeg_decimate**
-- [[ TODO ]] **kaleido**
-- [[ TODO ]] **lowpoly**
-- [[ TODO ]] **shadow**
-- [[ TODO ]] **sketch**
-- [[ TODO ]] **texture**
-- [[ TODO ]] **value_refract**
-- [[ PROTO ]] **aberration**
-- [[ PROTO ]] **adjust_brightness**
-- [[ PROTO ]] **adjust_contrast**
-- [[ PROTO ]] **adjust_hue**
-- [[ PROTO ]] **adjust_saturation**
-- [[ PROTO ]] **bloom**
-- [[ PROTO ]] **blur**
-- [[ PROTO ]] **color_map**
-- [[ PROTO ]] **conv_feedback**
-- [[ PROTO ]] **convolve**
-- [[ PROTO ]] **crt**
-- [[ PROTO ]] **degauss**
-- [[ PROTO ]] **density_map**
-- [[ PROTO ]] **derivative**
-- [[ PROTO ]] **erosion_worms**
-- [[ PROTO ]] **false_color**
-- [[ PROTO ]] **fibers**
-- [[ PROTO ]] **fxaa**
-- [[ PROTO ]] **glowing_edges**
-- [[ PROTO ]] **glyph_map**
-- [[ PROTO ]] **grain**
-- [[ PROTO ]] **grime**
-- [[ PROTO ]] **lens_distortion**
-- [[ PROTO ]] **lens_warp**
-- [[ PROTO ]] **light_leak**
-- [[ PROTO ]] **nebula**
-- [[ PROTO ]] **normalize**
-- [[ PROTO ]] **normal_map**
-- [[ PROTO ]] **on_screen_display**
-- [[ PROTO ]] **outline**
-- [[ PROTO ]] **palette**
-- [[ PROTO ]] **pixel_sort**
-- [[ PROTO ]] **posterize**
-- [[ PROTO ]] **refract**
-- [[ PROTO ]] **reindex**
-- [[ PROTO ]] **reverb**
-- [[ PROTO ]] **ridge**
-- [[ PROTO ]] **ripple**
-- [[ PROTO ]] **rotate**
-- [[ PROTO ]] **scanline_error**
-- [[ PROTO ]] **scratches**
-- [[ PROTO ]] **simple_frame**
-- [[ PROTO ]] **sine**
-- [[ PROTO ]] **snow**
-- [[ PROTO ]] **sobel_operator**
-- [[ PROTO ]] **spatter**
-- [[ PROTO ]] **spooky_ticker**
-- [[ PROTO ]] **stray_hair**
-- [[ PROTO ]] **tint**
-- [[ PROTO ]] **vaseline**
-- [[ PROTO ]] **vhs**
-- [[ PROTO ]] **vignette**
-- [[ PROTO ]] **voronoi**
-- [[ PROTO ]] **vortex**
-- [[ PROTO ]] **warp**
-- [[ PROTO ]] **wobble**
-- [[ PROTO ]] **wormhole**
-- [[ PROTO ]] **worms**
+Explore the pipeline's effects with the interactive demo:
 
-## Using the viewer
+- **[index.html](index.html)**: Live demo showcasing all effects with a two-column interface featuring real-time parameter controls and GLSL/WGSL backend selection.
 
-Open `demo/gpu-effects/index.html` with the project’s development server and select an effect from the menu. Each effect exposes parameters that mirror the Python reference where practical.
+## Documentation
 
-## Development notes
+- **[Effects Specification](EFFECTS.md)**: The schema and format for defining effects as JSON graphs.
+- **[Pipeline Specification](PIPELINE.md)**: Detailed overview of the pipeline architecture, including graph compilation, resource allocation, and execution phases.
+- **[Compiler Specification](COMPILER.md)**: Detailed breakdown of how the DSL is compiled into an executable GPU Render Graph.
+- **[Language Specification](LANGUAGE.md)**: Specification for the Polymorphic DSL used to chain effects.
 
-- This shader collection is independent from the Python and JS pipelines. Keep implementations and controls consistent, but do not couple code across directories.
-- All textures/buffers are treated as 4‑channel RGBA. Do not branch on channel count.
-- WGSL struct members end with a trailing comma, not a semicolon.
-- Controls in the demo should strive to match Python effect params (except "shape").
-- See `shaders/IMPLEMENTATION_GUIDE.md` for architecture, binding layouts, and tutorials.
+## Architecture
+
+The pipeline operates in three main phases:
+
+1.  **Graph Compilation**: Parses the DSL, expands effects into constituent passes, and performs topological sorting.
+2.  **Resource Allocation**: Manages a shared pool of textures and allocates them to graph nodes efficiently.
+3.  **Execution**: Dispatches the render passes to the GPU driver.

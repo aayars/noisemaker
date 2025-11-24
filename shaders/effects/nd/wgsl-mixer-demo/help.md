@@ -1,0 +1,3 @@
+# WgslMixerDemo
+
+Effect description.

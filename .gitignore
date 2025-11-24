@@ -10,3 +10,4 @@ node_modules/
 noisemaker.egg-info
 dist/
 favicon.ico
+.vscode/

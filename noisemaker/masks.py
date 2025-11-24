@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import string
 from typing import Any, Callable
@@ -10,10 +12,6 @@ import numpy as np
 
 import noisemaker.rng as rng
 from noisemaker.constants import ValueMask
-
-
-import json
-import os
 
 # Load masks
 _SHARE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "share"))

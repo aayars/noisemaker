@@ -1,0 +1,42 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * Lens Warp
+ * /shaders/effects/lens_warp/lens_warp.wgsl
+ */
+export default class LensWarp extends Effect {
+  name = "LensWarp";
+  namespace = "nm";
+  func = "lenswarp";
+
+  globals = {
+    displacement: {
+        type: "float",
+        default: 0.0625,
+        min: 0,
+        max: 0.5,
+        step: 0.0025,
+        ui: {
+            label: "Displacement",
+            control: "slider"
+        }
+    }
+};
+
+  // TODO: Define passes based on shader requirements
+  // This effect was originally implemented as a WebGPU compute shader.
+  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  passes = [
+    {
+      name: "main",
+      type: "compute",
+      program: "lens_warp",
+      inputs: {
+        inputTex: "inputTex"
+      },
+      outputs: {
+        outputBuffer: "outputColor"
+      }
+    }
+  ];
+}

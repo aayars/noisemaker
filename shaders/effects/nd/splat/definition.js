@@ -1,0 +1,165 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Splat extends Effect {
+  name = "Splat";
+  namespace = "nd";
+  func = "splat";
+
+  globals = {
+    useSplats: {
+      type: "boolean",
+      default: true,
+      ui: {
+        label: "splats",
+        control: "checkbox"
+      }
+    },
+    useSpecks: {
+      type: "boolean",
+      default: true,
+      ui: {
+        label: "specks",
+        control: "checkbox"
+      }
+    },
+    splatScale: {
+      type: "float",
+      default: 3,
+      min: 1,
+      max: 5,
+      ui: {
+        label: "splat scale",
+        control: "slider"
+      }
+    },
+    splatCutoff: {
+      type: "float",
+      default: 25,
+      min: 0,
+      max: 100,
+      ui: {
+        label: "splat cutoff",
+        control: "slider"
+      }
+    },
+    splatSpeed: {
+      type: "int",
+      default: 1,
+      min: 0,
+      max: 5,
+      ui: {
+        label: "splat speed",
+        control: "slider"
+      }
+    },
+    splatSeed: {
+      type: "int",
+      default: 1,
+      min: 1,
+      max: 100,
+      ui: {
+        label: "splat seed",
+        control: "slider"
+      }
+    },
+    splatMode: {
+      type: "int",
+      default: 2,
+      choices: {
+        Color: 0,
+        Displace: 1,
+        Invert: 2,
+        Negative: 3
+      },
+      ui: {
+        label: "splat mode",
+        control: "dropdown"
+      }
+    },
+    splatColor: {
+      type: "vec4",
+      default: [1.0, 1.0, 1.0, 1.0],
+      ui: {
+        label: "splat color",
+        control: "color"
+      }
+    },
+    speckScale: {
+      type: "float",
+      default: 5,
+      min: 1,
+      max: 5,
+      ui: {
+        label: "speck scale",
+        control: "slider"
+      }
+    },
+    speckCutoff: {
+      type: "float",
+      default: 70,
+      min: 0,
+      max: 100,
+      ui: {
+        label: "speck cutoff",
+        control: "slider"
+      }
+    },
+    speckSpeed: {
+      type: "int",
+      default: 1,
+      min: 0,
+      max: 5,
+      ui: {
+        label: "speck speed",
+        control: "slider"
+      }
+    },
+    speckSeed: {
+      type: "int",
+      default: 1,
+      min: 1,
+      max: 100,
+      ui: {
+        label: "speck seed",
+        control: "slider"
+      }
+    },
+    speckMode: {
+      type: "int",
+      default: 0,
+      choices: {
+        Color: 0,
+        Displace: 1,
+        Invert: 2,
+        Negative: 3
+      },
+      ui: {
+        label: "speck mode",
+        control: "dropdown"
+      }
+    },
+    speckColor: {
+      type: "vec4",
+      default: [0.8, 0.8, 0.8, 1.0],
+      ui: {
+        label: "speck color",
+        control: "color"
+      }
+    }
+  };
+
+  passes = [
+    {
+      name: "render",
+      type: "render",
+      program: "splat",
+      inputs: {
+        src: "o0"
+      },
+
+      outputs: {
+        fragColor: "outputColor"
+      }
+    }
+  ];
+}

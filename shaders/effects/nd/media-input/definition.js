@@ -1,0 +1,178 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class MediaInput extends Effect {
+  name = "MediaInput";
+  namespace = "nd";
+  func = "media_input";
+
+  globals = {
+    seed: {
+      type: "int",
+      default: 1,
+      min: 1,
+      max: 100,
+      ui: {
+        label: "seed",
+        control: "slider"
+      }
+    },
+    source: {
+      type: "int",
+      default: 1,
+      choices: {
+        Camera: 0,
+        File: 1
+      },
+      ui: {
+        label: "source",
+        control: "dropdown"
+      }
+    },
+    file: {
+      type: "file",
+      default: null,
+      ui: {
+        label: "media file",
+        control: "slider"
+      }
+    },
+    position: {
+      type: "int",
+      default: 4,
+      choices: {
+        "Top Left": 0,
+        "Top Center": 1,
+        "Top Right": 2,
+        "Mid Left": 3,
+        "Mid Center": 4,
+        "Mid Right": 5,
+        "Bottom Left": 6,
+        "Bottom Center": 7,
+        "Bottom Right": 8
+      },
+      ui: {
+        label: "position",
+        control: "dropdown"
+      }
+    },
+    tiling: {
+      type: "int",
+      default: 0,
+      choices: {
+        None: 0,
+        "Horiz And Vert": 1,
+        "Horiz Only": 2,
+        "Vert Only": 3
+      },
+      ui: {
+        label: "tiling",
+        control: "dropdown"
+      }
+    },
+    flip: {
+      type: "int",
+      default: 0,
+      choices: {
+        None: 0,
+        "Flip:": null,
+        All: 1,
+        Horizontal: 2,
+        Vertical: 3,
+        "Mirror:": null,
+        "Left → Right": 11,
+        "Left ← Right": 12,
+        "Up → Down": 13,
+        "Up ← Down": 14,
+        "L → R / U → D": 15,
+        "L → R / U ← D": 16,
+        "L ← R / U → D": 17,
+        "L ← R / U ← D": 18
+      },
+      ui: {
+        label: "flip/mirror",
+        control: "dropdown"
+      }
+    },
+    scaleAmt: {
+      type: "float",
+      default: 100,
+      min: 25,
+      max: 400,
+      ui: {
+        label: "scale %",
+        control: "slider"
+      }
+    },
+    rotation: {
+      type: "int",
+      default: 0,
+      min: -180,
+      max: 180,
+      ui: {
+        label: "rotate",
+        control: "slider"
+      }
+    },
+    offsetX: {
+      type: "float",
+      default: 0,
+      min: -100,
+      max: 100,
+      ui: {
+        label: "offset x",
+        control: "slider"
+      }
+    },
+    offsetY: {
+      type: "float",
+      default: 0,
+      min: -100,
+      max: 100,
+      ui: {
+        label: "offset y",
+        control: "slider"
+      }
+    },
+    backgroundColor: {
+      type: "vec4",
+      default: [0.0, 0.0, 0.0, 1.0],
+      ui: {
+        label: "bkg color",
+        control: "color"
+      }
+    },
+    backgroundOpacity: {
+      type: "float",
+      default: 0,
+      min: 0,
+      max: 100,
+      ui: {
+        label: "bkg opacity",
+        control: "slider"
+      }
+    },
+    imageSize: {
+      type: "vec2",
+      default: null,
+      ui: {
+        label: "image size",
+        control: "slider"
+      }
+    }
+  };
+
+  passes = [
+    {
+      name: "render",
+      type: "render",
+      program: "media-input",
+      inputs: {
+        imageTex: "imageTex"
+      },
+
+      outputs: {
+        fragColor: "outputColor"
+      }
+    }
+  ];
+}
