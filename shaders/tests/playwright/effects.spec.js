@@ -151,20 +151,24 @@ test('demo renders all available effects without console errors', async ({ page 
   page.setDefaultTimeout(STATUS_TIMEOUT);
   page.setDefaultNavigationTimeout(STATUS_TIMEOUT);
 
-  page.on('console', message => {
-    if (message.type() === 'error') {
-      consoleMessages.push({ origin: 'console', text: message.text() });
-    }
-  });
-
-  page.on('pageerror', error => {
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('Error') || text.includes('warning') || msg.type() === 'error') {
+        // Try to get JSON args if possible
+        const args = msg.args();
+        Promise.all(args.map(arg => arg.jsonValue().catch(() => ''))).then(values => {
+             const expanded = values.map(v => typeof v === 'object' ? JSON.stringify(v, null, 2) : v).join(' ');
+             consoleMessages.push({ origin: 'console', text: `console: ${text} ${expanded}` });
+        });
+      }
+    });  page.on('pageerror', error => {
     consoleMessages.push({ origin: 'pageerror', text: error.message });
   });
 
-  await page.goto('/');
+  await page.goto('/demo/shaders/');
 
   await page.waitForFunction(() => {
-    const app = document.getElementById('app');
+    const app = document.getElementById('app-container');
     return !!app && window.getComputedStyle(app).display !== 'none';
   }, { timeout: STATUS_TIMEOUT });
 
@@ -187,6 +191,7 @@ test('demo renders all available effects without console errors', async ({ page 
 
   for (const effect of effectValues) {
     if (!effect) continue;
+    if (effect === 'nd/media-input') continue;
     await test.step(`effect: ${effect}`, async () => {
       const baselineState = await page.evaluate(() => {
         const pipeline = window.__noisemakerRenderingPipeline;

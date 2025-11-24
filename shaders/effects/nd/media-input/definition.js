@@ -153,7 +153,7 @@ export default class MediaInput extends Effect {
     },
     imageSize: {
       type: "vec2",
-      default: null,
+      default: [1024, 1024],
       ui: {
         label: "image size",
         control: "slider"

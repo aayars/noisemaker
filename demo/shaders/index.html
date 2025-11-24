@@ -674,7 +674,7 @@
             if (effect.instance.globals) {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
                     const value = parameterValues[key];
-                    if (value === undefined) {
+                    if (value === undefined || value === null) {
                         continue;
                     }
 
@@ -722,8 +722,12 @@ ${mainChain}`;
                 return;
             }
 
+            const verboseParams = Object.fromEntries(Object.entries(parameterValues).map(([k, v]) => [k, v]));
+            console.log('Effect parameters', currentEffect.namespace + '/' + currentEffect.name, verboseParams);
+
             const dsl = buildDslSource(currentEffect);
             currentDsl = dsl;
+            window.__noisemakerCurrentDsl = dsl;
             console.log('DSL', currentEffect.namespace + '/' + currentEffect.name, '\n' + dsl);
 
             try {
@@ -734,6 +738,14 @@ ${mainChain}`;
                         height: 1024,
                         preferWebGPU: currentBackend === 'wgsl'
                     });
+                    
+                    // Provide zoom accessor
+                    pipeline.getGlobalZoom = () => {
+                        if (currentEffect && currentEffect.instance && currentEffect.instance.globals && currentEffect.instance.globals.zoom) {
+                            return parameterValues.zoom || currentEffect.instance.globals.zoom.default || 1;
+                        }
+                        return 1;
+                    };
                 } else {
                     const newGraph = recompile(pipeline, dsl);
                     if (!newGraph) {
@@ -743,6 +755,14 @@ ${mainChain}`;
                             height: 1024,
                             preferWebGPU: currentBackend === 'wgsl'
                         });
+                        
+                        // Provide zoom accessor
+                        pipeline.getGlobalZoom = () => {
+                            if (currentEffect && currentEffect.instance && currentEffect.instance.globals && currentEffect.instance.globals.zoom) {
+                                return parameterValues.zoom || currentEffect.instance.globals.zoom.default || 1;
+                            }
+                            return 1;
+                        };
                     } else {
                         await pipeline.compilePrograms();
                     }
@@ -950,7 +970,36 @@ ${mainChain}`;
                 const value = cloneParamValue(spec.default);
                 parameterValues[key] = value;
 
-                if (spec.type === 'boolean') {
+                if (spec.type === 'boolean' && spec.ui?.control === 'button') {
+                    // Boolean rendered as a button (momentary)
+                    const button = document.createElement('button');
+                    button.textContent = spec.ui?.buttonLabel || spec.ui?.label || key;
+                    button.style.width = '100%';
+                    button.style.padding = '8px';
+                    button.style.background = '#333';
+                    button.style.color = '#fff';
+                    button.style.border = '1px solid #444';
+                    button.style.cursor = 'pointer';
+                    
+                    button.addEventListener('mousedown', () => {
+                        parameterValues[key] = true;
+                        applyParameterValues({ silent: true });
+                    });
+                    
+                    button.addEventListener('mouseup', () => {
+                        parameterValues[key] = false;
+                        applyParameterValues({ silent: true });
+                    });
+                    
+                    button.addEventListener('mouseleave', () => {
+                        if (parameterValues[key]) {
+                            parameterValues[key] = false;
+                            applyParameterValues({ silent: true });
+                        }
+                    });
+                    
+                    controlGroup.appendChild(button);
+                } else if (spec.type === 'boolean') {
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.checked = value;
@@ -958,8 +1007,6 @@ ${mainChain}`;
                         parameterValues[key] = e.target.checked;
                         applyParameterValues();
                     });
-                    // Checkboxes are small, maybe put them in header or just append
-                    // For consistency with other controls, let's put it below
                     controlGroup.appendChild(checkbox);
                 } else if (spec.type === 'surface') {
                     const select = document.createElement('select');
@@ -986,18 +1033,61 @@ ${mainChain}`;
                 } else if (spec.choices) {
                     const select = document.createElement('select');
                     select.className = 'control-select';
+
+                    let selectedValue = null;
+                    let optionIndex = 0;
+
                     Object.entries(spec.choices).forEach(([name, val]) => {
                         if (name.endsWith(':')) return; // Skip category headers
+
                         const option = document.createElement('option');
-                        option.value = val;
+                        option.value = String(optionIndex);
                         option.textContent = name;
-                        option.selected = val === value;
+                        option.dataset.paramValue = JSON.stringify(val);
+                        if ((value === null && val === null) || value === val) {
+                            option.selected = true;
+                            selectedValue = option.value;
+                        }
                         select.appendChild(option);
+                        optionIndex += 1;
                     });
+
+                    if (selectedValue !== null) {
+                        select.value = selectedValue;
+                    }
+
                     select.addEventListener('change', (e) => {
-                        parameterValues[key] = spec.type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
+                        const target = e.target;
+                        const option = target.options[target.selectedIndex];
+                        const raw = option?.dataset?.paramValue;
+
+                        let parsedValue = null;
+                        if (raw !== undefined) {
+                            try {
+                                parsedValue = JSON.parse(raw);
+                            } catch (_err) {
+                                parsedValue = raw;
+                            }
+                        }
+
+                        if (parsedValue !== null) {
+                            if (spec.type === 'int') {
+                                parsedValue = Number.isFinite(parsedValue) ? Math.round(parsedValue) : parseInt(String(parsedValue), 10);
+                            } else if (spec.type === 'float') {
+                                parsedValue = Number(parsedValue);
+                            }
+                        }
+
+                        parameterValues[key] = parsedValue;
+                        
+                        // If zoom changed, recreate surfaces
+                        if (key === 'zoom' && pipeline) {
+                            pipeline.createSurfaces();
+                        }
+                        
                         applyParameterValues();
                     });
+
                     controlGroup.appendChild(select);
                 } else if (spec.type === 'member') {
                     // Resolve enum path
@@ -1090,34 +1180,6 @@ ${mainChain}`;
                         applyParameterValues();
                     });
                     controlGroup.appendChild(colorInput);
-                } else if (spec.type === 'button') {
-                    const button = document.createElement('button');
-                    button.textContent = spec.ui?.label || key;
-                    button.style.width = '100%';
-                    button.style.padding = '8px';
-                    button.style.background = '#333';
-                    button.style.color = '#fff';
-                    button.style.border = '1px solid #444';
-                    button.style.cursor = 'pointer';
-                    
-                    button.addEventListener('mousedown', () => {
-                        parameterValues[key] = true;
-                        applyParameterValues({ silent: true });
-                    });
-                    
-                    button.addEventListener('mouseup', () => {
-                        parameterValues[key] = false;
-                        applyParameterValues({ silent: true });
-                    });
-                    
-                    button.addEventListener('mouseleave', () => {
-                        if (parameterValues[key]) {
-                            parameterValues[key] = false;
-                            applyParameterValues({ silent: true });
-                        }
-                    });
-                    
-                    controlGroup.appendChild(button);
                 }
 
                 parametersEl.appendChild(controlGroup);

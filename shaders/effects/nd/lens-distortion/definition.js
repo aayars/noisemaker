@@ -189,7 +189,7 @@ export default class LensDistortion extends Effect {
       type: "render",
       program: "lens-distortion",
       inputs: {
-        src: "o0"
+        src: "inputTex"
       },
 
       outputs: {

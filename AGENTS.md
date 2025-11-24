@@ -83,3 +83,5 @@ Never simulate weighted randomness by repeating values in collections passed to
 ## Shaders
 
 Shaders implementation is under shaders/
+
+**CRITICAL - Surface Architecture**: Surfaces `o0`..`o7` are reserved for **USER USE ONLY**. Effects requiring internal feedback or temporary storage MUST allocate their own surfaces (e.g., `_feedbackBuffer`, `_temp0`) in the effect's `textures` property. NEVER hardwire `o0`..`o7` within effect definitions as this corrupts the user's composition graph. Use `inputTex` as the default for effect source parameters.

@@ -22,7 +22,7 @@ export default class ModRotate extends Effect {
     },
     "tex": {
         "type": "surface",
-        "default": "o1",
+        "default": "inputTex",
         "ui": {
             "label": "source surface"
         }

@@ -1,5 +1,3 @@
-#version 300 es
-
 /*
  * Cellular automata feedback pass.
  *
@@ -10,36 +8,19 @@
  * perturbations without breaking the automata's binary storage format.
  */
 
-precision highp float;
-precision highp int;
+struct Uniforms {
+    data : array<vec4<f32>, 13>,
+};
 
-uniform float time;
-uniform float deltaTime;
-uniform int frame;
-uniform sampler2D bufTex;
-uniform sampler2D seedTex;
-uniform vec2 resolution;
-uniform int ruleIndex;
-uniform float speed;
-uniform float weight;
-uniform float seed;
-uniform bool resetState;
+@group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var bufTex: texture_2d<f32>;
 
-float random(vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-}
-
-uniform bool useCustom;
-
-uniform int source;
-
-out vec4 fragColor;
-
-float map(float value, float inMin, float inMax, float outMin, float outMax) {
+fn map(value: f32, inMin: f32, inMax: f32, outMin: f32, outMax: f32) -> f32 {
     return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
 }
 
-float lum(vec3 color) {
+fn lum(color: vec3<f32>) -> f32 {
     return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
 }
 
@@ -69,10 +50,9 @@ Waffles                 36                  245
 Pond Life               37                  23
 */
 
-
 // Determine if cell should be born based on state of neighbors (n)
-bool shouldBeBorn(int n) {
-    bool should = false;
+fn shouldBeBorn(n: i32, ruleIndex: i32) -> bool {
+    var should: bool = false;
 
     if (ruleIndex == 0 || ruleIndex == 5 || ruleIndex == 8) {
         should = n == 3;                                        // Classic Life, Life w/o Death, Maze: B3
@@ -104,14 +84,12 @@ bool shouldBeBorn(int n) {
         should = n == 3 || n == 7;                              // Pond Life: B37
     }
 
-    //should = n == 2 || n == 8;
-
     return should;
 }
 
 // Determine if cell should survive based on state of neighbors (n)
-bool shouldSurvive(int n, float current) {
-    bool should = false;
+fn shouldSurvive(n: i32, current: f32, ruleIndex: i32) -> bool {
+    var should: bool = false;
 
     if (ruleIndex == 0 || ruleIndex == 1 || ruleIndex == 3 || ruleIndex == 17) {
         should = n == 2 || n == 3;                              // Classic Life, Highlife, Coral, Pond Life: S23
@@ -143,69 +121,133 @@ bool shouldSurvive(int n, float current) {
         should = n == 1 || n == 2 || n == 5 || n >= 7;          // Simple Replicator: S12578
     }
 
-    //should = true;
-
-    if (current < 0.5) should = false;
+    if (current < 0.5) { should = false; }
 
     return should;
 }
 
+fn shouldBeBornCustom(n: i32, bornMask0: vec4<f32>, bornMask1: vec4<f32>, bornMask2: f32) -> bool {
+    if (n == 0) { return bornMask0.x > 0.5; }
+    else if (n == 1) { return bornMask0.y > 0.5; }
+    else if (n == 2) { return bornMask0.z > 0.5; }
+    else if (n == 3) { return bornMask0.w > 0.5; }
+    else if (n == 4) { return bornMask1.x > 0.5; }
+    else if (n == 5) { return bornMask1.y > 0.5; }
+    else if (n == 6) { return bornMask1.z > 0.5; }
+    else if (n == 7) { return bornMask1.w > 0.5; }
+    else if (n == 8) { return bornMask2 > 0.5; }
+    return false;
+}
 
-int countNeighbors(vec2 uv, vec2 texelSize) {
-    int count = 0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            if (x == 0 && y == 0) continue;
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
-            float n = texture(bufTex, uv + offset).r;
-            count += int(n > 0.5);
+fn shouldSurviveCustom(n: i32, current: f32, surviveMask0: vec3<f32>, surviveMask1: vec4<f32>, surviveMask2: vec2<f32>) -> bool {
+    var should: bool = false;
+    if (n == 0) { should = surviveMask0.x > 0.5; }
+    else if (n == 1) { should = surviveMask0.y > 0.5; }
+    else if (n == 2) { should = surviveMask0.z > 0.5; }
+    else if (n == 3) { should = surviveMask1.x > 0.5; }
+    else if (n == 4) { should = surviveMask1.y > 0.5; }
+    else if (n == 5) { should = surviveMask1.z > 0.5; }
+    else if (n == 6) { should = surviveMask1.w > 0.5; }
+    else if (n == 7) { should = surviveMask2.x > 0.5; }
+    else if (n == 8) { should = surviveMask2.y > 0.5; }
+
+    if (current < 0.5) { should = false; }
+    return should;
+}
+
+// Clamp a texel coordinate to the valid texture bounds
+fn clampCoord(p: vec2<i32>, size: vec2<i32>) -> vec2<i32> {
+    let cx = clamp(p.x, 0, size.x - 1);
+    let cy = clamp(p.y, 0, size.y - 1);
+    return vec2<i32>(cx, cy);
+}
+
+// Fetch a single cell value using integer coordinates to avoid filtering
+fn cellAt(p: vec2<i32>, size: vec2<i32>) -> f32 {
+    let pc = clampCoord(p, size);
+    return textureLoad(bufTex, pc, 0).r;
+}
+
+// Count Moore-neighbourhood alive cells around base pixel
+fn countNeighbors(base: vec2<i32>, size: vec2<i32>) -> i32 {
+    var count: i32 = 0;
+    for (var dy: i32 = -1; dy <= 1; dy++) {
+        for (var dx: i32 = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) { continue; }
+            let n: f32 = cellAt(base + vec2<i32>(dx, dy), size);
+            count += i32(n > 0.5);
         }
     }
     return count;
 }
 
-void main() {
-    vec2 texSize = vec2(textureSize(bufTex, 0));
-    vec2 uv = gl_FragCoord.xy / texSize;
-    vec2 texelSize = 1.0 / texSize;
+@fragment
+fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+    let texSize: vec2<f32> = vec2<f32>(textureDimensions(bufTex, 0));
+    let texSizeI: vec2<i32> = vec2<i32>(textureDimensions(bufTex, 0));
+    let uv: vec2<f32> = fragCoord.xy / texSize;
 
-    float state = texture(bufTex, uv).r;
-    
-    // Sample all 4 channels to check if buffer is truly empty
-    vec4 bufState = texture(bufTex, uv);
-    bool bufferIsEmpty = (bufState.r == 0.0 && bufState.g == 0.0 && bufState.b == 0.0 && bufState.a == 0.0);
+    // Extract parameters from uniforms - precise mapping from hooks.js and
+    // the framebuffer layout in uniforms.json. Slots 0-2 mirror the runtime's
+    // timing metadata, slot 1 stores the primary CA controls, and slots 2-6
+    // pack the custom rule masks alongside the input source selector.
+    let ruleIndex: i32 = i32(uniforms.data[1].x);
+    let speed: f32 = uniforms.data[1].y;
+    let weight: f32 = uniforms.data[1].z;
+    let useCustom: bool = uniforms.data[1].w > 0.5;
+    let deltaTime: f32 = uniforms.data[0].y;
 
-    // Initialize when reset button pressed or when buffer is completely empty (first load)
-    if (resetState || bufferIsEmpty) {
-        float r = random(uv + vec2(seed));
-        float alive = step(0.5, r);
-        fragColor = vec4(alive, alive, alive, 1.0);
-        return;
-    }
+    let bornMask0: vec4<f32> = uniforms.data[2];
+    let bornMask1: vec4<f32> = uniforms.data[3];
+    let bornMask2: f32 = uniforms.data[4].x;
+    let surviveMask0: vec3<f32> = uniforms.data[4].yzw;
+    let surviveMask1: vec4<f32> = uniforms.data[5];
+    let surviveMask2: vec2<f32> = uniforms.data[6].xy;
+    let source: i32 = i32(uniforms.data[6].z);
 
-    vec3 prevFrame = texture(seedTex, uv).rgb;
-    float prevLum = lum(prevFrame);
+    let prevFrameCoord: vec2<f32> = vec2<f32>(fragCoord.x / texSize.x, 1.0 - fragCoord.y / texSize.y);
 
-    int neighbors = countNeighbors(uv, texelSize);
+    var prevFrame: vec3<f32> = vec3<f32>(1.0);
+    // Source selection follows the engine's framebuffer order so release
+    // auditors can cross-reference the blend with module.json without hunting
+    // through host code.
+    else if (source != 0) { prevFrame = textureSample(inputTex, samp, prevFrameCoord).rgb; }
+    else { prevFrame = vec3<f32>(1.0); }
 
-    float newState = state;
+    let prevLum: f32 = lum(prevFrame);
 
-    if (shouldBeBorn(neighbors)) {
-        newState = 1.0;
-    } else if (shouldSurvive(neighbors, state)) {
-        newState = 1.0;
+    let base: vec2<i32> = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
+    let state: f32 = cellAt(base, texSizeI);
+    let neighbors: i32 = countNeighbors(base, texSizeI);
+
+    var newState: f32 = state;
+
+    if (useCustom) {
+        if (shouldBeBornCustom(neighbors, bornMask0, bornMask1, bornMask2)) {
+            newState = 1.0;
+        } else if (shouldSurviveCustom(neighbors, state, surviveMask0, surviveMask1, surviveMask2)) {
+            newState = 1.0;
+        } else {
+            newState = 0.0;
+        }
     } else {
-        newState = 0.0;
+        if (shouldBeBorn(neighbors, ruleIndex)) {
+            newState = 1.0;
+        } else if (shouldSurvive(neighbors, state, ruleIndex)) {
+            newState = 1.0;
+        } else {
+            newState = 0.0;
+        }
     }
 
-    if (weight > 0.0) {
+    if (source > 0) {
         newState = mix(newState, prevLum, weight * 0.01);
     }
 
     // The speed knob expresses human-friendly BPM-style values; remapping keeps
     // the integration step numerically stable across refresh rates.
-    float animSpeed = map(speed, 1.0, 100.0, 0.1, 100.0);
-    vec4 currentState = vec4(state, state, state, 1.0);
-    vec4 nextState = vec4(newState, newState, newState, 1.0);
-    fragColor = mix(currentState, nextState, min(1.0, deltaTime * animSpeed));
+    let animSpeed: f32 = map(speed, 1.0, 100.0, 0.001, 0.01);
+    let currentState: vec4<f32> = vec4<f32>(state, state, state, 1.0);
+    let nextState: vec4<f32> = vec4<f32>(newState, newState, newState, 1.0);
+    return mix(currentState, nextState, deltaTime * animSpeed);
 }

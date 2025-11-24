@@ -154,7 +154,7 @@ export default class Splat extends Effect {
       type: "render",
       program: "splat",
       inputs: {
-        src: "o0"
+        src: "inputTex"
       },
 
       outputs: {

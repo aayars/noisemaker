@@ -21,7 +21,7 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       choices: {
         Slider: 0,
-        "Slider + Input": null,
+        "Slider + Input": 6,
         Brightness: 1,
         Darkness: 2,
         Red: 3,
@@ -35,7 +35,7 @@ export default class ReactionDiffusion extends Effect {
     },
     feed: {
       type: "float",
-      default: 53,
+      default: 18,
       min: 10,
       max: 110,
       ui: {
@@ -48,7 +48,7 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       choices: {
         Slider: 0,
-        "Slider + Input": null,
+        "Slider + Input": 6,
         Brightness: 1,
         Darkness: 2,
         Red: 3,
@@ -62,7 +62,7 @@ export default class ReactionDiffusion extends Effect {
     },
     kill: {
       type: "float",
-      default: 66,
+      default: 51,
       min: 45,
       max: 70,
       ui: {
@@ -75,7 +75,7 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       choices: {
         Slider: 0,
-        "Slider + Input": null,
+        "Slider + Input": 6,
         Brightness: 1,
         Darkness: 2,
         Red: 3,
@@ -102,7 +102,7 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       choices: {
         Slider: 0,
-        "Slider + Input": null,
+        "Slider + Input": 6,
         Brightness: 1,
         Darkness: 2,
         Red: 3,
@@ -175,21 +175,46 @@ export default class ReactionDiffusion extends Effect {
         label: "smoothing",
         control: "dropdown"
       }
+    },
+    inputSource: {
+      type: "int",
+      default: 1,
+      choices: {
+        "Self (Feedback)": 0,
+        "Synth 1": 1,
+        "Synth 2": 2,
+        "Mixer": 3,
+        "Post 1": 4,
+        "Post 2": 5,
+        "Post 3": 6
+      },
+      ui: {
+        label: "input source",
+        control: "dropdown"
+      }
     }
   };
 
   passes = [
     {
+      name: "simulate",
+      type: "render",
+      program: "reaction-diffusion-fb",
+      inputs: {
+        stateTex: "global_reaction_diffusion_state",
+        inputTex: "inputTex"
+      },
+      outputs: {
+        fragColor: "global_reaction_diffusion_state"
+      }
+    },
+    {
       name: "render",
       type: "render",
       program: "reaction-diffusion",
       inputs: {
-              fbTex: "fbTex",
-              prevFrameTex: "prevFrameTex",
-              bufTex: "bufTex",
-              inputTex: "inputTex"
-            }
-,
+        fbTex: "global_reaction_diffusion_state"
+      },
       outputs: {
         fragColor: "outputColor"
       }

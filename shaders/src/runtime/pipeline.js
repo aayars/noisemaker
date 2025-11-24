@@ -17,6 +17,7 @@ export class Pipeline {
         this.width = 0
         this.height = 0
         this.frameReadTextures = null
+        this.getGlobalZoom = null  // Function to get zoom from effect
     }
 
     /**
@@ -118,6 +119,10 @@ export class Pipeline {
             }
         }
 
+        // Get zoom value if available
+        const zoom = this.getGlobalZoom ? this.getGlobalZoom() : 1
+        const effectiveZoom = (typeof zoom === 'number' && zoom > 0) ? zoom : 1
+
         for (const name of surfaceNames) {
             // Destroy old surface if exists
             const oldSurface = this.surfaces.get(name)
@@ -126,17 +131,27 @@ export class Pipeline {
                 this.backend.destroyTexture(`global_${name}_write`)
             }
             
+            // Calculate scaled dimensions for zoom-sensitive surfaces
+            let surfaceWidth = this.width
+            let surfaceHeight = this.height
+            
+            // Apply zoom scaling for CA-specific surfaces
+            if (name.includes('ca_state') || name.includes('physarum')) {
+                surfaceWidth = Math.max(1, Math.round(this.width / effectiveZoom))
+                surfaceHeight = Math.max(1, Math.round(this.height / effectiveZoom))
+            }
+            
             // Create double-buffered surface
             this.backend.createTexture(`global_${name}_read`, {
-                width: this.width,
-                height: this.height,
+                width: surfaceWidth,
+                height: surfaceHeight,
                 format: 'rgba16f',
                 usage: ['render', 'sample', 'copySrc']
             })
             
             this.backend.createTexture(`global_${name}_write`, {
-                width: this.width,
-                height: this.height,
+                width: surfaceWidth,
+                height: surfaceHeight,
                 format: 'rgba16f',
                 usage: ['render', 'sample', 'copySrc']
             })

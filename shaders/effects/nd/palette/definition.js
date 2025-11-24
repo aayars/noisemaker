@@ -228,7 +228,7 @@ export default class Palette extends Effect {
       type: "render",
       program: "palette",
       inputs: {
-        src: "o0"
+        src: "inputTex"
       },
 
       outputs: {

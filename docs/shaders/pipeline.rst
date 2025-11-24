@@ -400,6 +400,10 @@ Global surfaces (``o0``.. ``o7``) defined implicitly:
      o7: { format: 'rgba16f', width: 'screen', height: 'screen', doubleBuffered: true }
    }
 
+**CRITICAL: User-Only Surfaces**
+
+Surfaces ``o0``..``o7`` are **reserved exclusively for user composition** and **MUST NOT** be hardwired within effect definitions. Effects requiring internal feedback or temporary storage must allocate their own internal surfaces (e.g., ``_feedbackBuffer``, ``_temp0``) in their ``textures`` property. Hardwiring ``o0``..``o7`` within an effect definition will corrupt the user's composition graph.
+
 **Terminology:**
 
 

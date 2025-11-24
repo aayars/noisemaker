@@ -1,0 +1,166 @@
+/*
+ * WGSL reaction-diffusion feedback shader.
+ * Implements the Gray-Scott solver in WGSL to match the GLSL pass for deterministic evolution.
+ * Feed and kill coefficients are clamped to stability thresholds before integration.
+ */
+
+struct Uniforms {
+    // data[0] = (resolution.x, resolution.y, time, zoom)
+    // data[1] = (feed, kill, rate1, rate2)
+    // data[2] = (speed, inputWeight, feedSource, killSource)
+    // data[3] = (rate1Source, rate2Source, paletteMode, smooth)
+    // data[4] = (inputSource, cyclePalette, rotatePalette, repeatPalette)
+    // data[5] = (paletteOffset.x, paletteOffset.y, paletteOffset.z, colorMode)
+    // data[6] = (paletteAmp.x, paletteAmp.y, paletteAmp.z, unused)
+    // data[7] = (paletteFreq.x, paletteFreq.y, paletteFreq.z, unused)
+    // data[8] = (palettePhase.x, palettePhase.y, palettePhase.z, seed)
+    data : array<vec4<f32>, 9>,
+};
+@group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var samp : sampler;
+@group(0) @binding(2) var bufTex : texture_2d<f32>;
+@group(0) @binding(3) var synth1Tex : texture_2d<f32>;
+@group(0) @binding(4) var synth2Tex : texture_2d<f32>;
+@group(0) @binding(5) var mixerTex : texture_2d<f32>;
+@group(0) @binding(6) var post1Tex : texture_2d<f32>;
+@group(0) @binding(7) var post2Tex : texture_2d<f32>;
+@group(0) @binding(8) var post3Tex : texture_2d<f32>;
+@group(0) @binding(9) var finalTex : texture_2d<f32>;
+
+fn lp(tex: texture_2d<f32>, uv: vec2<f32>, size: vec2<f32>) -> vec3<f32> {
+    // Fixed 1px neighbourhood sampling (matches GLSL behavior)
+    let pixelStep = 1.0;
+
+    var val = vec3<f32>(0.0);
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(-pixelStep, -pixelStep)) / size, 0.0).rgb * 0.05;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(0.0, -pixelStep)) / size, 0.0).rgb * 0.2;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(pixelStep, -pixelStep)) / size, 0.0).rgb * 0.05;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(-pixelStep, 0.0)) / size, 0.0).rgb * 0.2;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(0.0, 0.0)) / size, 0.0).rgb * -1.0;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(pixelStep, 0.0)) / size, 0.0).rgb * 0.2;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(-pixelStep, pixelStep)) / size, 0.0).rgb * 0.05;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(0.0, pixelStep)) / size, 0.0).rgb * 0.2;
+    val = val + textureSampleLevel(tex, samp, (uv + vec2<f32>(pixelStep, pixelStep)) / size, 0.0).rgb * 0.05;
+    return val;
+}
+
+fn map(value: f32, inMin: f32, inMax: f32, outMin: f32, outMax: f32) -> f32 {
+    return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
+}
+
+fn lum(color: vec3<f32>) -> f32 {
+    return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+}
+
+@fragment
+fn fs_main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
+    let resolution = uniforms.data[0].xy;
+    let time = uniforms.data[0].z; // unused
+    let zoom = uniforms.data[0].w;
+    let seed = uniforms.data[8].w; // unused
+
+    let texSize = vec2<f32>(textureDimensions(bufTex, 0));
+    let tex = textureSampleLevel(bufTex, samp, pos.xy / texSize, 0.0);
+    var a = tex.r;
+    var b = tex.g;
+    var color = lp(bufTex, pos.xy, texSize);
+
+    var prevFrameCoord = pos.xy / texSize;
+    prevFrameCoord.y = 1.0 - prevFrameCoord.y;
+
+    let source = i32(uniforms.data[4].x);
+    var prevFrame = vec3<f32>(1.0);
+    if (source == 1) {
+        prevFrame = textureSampleLevel(synth1Tex, samp, prevFrameCoord, 0.0).rgb;
+    } else if (source == 2) {
+        prevFrame = textureSampleLevel(synth2Tex, samp, prevFrameCoord, 0.0).rgb;
+    } else if (source == 3) {
+        prevFrame = textureSampleLevel(mixerTex, samp, prevFrameCoord, 0.0).rgb;
+    } else if (source == 4) {
+        prevFrame = textureSampleLevel(post1Tex, samp, prevFrameCoord, 0.0).rgb;
+    } else if (source == 5) {
+        prevFrame = textureSampleLevel(post2Tex, samp, prevFrameCoord, 0.0).rgb;
+    } else if (source == 6) {
+        prevFrame = textureSampleLevel(post3Tex, samp, prevFrameCoord, 0.0).rgb;
+    } else {
+        prevFrame = textureSampleLevel(finalTex, samp, prevFrameCoord, 0.0).rgb;
+    }
+
+    let prevLum = lum(prevFrame);
+
+    var f = uniforms.data[1].x * 0.001;
+    var k = uniforms.data[1].y * 0.001;
+    var r1 = uniforms.data[1].z * 0.01;
+    var r2 = uniforms.data[1].w * 0.01;
+    let s = uniforms.data[2].x * 0.01;
+    let weight = uniforms.data[2].y * 0.01;
+    let sourceF = i32(uniforms.data[2].z);
+    let sourceK = i32(uniforms.data[2].w);
+    let sourceR1 = i32(uniforms.data[3].x);
+    let sourceR2 = i32(uniforms.data[3].y);
+
+    if (sourceF > 0) {
+        var val = prevLum;
+        if (sourceF == 2) {
+            val = 1.0 - prevLum;
+        } else if (sourceF == 3) {
+            val = prevFrame.r;
+        } else if (sourceF == 4) {
+            val = prevFrame.g;
+        } else if (sourceF == 5) {
+            val = prevFrame.b;
+        }
+        val = map(val, 0.0, 1.0, 0.01, 0.11);
+        f = mix(f, val, weight);
+    }
+
+    if (sourceK > 0) {
+        var val = prevLum;
+        if (sourceK == 2) {
+            val = 1.0 - prevLum;
+        } else if (sourceK == 3) {
+            val = prevFrame.r;
+        } else if (sourceK == 4) {
+            val = prevFrame.g;
+        } else if (sourceK == 5) {
+            val = prevFrame.b;
+        }
+        val = map(val, 0.0, 1.0, 0.045, 0.07);
+        k = mix(k, val, weight);
+    }
+
+    if (sourceR1 > 0) {
+        var val = prevLum;
+        if (sourceR1 == 2) {
+            val = 1.0 - prevLum;
+        } else if (sourceR1 == 3) {
+            val = prevFrame.r;
+        } else if (sourceR1 == 4) {
+            val = prevFrame.g;
+        } else if (sourceR1 == 5) {
+            val = prevFrame.b;
+        }
+        val = map(val, 0.0, 1.0, 0.5, 1.2);
+        r1 = mix(r1, val, weight);
+    }
+
+    if (sourceR2 > 0) {
+        var val = prevLum;
+        if (sourceR2 == 2) {
+            val = 1.0 - prevLum;
+        } else if (sourceR2 == 3) {
+            val = prevFrame.r;
+        } else if (sourceR2 == 4) {
+            val = prevFrame.g;
+        } else if (sourceR2 == 5) {
+            val = prevFrame.b;
+        }
+        val = map(val, 0.0, 1.0, 0.2, 0.5);
+        r2 = mix(r2, val, weight);
+    }
+
+    let a2 = a + (r1 * color.r - a * b * b + f * (1.0 - a)) * s;
+    let b2 = b + (r2 * color.g + a * b * b - (k + f) * b) * s;
+    color = vec3<f32>(a2, b2, 0.0);
+    return vec4<f32>(color, 1.0);
+}

@@ -8,7 +8,7 @@ export default class Prev extends Effect {
   globals = {
     "tex": {
         "type": "surface",
-        "default": "o1",
+        "default": "inputTex",
         "ui": {
             "label": "source surface"
         }

@@ -43,7 +43,7 @@ export default class ModRepeat extends Effect {
     },
     "tex": {
         "type": "surface",
-        "default": "o1",
+        "default": "inputTex",
         "ui": {
             "label": "source surface"
         }

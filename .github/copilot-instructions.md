@@ -26,6 +26,7 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
   - All textures are 4-channel RGBA. Do not count channels; always assume 4.
   - WGSL struct members end with `,` (comma), not `;` (semicolon).
   - Controls in `shaders/demo.html` must match Python effect params (except "shape").
+  - **CRITICAL**: Surfaces `o0`..`o7` are **USER-ONLY**. Effects MUST allocate internal surfaces (e.g., `_feedbackBuffer`) in their `textures` property for feedback/temp storage. NEVER hardwire `o0`..`o7` in effect definitions.
 
 ## Integration Points
 - **Python CLI**: `noisemaker` command for image generation and effects.

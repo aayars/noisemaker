@@ -8,7 +8,7 @@ export default class Layer extends Effect {
   globals = {
     "tex": {
         "type": "surface",
-        "default": "o1",
+        "default": "inputTex",
         "ui": {
             "label": "layer source"
         }

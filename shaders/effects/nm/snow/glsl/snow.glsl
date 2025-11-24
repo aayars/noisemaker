@@ -28,8 +28,6 @@ float clamp_01(float value) {
     return clamp(value, 0.0, 1.0);
 }
 
-}
-
 float normalized_sine(float value) {
     return (sin(value) + 1.0) * 0.5;
 }
@@ -42,8 +40,8 @@ vec3 snow_fract_vec3(vec3 value) {
     return value - floor(value);
 }
 
-float snow_hash(vec3 sample) {
-    vec3 scaled = snow_fract_vec3(sample * 0.1031);
+float snow_hash(vec3 input_sample) {
+    vec3 scaled = snow_fract_vec3(input_sample * 0.1031);
     float dot_val = dot(scaled, scaled.yzx + vec3(33.33));
     vec3 shifted = scaled + dot_val;
     float combined = (shifted.x + shifted.y) * shifted.z;
@@ -91,7 +89,7 @@ void main() {
     vec4 texel = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
 
     if (alpha <= 0.0) {
-        fragColor = texel.xyz, texel.w;
+        fragColor = vec4(texel.xyz, texel.w);
         return;
     }
 
@@ -108,5 +106,5 @@ void main() {
     vec3 static_color = vec3(static_value);
     vec3 mixed_rgb = mix(texel.xyz, static_color, vec3(limiter_mask));
 
-    fragColor = mixed_rgb, texel.w;
+    fragColor = vec4(mixed_rgb, texel.w);
 }

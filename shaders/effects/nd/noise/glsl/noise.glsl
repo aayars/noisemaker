@@ -402,7 +402,7 @@ float simplexValue(vec2 st, vec2 freq, float s, float blend) {
     vec2 x0 = uv -   i + dot(i, C.xx);
 
     // Other corners
-    vec2 i1;
+    vec2 i1 = vec2(0.0);
     //i1.x = step( x0.y, x0.x ); // x0.x > x0.y ? 1.0 : 0.0
     //i1.y = 1.0 - i1.x;
     i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
@@ -650,7 +650,7 @@ vec3 hsv2rgb(vec3 hsv) {
     float x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));
     float m = v - c;
 
-    vec3 rgb;
+    vec3 rgb = vec3(0.0);
 
     if (0.0 <= h && h < 1.0/6.0) {
         rgb = vec3(c, x, 0.0);
@@ -698,7 +698,7 @@ vec3 rgb2hsv(vec3 rgb) {
 }
 
 vec3 linearToSrgb(vec3 linear) {
-    vec3 srgb;
+    vec3 srgb = vec3(0.0);
     for (int i = 0; i < 3; ++i) {
         if (linear[i] <= 0.0031308) {
             srgb[i] = linear[i] * 12.92;
@@ -710,7 +710,7 @@ vec3 linearToSrgb(vec3 linear) {
 }
 
 vec3 srgbToLinear(vec3 srgb) {
-    vec3 linear;
+    vec3 linear = vec3(0.0);
     for (int i = 0; i < 3; ++i) {
         if (srgb[i] <= 0.04045) {
             linear[i] = srgb[i] / 12.92;
@@ -792,7 +792,7 @@ vec3 generate_octave(vec2 st, vec2 freq, float s, float blend, float octave) {
 vec3 multires(vec2 st, vec2 freq, int octaves, float s, float blend) {
     vec3 color = vec3(0.0);
     float multiplicand = 0.0;
-    vec2 nominalFreq;
+    vec2 nominalFreq = vec2(1.0);
     if (noiseType == 11) {
         // Sine noise UI maps into [40, 1]; reuse midpoint to keep axis adjustments balanced.
         float base = map(75.0, 1.0, 100.0, 40.0, 1.0);
@@ -912,7 +912,7 @@ void main() {
     }
 
     if (loopOffset == 300) {
-        vec2 nominalFreq;
+        vec2 nominalFreq = vec2(1.0);
         if (noiseType == 11) {
             // Sine noise maps the UI slider into [40, 1]; reuse its midpoint so loop freq matches the visible field.
             float base = map(75.0, 1.0, 100.0, 40.0, 1.0);

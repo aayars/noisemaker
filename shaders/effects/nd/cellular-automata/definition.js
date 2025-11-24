@@ -11,15 +11,7 @@ export default class CellularAutomata extends Effect {
   namespace = "nd";
   func = "cellular_automata";
 
-  textures = {
-    global_stateTex: {
-      width: { scale: 1 },
-      height: { scale: 1 },
-      format: "rgba8",
-      usage: ["render", "sample"],
-      persistent: true
-    }
-  };
+  textures = {};
 
   globals = {
     zoom: {
@@ -37,8 +29,7 @@ export default class CellularAutomata extends Effect {
       ui: {
         label: "zoom",
         control: "dropdown"
-      },
-      uniform: "zoom"
+      }
     },
     seed: {
       type: "float",
@@ -50,6 +41,16 @@ export default class CellularAutomata extends Effect {
         control: "slider"
       },
       uniform: "seed"
+    },
+    resetState: {
+      type: "boolean",
+      default: false,
+      ui: {
+        control: "button",
+        buttonLabel: "reset",
+        category: "control"
+      },
+      uniform: "resetState"
     },
     smoothing: {
       type: "int",
@@ -231,6 +232,16 @@ export default class CellularAutomata extends Effect {
       },
       uniform: "weight"
     },
+    source: {
+      type: "int",
+      default: 0,
+      min: 0,
+      max: 7,
+      ui: {
+        control: false
+      },
+      uniform: "source"
+    },
   };
 
   passes = [
@@ -239,11 +250,11 @@ export default class CellularAutomata extends Effect {
       type: "render",
       program: "cellular-automata-fb",
       inputs: {
-        bufTex: "o0",
+        bufTex: "global_ca_state",
         seedTex: "inputTex"
       },
       outputs: {
-        fragColor: "o0"
+        fragColor: "global_ca_state"
       }
     },
     {
@@ -251,9 +262,9 @@ export default class CellularAutomata extends Effect {
       type: "render",
       program: "cellular-automata",
       inputs: {
-        fbTex: "o0",
-        prevFrameTex: "o0",
-        bufTex: "o0",
+        fbTex: "global_ca_state",
+        prevFrameTex: "global_ca_state",
+        bufTex: "global_ca_state",
         inputTex: "inputTex"
       },
       outputs: {

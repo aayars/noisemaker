@@ -11,6 +11,16 @@ export default class CellularAutomataMN extends Effect {
   namespace = "nd";
   func = "cellular_automata_mn";
 
+  textures = {
+    _feedbackBuffer: {
+      width: { scale: 1 },
+      height: { scale: 1 },
+      format: "rgba16f",
+      usage: ["render", "sample"],
+      persistent: true
+    }
+  };
+
   globals = {
     zoom: {
       type: "int",
@@ -157,11 +167,11 @@ export default class CellularAutomataMN extends Effect {
       type: "render",
       program: "cellular-automata-mn-fb",
       inputs: {
-        bufTex: "o0",
+        bufTex: "_feedbackBuffer",
         seedTex: "inputTex"
       },
       outputs: {
-        fragColor: "o0"
+        fragColor: "_feedbackBuffer"
       }
     },
     {
@@ -169,9 +179,9 @@ export default class CellularAutomataMN extends Effect {
       type: "render",
       program: "cellular-automata-mn",
       inputs: {
-        fbTex: "o0",
-        prevFrameTex: "o0",
-        bufTex: "o0",
+        fbTex: "_feedbackBuffer",
+        prevFrameTex: "_feedbackBuffer",
+        bufTex: "_feedbackBuffer",
         inputTex: "inputTex"
       },
       outputs: {
