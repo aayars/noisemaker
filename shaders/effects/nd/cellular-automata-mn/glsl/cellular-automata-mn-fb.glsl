@@ -21,6 +21,7 @@ uniform vec2 resolution;
 uniform float speed;
 uniform float weight;
 uniform float seed;
+uniform bool resetState;
 
 uniform float n1v1;
 uniform float n1v2;
@@ -116,19 +117,26 @@ float getState(float avg1, float avg2, float state) {
 
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 texSize = vec2(textureSize(bufTex, 0));
+    vec2 uv = gl_FragCoord.xy / texSize;
+    vec2 texelSize = 1.0 / texSize;
+
+    float state = texture(bufTex, uv).r;
     
-    if (frame < 60) {
-        float r = random(uv + seed);
-        fragColor = vec4(step(0.5, r));
+    // Sample all 4 channels to check if buffer is truly empty
+    vec4 bufState = texture(bufTex, uv);
+    bool bufferIsEmpty = (bufState.r == 0.0 && bufState.g == 0.0 && bufState.b == 0.0 && bufState.a == 0.0);
+
+    // Initialize when reset button pressed or when buffer is completely empty (first load)
+    if (resetState || bufferIsEmpty) {
+        float r = random(uv + vec2(seed));
+        float alive = step(0.5, r);
+        fragColor = vec4(alive, alive, alive, 1.0);
         return;
     }
 
-    vec2 texelSize = 1.0 / resolution;
-
     vec3 prevFrame = texture(seedTex, uv).rgb;
     float prevLum = lum(prevFrame);
-    float state = texture(bufTex, uv).r;
 
     float newState = state;
     float n1 = neighborsAvgCircle(uv, texelSize);
@@ -139,10 +147,10 @@ void main() {
         newState = mix(newState, prevLum, weight * 0.01);
     }
 
-    // Clamp simulation step to a narrow range for deterministic cross-device
-    // playback, matching the single-neighbourhood implementation.
-    float animSpeed = map(speed, 1.0, 100.0, 0.001, 0.01);
+    // The speed knob expresses human-friendly BPM-style values; remapping keeps
+    // the integration step numerically stable across refresh rates.
+    float animSpeed = map(speed, 1.0, 100.0, 0.1, 100.0);
     vec4 currentState = vec4(state, state, state, 1.0);
     vec4 nextState = vec4(newState, newState, newState, 1.0);
-    fragColor = mix(currentState, nextState, deltaTime * animSpeed);
+    fragColor = mix(currentState, nextState, min(1.0, deltaTime * animSpeed));
 }

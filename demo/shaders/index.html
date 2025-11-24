@@ -670,24 +670,15 @@
 
             const params = [];
             const surfaceTargets = new Set();
-            const isStarter = isStarterEffect(effect);
-            let nextAvailableSurface = 1;
 
             if (effect.instance.globals) {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                    let value = parameterValues[key];
+                    const value = parameterValues[key];
                     if (value === undefined || value === null) {
                         continue;
                     }
 
                     if (spec.type === 'surface' && typeof value === 'string') {
-                        // For non-starter effects, if a surface param is "inputTex", 
-                        // reassign it to a distinct output surface to ensure variety
-                        if (!isStarter && value === 'inputTex') {
-                            value = `o${nextAvailableSurface}`;
-                            nextAvailableSurface += 1;
-                            parameterValues[key] = value;
-                        }
                         surfaceTargets.add(value);
                     }
 
@@ -712,7 +703,7 @@
             });
 
             let mainChain;
-            if (isStarter) {
+            if (isStarterEffect(effect)) {
                 mainChain = `${funcName}(${paramString}).out(o0)`;
             } else {
                 mainChain = `noise().${funcName}(${paramString}).out(o0)`;
@@ -1036,7 +1027,15 @@ ${mainChain}`;
                     });
 
                     controlGroup.appendChild(select);
-                    const normalized = typeof value === 'string' && surfaces.includes(value) ? value : surfaces[0];
+                    
+                    // When default is "inputTex" for non-starter effects, use o1 instead of o0
+                    // to ensure variety in the demo (different noise sources for different surface params)
+                    let normalized;
+                    if (value === 'inputTex' && surfaces.includes('o1')) {
+                        normalized = 'o1';
+                    } else {
+                        normalized = typeof value === 'string' && surfaces.includes(value) ? value : surfaces[0];
+                    }
                     select.value = normalized;
                     parameterValues[key] = normalized;
                 } else if (spec.choices) {

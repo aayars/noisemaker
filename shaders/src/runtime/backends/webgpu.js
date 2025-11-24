@@ -30,6 +30,9 @@ export class WebGPUBackend extends Backend {
         this.samplers = new Map() // config -> sampler
         this.commandEncoder = null
         this.defaultVertexModule = null
+        this.canvasFormat = (typeof navigator !== 'undefined' && navigator.gpu?.getPreferredCanvasFormat)
+            ? navigator.gpu.getPreferredCanvasFormat()
+            : null
     }
 
     async init() {
@@ -146,24 +149,37 @@ export class WebGPUBackend extends Backend {
 
         const fragmentEntryPoint = spec.fragmentEntryPoint || spec.entryPoint || DEFAULT_FRAGMENT_ENTRY_POINT
 
+        const outputFormat = this.resolveFormat(spec?.outputFormat || 'rgba16float')
         const pipeline = await this.createRenderPipeline({
             vertexModule,
             fragmentModule,
             vertexEntryPoint,
             fragmentEntryPoint,
-            spec
+            format: outputFormat,
+            blend: spec?.blend,
+            topology: spec?.topology
         })
-        
+
+        const pipelineCache = new Map()
+        const pipelineKey = this.getPipelineKey({ topology: spec?.topology, blend: spec?.blend, format: outputFormat })
+        pipelineCache.set(pipelineKey, pipeline)
+
         this.programs.set(id, {
             module: fragmentModule,
             pipeline,
-            type: spec.type || 'render'
+            type: spec.type || 'render',
+            vertexModule,
+            fragmentModule,
+            vertexEntryPoint,
+            fragmentEntryPoint,
+            outputFormat,
+            pipelineCache
         })
 
         return { module: fragmentModule, pipeline }
     }
 
-    async createRenderPipeline({ vertexModule, fragmentModule, vertexEntryPoint, fragmentEntryPoint, spec }) {
+    async createRenderPipeline({ vertexModule, fragmentModule, vertexEntryPoint, fragmentEntryPoint, spec, format, blend, topology }) {
         // Create a basic render pipeline layout
         const pipeline = this.device.createRenderPipeline({
             layout: 'auto',
@@ -175,14 +191,15 @@ export class WebGPUBackend extends Backend {
                 module: fragmentModule,
                 entryPoint: fragmentEntryPoint,
                 targets: [{
-                    format: this.resolveFormat(spec?.outputFormat || 'rgba16float')
+                    format: format || this.resolveFormat(spec?.outputFormat || 'rgba16float'),
+                    blend: this.resolveBlendState(blend)
                 }]
             },
             primitive: {
-                topology: 'triangle-list'
+                topology: topology || 'triangle-list'
             }
         })
-        
+
         return pipeline
     }
 
@@ -239,7 +256,7 @@ export class WebGPUBackend extends Backend {
     executeRenderPass(pass, program, state) {
         // Get output texture
         let outputId = pass.outputs.color || Object.values(pass.outputs)[0]
-        
+
         if (outputId.startsWith('global_')) {
             const surfaceName = outputId.replace('global_', '')
             if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
@@ -247,8 +264,22 @@ export class WebGPUBackend extends Backend {
             }
         }
 
-        const outputTex = this.textures.get(outputId)
-        
+        let outputTex = this.textures.get(outputId) || state.surfaces?.[outputId]
+        let targetView = outputTex?.view
+
+        if (!outputTex && outputId === 'screen' && this.context) {
+            const currentTexture = this.context.getCurrentTexture()
+            outputTex = {
+                handle: currentTexture,
+                view: currentTexture.createView(),
+                width: this.context.canvas?.width,
+                height: this.context.canvas?.height,
+                format: this.canvasFormat,
+                gpuFormat: this.canvasFormat
+            }
+            targetView = outputTex.view
+        }
+
         if (!outputTex) {
             throw {
                 code: 'ERR_TEXTURE_NOT_FOUND',
@@ -256,25 +287,146 @@ export class WebGPUBackend extends Backend {
                 texture: outputId
             }
         }
-        
+
         // Create bind group for this pass
         const bindGroup = this.createBindGroup(pass, program, state)
-        
-        // Begin render pass
-        const renderPassDescriptor = {
-            colorAttachments: [{
-                view: outputTex.view,
-                clearValue: { r: 0, g: 0, b: 0, a: 0 },
-                loadOp: 'clear',
-                storeOp: 'store'
-            }]
+
+        const viewport = this.resolveViewport(pass, outputTex)
+        const colorAttachment = {
+            view: targetView,
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: pass.clear ? 'clear' : 'load',
+            storeOp: 'store'
         }
-        
+
+        // Begin render pass
+        const renderPassDescriptor = { colorAttachments: [colorAttachment] }
+
         const passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor)
-        passEncoder.setPipeline(program.pipeline)
+        const pipeline = this.resolveRenderPipeline(program, {
+            blend: pass.blend,
+            topology: pass.drawMode === 'points' ? 'point-list' : 'triangle-list',
+            format: outputTex.gpuFormat || outputTex.format || program.outputFormat
+        })
+        passEncoder.setPipeline(pipeline)
         passEncoder.setBindGroup(0, bindGroup)
-        passEncoder.draw(3, 1, 0, 0) // Full-screen triangle
+        if (viewport) {
+            passEncoder.setViewport(viewport.x, viewport.y, viewport.w, viewport.h, 0, 1)
+        }
+
+        if (pass.drawMode === 'points') {
+            const count = this.resolvePointCount(pass, state, outputId, outputTex)
+            passEncoder.draw(count, 1, 0, 0)
+        } else {
+            passEncoder.draw(3, 1, 0, 0) // Full-screen triangle
+        }
         passEncoder.end()
+    }
+
+    resolveRenderPipeline(program, { blend, topology, format }) {
+        const key = this.getPipelineKey({ blend, topology, format })
+
+        if (!program.pipelineCache.has(key)) {
+            const pipeline = this.device.createRenderPipeline({
+                layout: 'auto',
+                vertex: {
+                    module: program.vertexModule || this.getDefaultVertexModule(),
+                    entryPoint: program.vertexEntryPoint || DEFAULT_VERTEX_ENTRY_POINT
+                },
+                fragment: {
+                    module: program.fragmentModule || program.module,
+                    entryPoint: program.fragmentEntryPoint || DEFAULT_FRAGMENT_ENTRY_POINT,
+                    targets: [{
+                        format: format || program.outputFormat || 'rgba16float',
+                        blend: this.resolveBlendState(blend)
+                    }]
+                },
+                primitive: {
+                    topology: topology || 'triangle-list'
+                }
+            })
+
+            program.pipelineCache.set(key, pipeline)
+        }
+
+        return program.pipelineCache.get(key)
+    }
+
+    getPipelineKey({ blend, topology, format }) {
+        const blendKey = blend ? JSON.stringify(blend) : 'noblend'
+        const topoKey = topology || 'triangle-list'
+        return `${topoKey}|${blendKey}|${format || 'rgba16float'}`
+    }
+
+    resolveBlendState(blend) {
+        if (!blend) return undefined
+
+        const defaultBlend = {
+            color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' }
+        }
+
+        if (Array.isArray(blend)) {
+            const [srcFactor, dstFactor] = blend
+            const toFactor = (factor) => {
+                if (typeof factor === 'string') return factor
+                return null
+            }
+
+            const resolvedSrc = toFactor(srcFactor) || defaultBlend.color.srcFactor
+            const resolvedDst = toFactor(dstFactor) || defaultBlend.color.dstFactor
+
+            return {
+                color: { srcFactor: resolvedSrc, dstFactor: resolvedDst, operation: 'add' },
+                alpha: { srcFactor: resolvedSrc, dstFactor: resolvedDst, operation: 'add' }
+            }
+        }
+
+        return defaultBlend
+    }
+
+    resolveViewport(pass, tex) {
+        if (tex?.width && tex?.height) {
+            return { x: 0, y: 0, w: tex.width, h: tex.height }
+        }
+
+        if (pass.viewport) {
+            return { x: pass.viewport.x, y: pass.viewport.y, w: pass.viewport.w, h: pass.viewport.h }
+        }
+
+        if (this.context?.canvas) {
+            return { x: 0, y: 0, w: this.context.canvas.width, h: this.context.canvas.height }
+        }
+
+        return null
+    }
+
+    resolvePointCount(pass, state, outputId, outputTex) {
+        let count = pass.count || 1000
+
+        if (count === 'auto' || count === 'screen' || count === 'input') {
+            let refTex = null
+
+            if (count === 'input' && pass.inputs && pass.inputs.inputTex) {
+                const inputId = pass.inputs.inputTex
+                if (inputId.startsWith('global_')) {
+                    const surfaceName = inputId.replace('global_', '')
+                    refTex = state.surfaces?.[surfaceName]
+                } else {
+                    refTex = this.textures.get(inputId)
+                }
+            } else {
+                refTex = outputTex || this.textures.get(outputId)
+            }
+
+            if (refTex && refTex.width && refTex.height) {
+                count = refTex.width * refTex.height
+            } else if (this.context?.canvas) {
+                count = this.context.canvas.width * this.context.canvas.height
+            }
+        }
+
+        return count
     }
 
     executeComputePass(pass, program, state) {
