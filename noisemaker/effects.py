@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import tensorflow as tf
@@ -141,7 +141,7 @@ def erosion_worms(
 
         x1_index = (x_index + 1) % width
         y1_index = (y_index + 1) % height
-        x1_values = tf.squeeze(tf.gather_nd(values, tf.stack([y_index, x1_index], 1)))
+        x1_values = tf.squeeze(tf.gather_nd(values, tf.stack([y1_index, x1_index], 1)))
         y1_values = tf.squeeze(tf.gather_nd(values, tf.stack([y1_index, x_index], 1)))
         x1_y1_values = tf.squeeze(tf.gather_nd(values, tf.stack([y1_index, x1_index], 1)))
 
@@ -1779,7 +1779,7 @@ def glyph_map(
     if mask is None:
         mask = ValueMask.truetype
 
-    mask = value.coerce_enum(mask, ValueMask)
+    mask = cast(ValueMask, value.coerce_enum(mask, ValueMask))
 
     if mask == ValueMask.truetype:
         glyph_shape = masks.mask_shape(ValueMask.truetype)

@@ -371,6 +371,9 @@ def voronoi(
                 x.append(blend_cosine(x0[i], x0[(i + 1) % point_count], time))
                 y.append(blend_cosine(y0[i], y0[(i + 1) % point_count], time))
 
+        x_tensor = tf.cast(tf.stack(x), tf.float32)
+        y_tensor = tf.cast(tf.stack(y), tf.float32)
+
     else:
         if len(xy) == 2:
             x, y = xy
@@ -379,12 +382,12 @@ def voronoi(
         else:
             x, y, point_count = xy
 
-        x = tf.cast(tf.stack(x), tf.float32)
-        y = tf.cast(tf.stack(y), tf.float32)
+        x_tensor = tf.cast(tf.stack(x), tf.float32)
+        y_tensor = tf.cast(tf.stack(y), tf.float32)
 
         if downsample:
-            x /= 2.0
-            y /= 2.0
+            x_tensor /= 2.0
+            y_tensor /= 2.0
 
     vshape = value_shape(shape)
 
@@ -399,14 +402,14 @@ def voronoi(
 
     if diagram_type in VoronoiDiagramType.flow_members():
         # If we're using flow with a perfectly tiled grid, it just disappears. Perturbing the points seems to prevent this from happening.
-        x += rng.normal(tf.shape(x), stddev=0.0001, dtype=tf.float32)
-        y += rng.normal(tf.shape(y), stddev=0.0001, dtype=tf.float32)
+        x_tensor += rng.normal(tf.shape(x_tensor), stddev=0.0001, dtype=tf.float32)
+        y_tensor += rng.normal(tf.shape(y_tensor), stddev=0.0001, dtype=tf.float32)
 
     if is_triangular:
         # Keep it visually flipped "horizontal"-side-up
         y_sign = -1.0 if inverse else 1.0
 
-        dist = distance((x_index - x) / width, (y_index - y) * y_sign / height, dist_metric, sdf_sides=sdf_sides)
+        dist = distance((x_index - x_tensor) / width, (y_index - y_tensor) * y_sign / height, dist_metric, sdf_sides=sdf_sides)
 
     else:
         half_width = int(width * 0.5)
@@ -417,10 +420,10 @@ def voronoi(
 
         # Subtracting the list of points from the index results in a new shape
         # [y, x, value] - [point_count] -> [y, x, value, point_count]
-        x0_diff = x_index - x - half_width
-        x1_diff = x_index - x + half_width
-        y0_diff = y_index - y - half_height
-        y1_diff = y_index - y + half_height
+        x0_diff = x_index - x_tensor - half_width
+        x1_diff = x_index - x_tensor + half_width
+        y0_diff = y_index - y_tensor - half_height
+        y1_diff = y_index - y_tensor + half_height
 
         #
         x_diff = tf.minimum(tf.abs(x0_diff), tf.abs(x1_diff)) / width
@@ -1476,7 +1479,7 @@ def pin_corners(tensor: tf.Tensor, shape: list[int], freq: int | list[int], corn
     return tensor
 
 
-def coerce_enum(value: float | int | str | Any, cls: type) -> tf.Tensor:
+def coerce_enum(value: Any, cls: type) -> Any:
     """
     Attempt to coerce a given string or int value into an Enum instance.
 

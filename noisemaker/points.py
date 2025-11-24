@@ -106,9 +106,9 @@ def point_cloud(
         x_margin = x_space * 0.5
         y_margin = y_space * 0.5
 
-        for _x in range(mask_shape[1]):
-            for _y in range(mask_shape[0]):
-                pixel = mask[_y][_x]
+        for mx in range(mask_shape[1]):
+            for my in range(mask_shape[0]):
+                pixel = mask[my][mx]
 
                 if isinstance(pixel, list):
                     pixel = sum(p for p in pixel)
@@ -121,8 +121,8 @@ def point_cloud(
                     y_drift = 0
 
                 if pixel != 0:
-                    x.append(int(x_margin + _x * x_space + x_drift))
-                    y.append(int(y_margin + _y * y_space + y_drift))
+                    x.append(int(x_margin + mx * x_space + x_drift))
+                    y.append(int(y_margin + my * y_space + y_drift))
 
         return x, y
 

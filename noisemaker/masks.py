@@ -6,7 +6,7 @@ import json
 import os
 import re
 import string
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import numpy as np
 
@@ -89,7 +89,7 @@ def mask_shape(mask: ValueMask) -> list[int]:
 
         shape = [height, width, channels]
 
-    return shape
+    return cast(list[int], shape)
 
 
 def get_atlas(mask: ValueMask) -> Any:
@@ -113,16 +113,16 @@ def get_atlas(mask: ValueMask) -> Any:
         base_name = re.sub(r"_[a-z]+$", "", mask.name)
 
         if mask.name.endswith("_binary"):
-            atlas = [Masks[ValueMask[f"{base_name}_0"]], Masks[ValueMask[f"{base_name}_1"]]]  # type: ignore[list-item]
+            atlas = [Masks[ValueMask[f"{base_name}_0"]], Masks[ValueMask[f"{base_name}_1"]]]
 
         elif mask.name.endswith("_numeric"):
-            atlas = [Masks[ValueMask[f"{base_name}_{i}"]] for i in string.digits]  # type: ignore[misc]
+            atlas = [Masks[ValueMask[f"{base_name}_{i}"]] for i in string.digits]
 
         elif mask.name.endswith("_hex"):
-            atlas = [Masks[g] for g in Masks if re.match(f"^{base_name}_[0-9a-f]$", g.name)]  # type: ignore[misc]
+            atlas = [Masks[g] for g in Masks if re.match(f"^{base_name}_[0-9a-f]$", g.name)]
 
         else:
-            atlas = [Masks[g] for g in Masks if g.name.startswith(f"{mask.name}_") and not callable(Masks[g])]  # type: ignore[misc]
+            atlas = [Masks[g] for g in Masks if g.name.startswith(f"{mask.name}_") and not callable(Masks[g])]
 
     return atlas
 
