@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Noisemaker Rendering Pipeline - live demo</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Cpath d='M2 2h12v12H2z' fill='%23f0f'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="../common.css" />
     <script type="importmap">
     {
         "imports": {
@@ -13,293 +14,423 @@
     }
     </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    :root {
+      --ui-accent: color-mix(in srgb, var(--accent3) 80%, var(--color7) 20%);
+      --ui-neutral: var(--color6);
+      --module-shared-accent: color-mix(in srgb, var(--accent1) 85%, var(--color6) 15%);
+      --surface-opacity: 85%;
+      --surface-transparency: 15%;
+      --glass-blur-strength: blur(20px);
+      --module-surface-opacity: 50%;
+      --module-surface-transparency: 50%;
+      --module-header-opacity: 29%;
+      --module-header-transparency: 71%;
+      --ui-corner-radius: 0.5rem;
+      --ui-corner-radius-small: 0.375rem;
+      --ui-corner-radius-large: 0.75rem;
+      --ui-corner-radius-pill: 999px;
+      --ui-chrome-highlight-blend: 86%;
+      --ui-chrome-highlight-tint: 14%;
+      --ui-chrome-shadow-blend: 72%;
+      --ui-chrome-shadow-shade: 28%;
+    }
 
-        body {
-            font-family: 'Courier New', 'Consolas', monospace;
-            background: #0a0a0a;
-            color: #e0e0e0;
-            overflow: hidden;
-            height: 100vh;
-        }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
 
-        .container {
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            height: 100vh;
-            gap: 0;
-        }
+    :root {
+      transition: background-color 0.3s ease;
+    }
 
-        .controls {
-            background: #0f0f0f;
-            border-right: 1px solid #222;
-            overflow-y: auto;
-            padding: 16px;
-        }
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
 
-        .canvas-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-            padding: 20px;
-        }
+    body {
+      font-family: Nunito, sans-serif;
+      font-weight: 580;
+      font-stretch: 108%;
+      font-variation-settings: 'wght' 580;
+      letter-spacing: 0.01em;
+      background: var(--color1);
+      color: var(--color6);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      text-size-adjust: none;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
 
-        h1 {
-            font-size: 14px;
-            font-weight: normal;
-            color: #666;
-            margin-bottom: 16px;
-            text-transform: lowercase;
-        }
+    #app-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
 
-        .control-group {
-            margin-bottom: 16px;
-        }
+    #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
 
-        label {
-            display: block;
-            font-size: 11px;
-            color: #888;
-            margin-bottom: 6px;
-            text-transform: lowercase;
-        }
+    /* Fixed canvas mode (default) */
+    body.fixed-canvas-mode #canvas-container,
+    body:not(.full-bleed-mode) #canvas-container {
+      left: 440px;
+      width: calc(100vw - 440px);
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      box-sizing: border-box;
+    }
 
-        select, input[type="range"], input[type="number"], input[type="checkbox"] {
-            width: 100%;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            color: #e0e0e0;
-            padding: 8px;
-            font-family: inherit;
-            font-size: 12px;
-            outline: none;
-        }
+    body.fixed-canvas-mode #canvas,
+    body:not(.full-bleed-mode) #canvas {
+      /* Scale to fit available space while maintaining 1:1 aspect ratio */
+      width: min(calc(100vw - 440px - 4rem), calc(100vh - 4rem));
+      height: min(calc(100vw - 440px - 4rem), calc(100vh - 4rem));
+      max-width: 100%;
+      max-height: 100%;
+      border: 1px solid color-mix(in srgb, var(--accent3) 30%, transparent 70%);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
 
-        select {
-            cursor: pointer;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23888' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
-            padding-right: 28px;
-        }
+    /* Full bleed mode */
+    body.full-bleed-mode #canvas-container {
+      justify-content: center;
+    }
 
-        select:hover, select:focus {
-            border-color: #555;
-        }
+    body.full-bleed-mode #canvas {
+      width: 100vw;
+      height: 100vh;
+    }
 
-        input[type="range"] {
-            padding: 4px;
-            cursor: pointer;
-        }
+    #canvas {
+      /* Checkerboard pattern to show alpha transparency */
+      background: 
+        repeating-conic-gradient(
+          color-mix(in srgb, var(--color2) 60%, var(--color1) 40%) 0% 25%, 
+          color-mix(in srgb, var(--color3) 50%, var(--color2) 50%) 0% 50%
+        ) 
+        50% / 20px 20px;
+    }
 
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 14px;
-            height: 14px;
-            background: #666;
-            cursor: pointer;
-            border-radius: 2px;
-        }
+    #left-panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0;
+      background: transparent;
+      backdrop-filter: none;
+      border: none;
+      z-index: 100;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+    }
 
-        input[type="range"]::-webkit-slider-thumb:hover {
-            background: #888;
-        }
+    #left-panel::-webkit-scrollbar {
+      display: none; /* Chrome/Safari/Opera */
+    }
 
-        input[type="range"]::-moz-range-thumb {
-            width: 14px;
-            height: 14px;
-            background: #666;
-            cursor: pointer;
-            border-radius: 2px;
-            border: none;
-        }
+    .shader-module {
+      background: color-mix(
+        in srgb,
+        var(--color2) var(--module-surface-opacity),
+        transparent var(--module-surface-transparency)
+      );
+      backdrop-filter: var(--glass-blur-strength);
+      border: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+      border-radius: var(--ui-corner-radius);
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
 
-        input[type="range"]::-moz-range-thumb:hover {
-            background: #888;
-        }
+    .module-title {
+      background: color-mix(
+        in srgb,
+        var(--module-shared-accent) var(--module-header-opacity),
+        transparent var(--module-header-transparency)
+      );
+      border-bottom: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+      padding: 0.625em 0.875em;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-variation-settings: 'wght' 700;
+      color: color-mix(in srgb, var(--color6) 90%, var(--accent3) 10%);
+      text-transform: lowercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.5em;
+    }
 
-        input[type="number"] {
-            width: 60px;
-            padding: 4px 6px;
-        }
+    .module-title:hover {
+      background: color-mix(
+        in srgb,
+        var(--module-shared-accent) calc(var(--module-header-opacity) + 5%),
+        transparent calc(var(--module-header-transparency) - 5%)
+      );
+    }
 
-        input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: #666;
-        }
+    .module-title::before {
+      content: '▼';
+      font-size: 0.65rem;
+      transition: transform 0.2s ease;
+      order: -1;
+    }
 
-        .slider-wrapper {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
+    .shader-module.collapsed .module-title::before {
+      transform: rotate(-90deg);
+    }
 
-        .slider-wrapper input[type="range"] {
-            flex: 1;
-        }
+    .module-content {
+      padding: 0.5rem;
+    }
 
-        .slider-wrapper input[type="number"] {
-            flex-shrink: 0;
-        }
+    .shader-module.collapsed .module-content {
+      display: none;
+    }
 
-        canvas {
-            display: block;
-            width: 1024px;
-            height: 1024px;
-            max-width: 100%;
-            max-height: calc(100vh - 140px);
-            border: 1px solid #222;
-            background: #000;
-        }
+    #status {
+      display: none;
+      min-height: 20px;
+      font-size: 13px;
+      color: #8fa8ff;
+    }
 
-        .backend-selector {
-            margin-top: 16px;
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
+    #controls {
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%);
+      border-radius: var(--ui-corner-radius);
+      padding: 0.75rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
 
-        .backend-selector > label {
-            margin: 0;
-            font-size: 11px;
-        }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
 
-        .radio-group {
-            display: flex;
-            gap: 16px;
-        }
+    .control-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
 
-        .radio-option {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-        }
+    .control-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      font-variation-settings: 'wght' 600;
+      color: color-mix(in srgb, var(--color6) 85%, var(--accent3) 15%);
+      text-transform: lowercase;
+      letter-spacing: 0.03em;
+    }
 
-        .radio-option input[type="radio"] {
-            width: 14px;
-            height: 14px;
-            cursor: pointer;
-            accent-color: #666;
-        }
+    .control-value {
+      font-size: 0.625rem;
+      font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+      color: color-mix(in srgb, var(--color5) 90%, var(--accent3) 10%);
+    }
 
-        .radio-option span {
-            font-size: 11px;
-            color: #888;
-            text-transform: lowercase;
-        }
+    .control-slider {
+      width: 100%;
+      height: 1.125rem;
+      -webkit-appearance: none;
+      appearance: none;
+      background: color-mix(in srgb, var(--accent3) 15%, transparent 85%);
+      border-radius: var(--ui-corner-radius-small);
+      outline: none;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
 
-        .parameters {
-            max-height: calc(100vh - 280px);
-            overflow-y: auto;
-        }
+    .control-slider:hover {
+      background: color-mix(in srgb, var(--accent3) 22%, transparent 78%);
+    }
 
-        .parameters::-webkit-scrollbar {
-            width: 8px;
-        }
+    .control-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 0.875rem;
+      height: 0.875rem;
+      border-radius: 50%;
+      background: var(--accent3);
+      cursor: pointer;
+      border: 2px solid color-mix(in srgb, var(--accent3) 100%, var(--color7) 0%);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      transition: all 0.15s ease;
+    }
 
-        .parameters::-webkit-scrollbar-track {
-            background: #0a0a0a;
-        }
+    .control-slider:hover::-webkit-slider-thumb {
+      background: color-mix(in srgb, var(--accent3) 85%, var(--color7) 15%);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    }
 
-        .parameters::-webkit-scrollbar-thumb {
-            background: #333;
-            border-radius: 4px;
-        }
+    .control-slider::-moz-range-thumb {
+      width: 0.875rem;
+      height: 0.875rem;
+      border-radius: 50%;
+      background: var(--accent3);
+      cursor: pointer;
+      border: 2px solid color-mix(in srgb, var(--accent3) 100%, var(--color7) 0%);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      transition: all 0.15s ease;
+    }
 
-        .parameters::-webkit-scrollbar-thumb:hover {
-            background: #444;
-        }
+    .control-slider:hover::-moz-range-thumb {
+      background: color-mix(in srgb, var(--accent3) 85%, var(--color7) 15%);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    }
 
-        .controls::-webkit-scrollbar {
-            width: 8px;
-        }
+    .control-select {
+      width: 100%;
+      padding: 0.25rem 0.375rem;
+      background: color-mix(in srgb, var(--accent3) 15%, transparent 85%);
+      border: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+      border-radius: var(--ui-corner-radius-small);
+      color: var(--color6);
+      font-family: Nunito, sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 560;
+      font-variation-settings: 'wght' 560;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
 
-        .controls::-webkit-scrollbar-track {
-            background: #0a0a0a;
-        }
+    .control-select:hover {
+      background: color-mix(in srgb, var(--accent3) 22%, transparent 78%);
+      border-color: color-mix(in srgb, var(--accent3) 35%, transparent 65%);
+    }
 
-        .controls::-webkit-scrollbar-thumb {
-            background: #333;
-            border-radius: 4px;
-        }
+    .control-select:focus {
+      border-color: var(--accent3);
+      background: color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+    }
 
-        .controls::-webkit-scrollbar-thumb:hover {
-            background: #444;
-        }
+    /* Scrollbar styling for left panel */
+    #left-panel::-webkit-scrollbar {
+      width: 0.5rem;
+    }
 
-        .status {
-            position: fixed;
-            bottom: 16px;
-            right: 16px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            padding: 8px 12px;
-            font-size: 10px;
-            color: #666;
-            max-width: 300px;
-            z-index: 1000;
-        }
+    #left-panel::-webkit-scrollbar-track {
+      background: color-mix(in srgb, var(--accent3) 5%, transparent 95%);
+      border-radius: var(--ui-corner-radius-small);
+    }
 
-        .status.error {
-            color: #d44;
-            border-color: #d44;
-        }
+    #left-panel::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent3) 30%, transparent 70%);
+      border-radius: var(--ui-corner-radius-small);
+      transition: background 0.15s ease;
+    }
 
-        .status.success {
-            color: #4d4;
-            border-color: #4d4;
-        }
+    #left-panel::-webkit-scrollbar-thumb:hover {
+      background: color-mix(in srgb, var(--accent3) 50%, transparent 50%);
+    }
 
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            font-size: 12px;
-            color: #666;
-        }
+    .status {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: #1a1a1a;
+        border: 1px solid #333;
+        padding: 8px 12px;
+        font-size: 10px;
+        color: #666;
+        max-width: 300px;
+        z-index: 1000;
+    }
+
+    .status.error {
+        color: #d44;
+        border-color: #d44;
+    }
+
+    .status.success {
+        color: #4d4;
+        border-color: #4d4;
+    }
+
+    .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        font-size: 12px;
+        color: #666;
+    }
     </style>
 </head>
 <body>
     <div id="loading" class="loading">loading effects...</div>
-    <div id="app" class="container" style="display: none;">
-        <div class="controls">
-            <h1>Noisemaker Rendering Pipeline</h1>
-            
-            <div class="control-group">
-                <label for="effect-select">effect</label>
-                <select id="effect-select"></select>
-            </div>
+    <div id="app-container" style="display: none;">
+        <div id="left-panel">
+            <div class="shader-module">
+                <div class="module-title">Noisemaker Rendering Pipeline</div>
+                <div class="module-content">
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="effect-select" class="control-label">effect</label>
+                        </div>
+                        <select id="effect-select" class="control-select"></select>
+                    </div>
 
-            <div class="parameters" id="parameters"></div>
-        </div>
-
-        <div class="canvas-container">
-            <canvas id="canvas" width="1024" height="1024"></canvas>
-            
-            <div class="backend-selector">
-                <label>shader language:</label>
-                <div class="radio-group">
-                    <label class="radio-option">
-                        <input type="radio" name="backend" value="glsl" checked>
-                        <span>glsl</span>
-                    </label>
-                    <label class="radio-option">
-                        <input type="radio" name="backend" value="wgsl">
-                        <span>wgsl</span>
-                    </label>
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">shader language</label>
+                        </div>
+                        <div class="radio-group" style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                                <input type="radio" name="backend" value="glsl" checked>
+                                <span>glsl</span>
+                            </label>
+                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                                <input type="radio" name="backend" value="wgsl">
+                                <span>wgsl</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <div class="shader-module">
+                <div class="module-title">Parameters</div>
+                <div class="module-content">
+                    <div id="parameters"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="canvas" width="1024" height="1024"></canvas>
         </div>
     </div>
 
@@ -314,7 +445,7 @@
         import { stdEnums } from '../../shaders/src/lang/std_enums.js';
 
         const loadingEl = document.getElementById('loading');
-        const appEl = document.getElementById('app');
+        const appEl = document.getElementById('app-container');
         const statusEl = document.getElementById('status');
         const effectSelect = document.getElementById('effect-select');
         const parametersEl = document.getElementById('parameters');
@@ -806,9 +937,15 @@ ${mainChain}`;
                 const controlGroup = document.createElement('div');
                 controlGroup.className = 'control-group';
 
+                const header = document.createElement('div');
+                header.className = 'control-header';
+                
                 const label = document.createElement('label');
+                label.className = 'control-label';
                 label.textContent = spec.ui?.label || key;
-                controlGroup.appendChild(label);
+                header.appendChild(label);
+                
+                controlGroup.appendChild(header);
 
                 const value = cloneParamValue(spec.default);
                 parameterValues[key] = value;
@@ -821,9 +958,12 @@ ${mainChain}`;
                         parameterValues[key] = e.target.checked;
                         applyParameterValues();
                     });
+                    // Checkboxes are small, maybe put them in header or just append
+                    // For consistency with other controls, let's put it below
                     controlGroup.appendChild(checkbox);
                 } else if (spec.type === 'surface') {
                     const select = document.createElement('select');
+                    select.className = 'control-select';
                     const surfaces = spec.options?.surfaces || ['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'];
 
                     surfaces.forEach(surfaceName => {
@@ -845,6 +985,7 @@ ${mainChain}`;
                     parameterValues[key] = normalized;
                 } else if (spec.choices) {
                     const select = document.createElement('select');
+                    select.className = 'control-select';
                     Object.entries(spec.choices).forEach(([name, val]) => {
                         if (name.endsWith(':')) return; // Skip category headers
                         const option = document.createElement('option');
@@ -884,6 +1025,7 @@ ${mainChain}`;
 
                         if (node) {
                             const select = document.createElement('select');
+                            select.className = 'control-select';
                             // Iterate over keys
                             Object.keys(node).forEach(key => {
                                 const option = document.createElement('option');
@@ -902,37 +1044,30 @@ ${mainChain}`;
                         }
                     }
                 } else if (spec.type === 'float' || spec.type === 'int') {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'slider-wrapper';
+                    // Add value display to header
+                    const valueDisplay = document.createElement('span');
+                    valueDisplay.className = 'control-value';
+                    valueDisplay.textContent = value !== null ? value : '';
+                    header.appendChild(valueDisplay);
 
                     const slider = document.createElement('input');
+                    slider.className = 'control-slider';
                     slider.type = 'range';
                     slider.min = spec.min !== undefined ? spec.min : 0;
                     slider.max = spec.max !== undefined ? spec.max : 100;
                     slider.step = spec.step !== undefined ? spec.step : (spec.type === 'int' ? 1 : 0.01);
                     slider.value = value !== null ? value : slider.min;
 
-                    const numberInput = document.createElement('input');
-                    numberInput.type = 'number';
-                    numberInput.min = slider.min;
-                    numberInput.max = slider.max;
-                    numberInput.step = slider.step;
-                    numberInput.value = value !== null ? value : slider.min;
-
                     const updateValue = (val) => {
                         const numVal = spec.type === 'int' ? parseInt(val) : parseFloat(val);
                         slider.value = numVal;
-                        numberInput.value = numVal;
+                        valueDisplay.textContent = numVal;
                         parameterValues[key] = numVal;
                         applyParameterValues();
                     };
 
                     slider.addEventListener('input', (e) => updateValue(e.target.value));
-                    numberInput.addEventListener('input', (e) => updateValue(e.target.value));
-
-                    wrapper.appendChild(slider);
-                    wrapper.appendChild(numberInput);
-                    controlGroup.appendChild(wrapper);
+                    controlGroup.appendChild(slider);
                 } else if (spec.type === 'vec4') {
                     const colorInput = document.createElement('input');
                     colorInput.type = 'color';
@@ -1100,7 +1235,7 @@ ${mainChain}`;
                 populateEffectSelector(effects);
                 
                 loadingEl.style.display = 'none';
-                appEl.style.display = 'grid';
+                appEl.style.display = 'block';
 
                 // Check for effect in URL query parameter
                 const urlEffect = getEffectFromURL();
