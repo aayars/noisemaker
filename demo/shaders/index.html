@@ -670,15 +670,24 @@
 
             const params = [];
             const surfaceTargets = new Set();
+            const isStarter = isStarterEffect(effect);
+            let nextAvailableSurface = 1;
 
             if (effect.instance.globals) {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                    const value = parameterValues[key];
+                    let value = parameterValues[key];
                     if (value === undefined || value === null) {
                         continue;
                     }
 
                     if (spec.type === 'surface' && typeof value === 'string') {
+                        // For non-starter effects, if a surface param is "inputTex", 
+                        // reassign it to a distinct output surface to ensure variety
+                        if (!isStarter && value === 'inputTex') {
+                            value = `o${nextAvailableSurface}`;
+                            nextAvailableSurface += 1;
+                            parameterValues[key] = value;
+                        }
                         surfaceTargets.add(value);
                     }
 
@@ -703,7 +712,7 @@
             });
 
             let mainChain;
-            if (isStarterEffect(effect)) {
+            if (isStarter) {
                 mainChain = `${funcName}(${paramString}).out(o0)`;
             } else {
                 mainChain = `noise().${funcName}(${paramString}).out(o0)`;
