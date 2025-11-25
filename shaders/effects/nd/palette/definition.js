@@ -52,48 +52,48 @@ export default class Palette extends Effect {
       }
     },
     color1: {
-      type: "vec4",
-      default: [1.0, 0.0, 0.0, 1.0],
+      type: "vec3",
+      default: [1.0, 0.0, 0.0],
       ui: {
         label: "color 1",
         control: "color"
       }
     },
     color2: {
-      type: "vec4",
-      default: [1.0, 1.0, 0.0, 1.0],
+      type: "vec3",
+      default: [1.0, 1.0, 0.0],
       ui: {
         label: "color 2",
         control: "color"
       }
     },
     color3: {
-      type: "vec4",
-      default: [0.0, 1.0, 0.0, 1.0],
+      type: "vec3",
+      default: [0.0, 1.0, 0.0],
       ui: {
         label: "color 3",
         control: "color"
       }
     },
     color4: {
-      type: "vec4",
-      default: [0.0, 1.0, 1.0, 1.0],
+      type: "vec3",
+      default: [0.0, 1.0, 1.0],
       ui: {
         label: "color 4",
         control: "color"
       }
     },
     color5: {
-      type: "vec4",
-      default: [0.0, 0.0, 1.0, 1.0],
+      type: "vec3",
+      default: [0.0, 0.0, 1.0],
       ui: {
         label: "color 5",
         control: "color"
       }
     },
     tint: {
-      type: "vec4",
-      default: [1.0, 1.0, 1.0, 1.0],
+      type: "vec3",
+      default: [1.0, 1.0, 1.0],
       ui: {
         label: "tint",
         control: "color"

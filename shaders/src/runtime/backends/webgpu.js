@@ -1218,6 +1218,40 @@ export class WebGPUBackend extends Backend {
         
         this.queue.submit([commandEncoder.finish()])
     }
+
+    destroy(_options = {}) {
+        for (const id of Array.from(this.textures.keys())) {
+            this.destroyTexture(id)
+        }
+
+        this.textures.clear()
+
+        this.programs.clear()
+        this.pipelines.clear()
+        this.bindGroups.clear()
+        this.samplers.clear()
+
+        for (const buffer of this.uniformBufferPool) {
+            buffer?.destroy?.()
+        }
+        this.uniformBufferPool = []
+
+        for (const buffer of this.activeUniformBuffers) {
+            buffer?.destroy?.()
+        }
+        this.activeUniformBuffers = []
+
+        if (this.context?.unconfigure) {
+            try {
+                this.context.unconfigure()
+            } catch (err) {
+                console.warn('Failed to unconfigure WebGPU canvas context', err)
+            }
+        }
+
+        this.context = null
+        this.queue = null
+    }
     
     /**
      * Get or create the blit pipeline for presenting to canvas

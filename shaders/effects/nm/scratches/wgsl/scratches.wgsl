@@ -1,47 +1,27 @@
-// Scratches final combine pass.
-// Reuses the worms low-level pipelines to paint scratch trails into `worm_texture`,
-// then layers that onto the input image. The Python reference builds 4 scratch layers
-// with randomized worm parameters, but since we run worms once per frame, the shader
-// just uses the single worm pass result directly.
-
-struct ScratchesParams {
-    width : f32,
-    height : f32,
-    channel_count : f32,
-    _pad0 : f32,
-    time : f32,
-    speed : f32,
-    seed : f32,
-    _pad1 : f32,
-};
-
+// Scratches Pass 2 (Combine): blend scratch mask with the input frame.
 @group(0) @binding(0) var input_texture : texture_2d<f32>;
-@group(0) @binding(1) var worm_texture : texture_2d<f32>;
-@group(0) @binding(2) var<storage, read_write> output_buffer : array<f32>;
-@group(0) @binding(3) var<uniform> params : ScratchesParams;
+@group(0) @binding(1) var mask_texture : texture_2d<f32>;
+@group(0) @binding(2) var<uniform> enabled : bool;
 
-const CHANNEL_COUNT : u32 = 4u;
-
-@compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
+@fragment
+fn main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
     let dims : vec2<u32> = textureDimensions(input_texture, 0);
-    if (gid.x >= dims.x || gid.y >= dims.y) {
-        return;
+    if (dims.x == 0u || dims.y == 0u) {
+        return vec4<f32>(0.0);
     }
 
-    let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base_color : vec4<f32> = textureLoad(input_texture, coords, 0);
-    let worm_mask : vec4<f32> = textureLoad(worm_texture, coords, 0);
+    let coord : vec2<i32> = vec2<i32>(i32(position.x), i32(position.y));
+    if (coord.x < 0 || coord.y < 0 || coord.x >= i32(dims.x) || coord.y >= i32(dims.y)) {
+        return vec4<f32>(0.0);
+    }
 
-    // Use average luminance from worm texture with moderate amplification
-    let worm_luminance : f32 = (worm_mask.r + worm_mask.g + worm_mask.b) / 3.0;
-    let scratch_value : f32 = worm_luminance * 4.0;  // Reduced from 8.0
-    let scratch_rgb : vec3<f32> = max(base_color.rgb, vec3<f32>(scratch_value));
+    let base_color : vec4<f32> = textureLoad(input_texture, coord, 0);
+    if (!enabled) {
+        return base_color;
+    }
 
-    let width_u : u32 = dims.x;
-    let index : u32 = (gid.y * width_u + gid.x) * CHANNEL_COUNT;
-    output_buffer[index + 0u] = scratch_rgb.r;
-    output_buffer[index + 1u] = scratch_rgb.g;
-    output_buffer[index + 2u] = scratch_rgb.b;
-    output_buffer[index + 3u] = base_color.a;
+    let mask_color : vec4<f32> = textureLoad(mask_texture, coord, 0);
+    let scratch_mask : f32 = mask_color.r;
+    let scratch_rgb : vec3<f32> = max(base_color.rgb, vec3<f32>(scratch_mask * 4.0));
+    return vec4<f32>(clamp(scratch_rgb, vec3<f32>(0.0), vec3<f32>(1.0)), base_color.a);
 }

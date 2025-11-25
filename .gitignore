@@ -11,3 +11,4 @@ noisemaker.egg-info
 dist/
 favicon.ico
 .vscode/
+.openai

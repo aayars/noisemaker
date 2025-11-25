@@ -5,15 +5,8 @@ export default class FeedbackSynth extends Effect {
   namespace = "nd";
   func = "feedback_synth";
 
-  textures = {
-    _feedbackBuffer: {
-      width: { scale: 1 },
-      height: { scale: 1 },
-      format: "rgba16f",
-      usage: ["render", "sample"],
-      persistent: true
-    }
-  };
+  // No internal textures needed - use inputTex/outputTex for feedback
+  textures = {};
 
   globals = {
     seed: {
@@ -132,10 +125,10 @@ export default class FeedbackSynth extends Effect {
       type: "render",
       program: "feedback-synth",
       inputs: {
-        selfTex: "_feedbackBuffer"
+        selfTex: "inputTex"
       },
       outputs: {
-        fragColor: "_feedbackBuffer"
+        fragColor: "outputTex"
       }
     }
   ];

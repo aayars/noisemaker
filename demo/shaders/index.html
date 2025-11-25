@@ -427,6 +427,13 @@
                     <div id="parameters"></div>
                 </div>
             </div>
+
+            <div class="shader-module">
+                <div class="module-title">DSL Program</div>
+                <div class="module-content">
+                    <pre id="dsl-display" style="margin: 0; padding: 0.5rem; background: color-mix(in srgb, var(--color1) 60%, transparent 40%); border-radius: var(--ui-corner-radius-small); font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace; font-size: 0.6875rem; line-height: 1.4; color: var(--color5); white-space: pre-wrap; word-break: break-all; overflow-x: auto;"></pre>
+                </div>
+            </div>
         </div>
 
         <div id="canvas-container">
@@ -449,7 +456,8 @@
         const statusEl = document.getElementById('status');
         const effectSelect = document.getElementById('effect-select');
         const parametersEl = document.getElementById('parameters');
-        const canvas = document.getElementById('canvas');
+        const canvasContainer = document.getElementById('canvas-container');
+        let canvas = document.getElementById('canvas');
 
         let currentEffect = null;
         let currentBackend = 'glsl';
@@ -459,6 +467,7 @@
         // Expose backend and registry for testing
         window.__noisemakerCurrentBackend = () => currentBackend;
         window.__noisemakerRegistry = { getEffect };
+        window.__noisemakerFrameCount = 0;
         let animationFrameId = null;
         let animationTimerId = null;
         const TARGET_FPS = 60;
@@ -467,6 +476,44 @@
         let enums = {};
         let uniformBindings = new Map();
         let currentDsl = '';
+
+        function resetCanvasElement() {
+            if (!canvasContainer || !canvas) {
+                return;
+            }
+
+            const newCanvas = canvas.cloneNode(false);
+            newCanvas.id = canvas.id;
+            newCanvas.width = canvas.width;
+            newCanvas.height = canvas.height;
+
+            canvasContainer.replaceChild(newCanvas, canvas);
+            canvas = newCanvas;
+        }
+
+        async function disposePipeline({ loseContext = false, resetCanvas = false } = {}) {
+            if (!pipeline) {
+                if (resetCanvas) {
+                    resetCanvasElement();
+                }
+                return;
+            }
+
+            const oldPipeline = pipeline;
+            pipeline = null;
+            window.__noisemakerRenderingPipeline = null;
+            uniformBindings = new Map();
+
+            try {
+                oldPipeline.backend?.destroy?.({ loseContext });
+            } catch (err) {
+                console.warn('Failed to destroy pipeline backend', err);
+            }
+
+            if (resetCanvas) {
+                resetCanvasElement();
+            }
+        }
 
         // Render loop
         function scheduleNextFrame(targetTime) {
@@ -492,6 +539,7 @@
 
             if (pipeline) {
                 pipeline.render(time / 1000);
+                window.__noisemakerFrameCount++;
             }
 
             lastFrameTime = time - (delta % TARGET_FRAME_TIME);
@@ -703,19 +751,22 @@
                 const paramString = params.join(', ');
                 // Special case: pass-through effects with surface param need source content
                 // e.g., src(tex: src(o1)) needs o1 to have content first
+                // The pipeline always presents o0 to screen, so we use o1 as intermediate
+                // and output to o0.
                 if (hasTex) {
-                    // Get the tex value and extract the surface name
-                    const texValue = parameterValues.tex || effect.instance.globals?.tex?.default || 'o1';
-                    // Extract surface name - handle both 'o1' and 'src(o1)' formats
-                    const surfaceMatch = texValue.match(/^(?:src\()?([o][0-7])(?:\))?$/);
-                    const targetSurface = surfaceMatch ? surfaceMatch[1] : 'o1';
-                    return `noise(seed: 1).out(${targetSurface})\n${funcName}(${paramString}).out(o0)`;
+                    // Always use o1 as intermediate surface and o0 as output
+                    const sourceSurface = 'o1';
+                    const outputSurface = 'o0';
+                    // Ensure tex parameter is passed to the effect
+                    const paramsWithTex = paramString ? `tex: src(${sourceSurface}), ${paramString}` : `tex: src(${sourceSurface})`;
+                    return `noise(seed: 1).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
                 }
                 return `${funcName}(${paramString}).out(o0)`;
             } else if (hasTex) {
                 // Mixer effect (has inputTex and tex): two noise sources
-                // noise(seed: 1).out(o0)
-                // noise(seed: 2).effectName(tex: src(o0), ...).out(o1)
+                // The pipeline always presents o0 to screen, so output to o0
+                // noise(seed: 1).out(o1)
+                // noise(seed: 2).effectName(tex: src(o1), ...).out(o0)
                 const params = [];
                 if (effect.instance.globals) {
                     for (const [key, spec] of Object.entries(effect.instance.globals)) {
@@ -723,17 +774,17 @@
                         if (value === undefined || value === null) {
                             continue;
                         }
-                        // Override 'tex' param to use src(o0)
+                        // Override 'tex' param to use src(o1) (intermediate surface)
                         if (key === 'tex' && spec.type === 'surface') {
-                            params.push(`tex: src(o0)`);
+                            params.push(`tex: src(o1)`);
                         } else {
                             params.push(`${key}: ${formatValue(value, spec.type)}`);
                         }
                     }
                 }
                 const paramString = params.join(', ');
-                return `noise(seed: 1).out(o0)
-noise(seed: 2).${funcName}(${paramString}).out(o1)`;
+                return `noise(seed: 1).out(o1)
+noise(seed: 2).${funcName}(${paramString}).out(o0)`;
             } else {
                 // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
                 const params = [];
@@ -764,6 +815,11 @@ noise(seed: 2).${funcName}(${paramString}).out(o1)`;
             window.__noisemakerCurrentDsl = dsl;
             console.log('DSL', currentEffect.namespace + '/' + currentEffect.name, '\n' + dsl);
 
+            const dslDisplayEl = document.getElementById('dsl-display');
+            if (dslDisplayEl) {
+                dslDisplayEl.textContent = dsl || '(no program)';
+            }
+
             try {
                 if (!pipeline) {
                     pipeline = await createRuntime(dsl, {
@@ -783,12 +839,20 @@ noise(seed: 2).${funcName}(${paramString}).out(o1)`;
                 } else {
                     const newGraph = recompile(pipeline, dsl);
                     if (!newGraph) {
-                        pipeline = await createRuntime(dsl, {
+                        const previousPipeline = pipeline;
+                        const rebuiltPipeline = await createRuntime(dsl, {
                             canvas: canvas,
                             width: 1024,
                             height: 1024,
                             preferWebGPU: currentBackend === 'wgsl'
                         });
+                        pipeline = rebuiltPipeline;
+
+                        try {
+                            previousPipeline?.backend?.destroy?.();
+                        } catch (err) {
+                            console.warn('Failed to release previous pipeline backend', err);
+                        }
                         
                         // Provide zoom accessor
                         pipeline.getGlobalZoom = () => {
@@ -1311,15 +1375,26 @@ noise(seed: 2).${funcName}(${paramString}).out(o1)`;
             showStatus(`selected ${namespace}/${name}`, 'success');
             // Force pipeline recreation when switching effects to ensure clean state
             pipeline = null;
+            window.__noisemakerRenderingPipeline = null;
             await rebuildPipeline();
         }
 
         // Backend selector
         document.querySelectorAll('input[name="backend"]').forEach(radio => {
             radio.addEventListener('change', async (e) => {
-                currentBackend = e.target.value;
-                // Force pipeline recreation when switching backends
-                pipeline = null;
+                const nextBackend = e.target.value;
+                if (nextBackend === currentBackend) {
+                    return;
+                }
+
+                const previousBackend = currentBackend;
+                currentBackend = nextBackend;
+
+                await disposePipeline({
+                    loseContext: previousBackend === 'glsl',
+                    resetCanvas: true
+                });
+
                 showStatus(`switched to ${currentBackend}`, 'success');
                 await rebuildPipeline({ silent: true });
             });

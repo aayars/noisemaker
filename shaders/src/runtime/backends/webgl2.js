@@ -402,10 +402,14 @@ export class WebGL2Backend extends Backend {
             gl.bindVertexArray(null)
         }
         
-        // Check for errors
-        const error = gl.getError()
-        if (error !== gl.NO_ERROR) {
-            console.error(`WebGL Error in pass ${pass.id}: ${error}`)
+        // Check for errors - drain all errors from the queue
+        let error = gl.getError()
+        while (error !== gl.NO_ERROR) {
+            // Build detailed error context
+            const outputId = pass.outputs?.color || Object.values(pass.outputs || {})[0] || 'unknown'
+            const inputIds = pass.inputs ? Object.entries(pass.inputs).map(([k,v]) => `${k}=${v}`).join(', ') : 'none'
+            console.error(`WebGL Error ${error} in pass ${pass.id} (effect: ${pass.effectKey || 'unknown'}, program: ${pass.program}, output: ${outputId}, inputs: ${inputIds})`)
+            error = gl.getError()
         }
         
         // Unbind
@@ -435,8 +439,14 @@ export class WebGL2Backend extends Backend {
                 // Global surface
                 const surfaceName = texId.replace('global_', '')
                 texture = state.surfaces?.[surfaceName]?.handle
+                if (!texture) {
+                    console.warn(`[bindTextures] Global surface '${surfaceName}' not found for input '${samplerName}' in pass ${pass.id}`)
+                }
             } else {
                 texture = this.textures.get(texId)?.handle
+                if (!texture) {
+                    console.warn(`[bindTextures] Texture '${texId}' not found for input '${samplerName}' in pass ${pass.id}`)
+                }
             }
             
             gl.activeTexture(gl.TEXTURE0 + unit)
@@ -550,6 +560,55 @@ export class WebGL2Backend extends Backend {
     resize(_width, _height) {
         // Canvas resize is handled externally
         // We'll recreate textures in the pipeline when needed
+    }
+
+    destroy(options = {}) {
+        const gl = this.gl
+        if (!gl) {
+            return
+        }
+
+        // Delete textures and associated framebuffers
+        for (const id of Array.from(this.textures.keys())) {
+            this.destroyTexture(id)
+        }
+
+        this.textures.clear()
+
+        // Delete compiled programs
+        for (const program of this.programs.values()) {
+            if (program?.handle) {
+                gl.deleteProgram(program.handle)
+            }
+        }
+        this.programs.clear()
+
+        if (this.presentProgram?.handle) {
+            gl.deleteProgram(this.presentProgram.handle)
+        }
+        this.presentProgram = null
+
+        if (this.fullscreenVAO) {
+            gl.deleteVertexArray(this.fullscreenVAO)
+            this.fullscreenVAO = null
+        }
+
+        if (this.emptyVAO) {
+            gl.deleteVertexArray(this.emptyVAO)
+            this.emptyVAO = null
+        }
+
+        this.fbos.clear()
+
+        if (options?.loseContext) {
+            const loseCtx = gl.getExtension('WEBGL_lose_context')
+            if (loseCtx) {
+                loseCtx.loseContext()
+            }
+        }
+
+        this.gl = null
+        this.context = null
     }
 
     resolveFormat(format) {

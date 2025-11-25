@@ -114,8 +114,8 @@ export default class LensDistortion extends Effect {
       }
     },
     tint: {
-      type: "vec4",
-      default: [0.0, 0.0, 0.0, 1.0],
+      type: "vec3",
+      default: [0.0, 0.0, 0.0],
       ui: {
         label: "tint",
         control: "color"

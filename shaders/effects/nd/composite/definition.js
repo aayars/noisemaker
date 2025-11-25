@@ -6,6 +6,13 @@ export default class Composite extends Effect {
   func = "composite";
 
   globals = {
+    tex: {
+      type: "surface",
+      default: "inputTex",
+      ui: {
+        label: "source surface B"
+      }
+    },
     seed: {
       type: "int",
       default: 1,
@@ -43,8 +50,8 @@ export default class Composite extends Effect {
       }
     },
     inputColor: {
-      type: "vec4",
-      default: [0.0, 0.0, 0.0, 1.0],
+      type: "vec3",
+      default: [0.0, 0.0, 0.0],
       ui: {
         label: "color",
         control: "color"

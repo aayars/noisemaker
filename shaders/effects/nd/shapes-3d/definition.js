@@ -182,8 +182,8 @@ export default class Shapes3D extends Effect {
       }
     },
     backgroundColor: {
-      type: "vec4",
-      default: [1.0, 1.0, 1.0, 1.0],
+      type: "vec3",
+      default: [1.0, 1.0, 1.0],
       ui: {
         label: "bkg color",
         control: "color"

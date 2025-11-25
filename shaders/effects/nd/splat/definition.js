@@ -77,8 +77,8 @@ export default class Splat extends Effect {
       }
     },
     splatColor: {
-      type: "vec4",
-      default: [1.0, 1.0, 1.0, 1.0],
+      type: "vec3",
+      default: [1.0, 1.0, 1.0],
       ui: {
         label: "splat color",
         control: "color"
@@ -139,8 +139,8 @@ export default class Splat extends Effect {
       }
     },
     speckColor: {
-      type: "vec4",
-      default: [0.8, 0.8, 0.8, 1.0],
+      type: "vec3",
+      default: [0.8, 0.8, 0.8],
       ui: {
         label: "speck color",
         control: "color"

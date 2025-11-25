@@ -95,4 +95,12 @@ export class Backend {
     static isAvailable() {
         throw new Error('Backend.isAvailable() must be implemented')
     }
+
+    /**
+     * Destroy backend resources
+     * @param {object} _options
+     */
+    destroy(_options = {}) {
+        // Optional for concrete backends
+    }
 }
