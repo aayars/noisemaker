@@ -169,9 +169,9 @@ Verify a shader can sustain a target framerate.
    npx playwright install chromium
    ```
 
-3. For AI vision features, set your OpenAI API key:
+3. For AI vision features, create a `.openai` file in the project root containing your API key:
    ```bash
-   export OPENAI_API_KEY="sk-..."
+   echo "sk-..." > .openai
    ```
 
 ## VS Code Integration
@@ -184,10 +184,7 @@ The MCP server is configured in `.vscode/settings.json`:
     "servers": {
       "noisemaker-shader-tools": {
         "command": "node",
-        "args": ["${workspaceFolder}/shaders/mcp/server.js"],
-        "env": {
-          "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
-        }
+        "args": ["${workspaceFolder}/shaders/mcp/server.js"]
       }
     }
   }

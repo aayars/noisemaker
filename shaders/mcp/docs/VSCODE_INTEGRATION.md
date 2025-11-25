@@ -24,25 +24,18 @@ The MCP server is configured in `.vscode/settings.json`:
     "servers": {
       "noisemaker-shader-tools": {
         "command": "node",
-        "args": ["${workspaceFolder}/shaders/mcp/server.js"],
-        "env": {
-          "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
-        }
+        "args": ["${workspaceFolder}/shaders/mcp/server.js"]
       }
     }
   }
 }
 ```
 
-### Environment Variables
+### API Key Setup
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | For vision | OpenAI API key for `describe_effect_frame` |
-
-Set in your shell profile:
+For AI vision features (`describe_effect_frame`), create a `.openai` file in the project root:
 ```bash
-export OPENAI_API_KEY="sk-..."
+echo "sk-..." > .openai
 ```
 
 ## How It Works
@@ -105,9 +98,9 @@ npx playwright install chromium
 - Check that the shader effect exists
 - Verify the demo page loads at http://localhost:4173/demo/shaders/
 
-### "OPENAI_API_KEY not set"
+### "No OpenAI API key found"
 
-Only needed for `describe_effect_frame`. Other tools work without it.
+Create a `.openai` file in the project root with your API key. Only needed for `describe_effect_frame`. Other tools work without it.
 
 ### Server won't start
 

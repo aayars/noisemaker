@@ -144,15 +144,11 @@ Complete reference for all MCP shader testing tools.
 The tool looks for an API key in this order:
 1. `options.apiKey` parameter (if passed directly)
 2. `.openai` file in project root (one line, just the key)
-3. `OPENAI_API_KEY` environment variable
 
 To set up:
 ```bash
-# Create key file (recommended - already in .gitignore)
+# Create key file (already in .gitignore)
 echo "sk-proj-..." > .openai
-
-# Or use environment variable
-export OPENAI_API_KEY="sk-proj-..."
 ```
 
 ### Input Schema
@@ -208,7 +204,7 @@ export OPENAI_API_KEY="sk-proj-..."
 
 ### Requirements
 
-- Requires `OPENAI_API_KEY` environment variable
+- Requires `.openai` file in project root with API key
 - Uses GPT-4o vision model by default
 - Costs API credits per call
 
@@ -291,4 +287,4 @@ Common errors:
 | "Compilation failed" | Shader syntax/semantic error |
 | "Timeout" | Operation exceeded 1 second |
 | "Pipeline not available" | Demo page failed to initialize |
-| "No OpenAI API key" | Missing OPENAI_API_KEY for vision |
+| "No OpenAI API key" | Missing .openai file for vision |

@@ -49,6 +49,11 @@ export class Pipeline {
                     pass: pass.id
                 }
             }
+            
+            // Include pass type in spec (compute vs render)
+            if (pass.type && !spec.type) {
+                spec.type = pass.type
+            }
 
             await this.backend.compileProgram(pass.program, spec)
             compiled.add(pass.program)
@@ -143,18 +148,19 @@ export class Pipeline {
             }
             
             // Create double-buffered surface
+            // Include 'storage' usage for compute shader output
             this.backend.createTexture(`global_${name}_read`, {
                 width: surfaceWidth,
                 height: surfaceHeight,
                 format: 'rgba16f',
-                usage: ['render', 'sample', 'copySrc']
+                usage: ['render', 'sample', 'copySrc', 'storage']
             })
             
             this.backend.createTexture(`global_${name}_write`, {
                 width: surfaceWidth,
                 height: surfaceHeight,
                 format: 'rgba16f',
-                usage: ['render', 'sample', 'copySrc']
+                usage: ['render', 'sample', 'copySrc', 'storage']
             })
             
             this.surfaces.set(name, {
@@ -359,13 +365,17 @@ export class Pipeline {
             writeSurfaceMap[name] = surface.write
         }
         
+        const o0 = this.surfaces.get('o0')
+        
         return {
             frameIndex: this.frameIndex,
             time: this.lastTime,
             globalUniforms: this.globalUniforms,
             surfaces: surfaceMap,
             writeSurfaces: writeSurfaceMap,
-            graph: this.graph
+            graph: this.graph,
+            screenWidth: this.width,
+            screenHeight: this.height
         }
     }
 

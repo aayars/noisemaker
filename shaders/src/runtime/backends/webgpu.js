@@ -56,6 +56,7 @@ export class WebGPUBackend extends Backend {
         this.pipelines = new Map() // programId -> render or compute pipeline
         this.bindGroups = new Map() // passId -> bind group
         this.samplers = new Map() // config -> sampler
+        this.storageBuffers = new Map() // bufferId -> GPUBuffer
         this.commandEncoder = null
         this.defaultVertexModule = null
         this.canvasFormat = (typeof navigator !== 'undefined' && navigator.gpu?.getPreferredCanvasFormat)
@@ -65,6 +66,11 @@ export class WebGPUBackend extends Backend {
         // Uniform buffer pool for efficient buffer reuse
         this.uniformBufferPool = []
         this.activeUniformBuffers = []
+        
+        // Listen for uncaptured errors
+        this.device.addEventListener('uncapturederror', (event) => {
+            console.error('WebGPU uncaptured error:', event.error?.message || event.error)
+        })
     }
 
     async init() {
@@ -184,11 +190,14 @@ export class WebGPUBackend extends Backend {
             }
         }
 
+        // Parse binding declarations from the shader
+        const bindings = this.parseShaderBindings(source)
+
         const pipeline = this.device.createComputePipeline({
             layout: 'auto',
             compute: {
                 module,
-                entryPoint: spec.computeEntryPoint || 'cs_main'
+                entryPoint: spec.computeEntryPoint || 'main'
             }
         })
 
@@ -196,7 +205,8 @@ export class WebGPUBackend extends Backend {
             module,
             pipeline,
             type: 'compute',
-            entryPoint: spec.computeEntryPoint || 'cs_main'
+            entryPoint: spec.computeEntryPoint || 'main',
+            bindings  // Store parsed bindings for bind group creation
         }
 
         this.programs.set(id, programInfo)
@@ -357,6 +367,7 @@ export class WebGPUBackend extends Backend {
         // @group(0) @binding(0) var<uniform> name: type;
         // @group(0) @binding(0) var name: texture_2d<f32>;
         // @group(0) @binding(0) var name: sampler;
+        // @group(0) @binding(0) var name: texture_storage_2d<rgba16float, write>;
         const bindingRegex = /@group\s*\(\s*(\d+)\s*\)\s*@binding\s*\(\s*(\d+)\s*\)\s*var(?:<([^>]+)>)?\s+(\w+)\s*:\s*([^;]+)/g
         
         let match
@@ -369,7 +380,9 @@ export class WebGPUBackend extends Backend {
             
             // Determine binding type
             let bindingType = 'unknown'
-            if (typeDecl.includes('texture_2d') || typeDecl.includes('texture_storage_2d')) {
+            if (typeDecl.includes('texture_storage_2d')) {
+                bindingType = 'storage_texture'
+            } else if (typeDecl.includes('texture_2d') || typeDecl.includes('texture_3d')) {
                 bindingType = 'texture'
             } else if (typeDecl === 'sampler') {
                 bindingType = 'sampler'
@@ -442,6 +455,7 @@ export class WebGPUBackend extends Backend {
                 program: pass.program
             }
         }
+        
         
         if (program.type === 'compute') {
             this.executeComputePass(pass, program, state)
@@ -643,7 +657,7 @@ export class WebGPUBackend extends Backend {
         const bindGroup = this.createBindGroup(pass, program, state)
 
         // Determine workgroup dispatch size
-        const workgroups = this.resolveWorkgroups(pass)
+        const workgroups = this.resolveWorkgroups(pass, state)
 
         // Begin compute pass
         const passEncoder = this.commandEncoder.beginComputePass()
@@ -653,7 +667,7 @@ export class WebGPUBackend extends Backend {
         passEncoder.end()
     }
 
-    resolveWorkgroups(pass) {
+    resolveWorkgroups(pass, state) {
         if (pass.workgroups) {
             return pass.workgroups
         }
@@ -665,25 +679,35 @@ export class WebGPUBackend extends Backend {
             }
         }
 
+        // Try to get output dimensions
         const outputId = pass.outputs?.color || Object.values(pass.outputs || {})[0]
         const output = outputId ? this.textures.get(outputId) : null
 
-        if (!output) {
-            throw {
-                code: 'ERR_COMPUTE_DISPATCH_UNRESOLVED',
-                pass: pass.id,
-                detail: 'Compute dispatch dimensions could not be inferred'
-            }
+        if (output) {
+            return [
+                Math.ceil(output.width / 8),
+                Math.ceil(output.height / 8),
+                1
+            ]
         }
 
-        const width = output.width
-        const height = output.height
+        // Fall back to screen dimensions from state
+        const width = state?.screenWidth
+        const height = state?.screenHeight
+        
+        if (width && height) {
+            return [
+                Math.ceil(width / 8),
+                Math.ceil(height / 8),
+                1
+            ]
+        }
 
-        return [
-            Math.ceil(width / 8),
-            Math.ceil(height / 8),
-            1
-        ]
+        throw {
+            code: 'ERR_COMPUTE_DISPATCH_UNRESOLVED',
+            pass: pass.id,
+            detail: 'Compute dispatch dimensions could not be inferred'
+        }
     }
 
     /**
@@ -698,6 +722,7 @@ export class WebGPUBackend extends Backend {
     createBindGroup(pass, program, state) {
         const entries = []
         const bindings = program.bindings || []
+        
         
         // Get merged uniforms
         const uniforms = { ...state.globalUniforms, ...pass.uniforms }
@@ -801,9 +826,16 @@ export class WebGPUBackend extends Backend {
                 }
             } else if (binding.type === 'storage') {
                 // Storage buffers - create or get storage buffer
-                const storage = this.createStorageBuffer(binding, pass)
+                const storage = this.createStorageBuffer(binding, pass, state)
                 if (storage) {
                     entry.resource = { buffer: storage }
+                    entries.push(entry)
+                }
+            } else if (binding.type === 'storage_texture') {
+                // Storage textures for compute shader output
+                const storageView = this.createStorageTextureView(binding, pass, state)
+                if (storageView) {
+                    entry.resource = storageView
                     entries.push(entry)
                 }
             }
@@ -814,7 +846,6 @@ export class WebGPUBackend extends Backend {
             return this.createLegacyBindGroup(pass, program, state)
         }
         
-
         
         // Create bind group
         try {
@@ -869,12 +900,173 @@ export class WebGPUBackend extends Backend {
     }
 
     /**
-     * Create a storage buffer for compute shaders.
+     * Create or get a storage buffer for compute shaders.
+     * Storage buffers persist across passes within an effect.
+     * 
+     * @param {object} binding - Parsed binding info from shader
+     * @param {object} pass - Pass definition
+     * @param {object} state - Current render state (includes screenWidth, screenHeight)
+     * @returns {GPUBuffer|null}
      */
-    createStorageBuffer(binding, pass) {
-        // For now, return null - storage buffers need more context
-        // This would be expanded for compute shader support
+    createStorageBuffer(binding, pass, state) {
+        const bufferName = binding.name
+        
+        // Check if buffer already exists
+        if (this.storageBuffers.has(bufferName)) {
+            return this.storageBuffers.get(bufferName)
+        }
+        
+        // Determine buffer size based on binding type and context
+        let byteSize = 0
+        
+        // For output_buffer: 4 floats per pixel (RGBA) * width * height
+        if (bufferName === 'output_buffer') {
+            const width = state?.screenWidth || 1280
+            const height = state?.screenHeight || 720
+            byteSize = width * height * 4 * 4 // 4 channels * 4 bytes per float
+        }
+        // For stats_buffer: enough for all workgroups + 2 for final result
+        // Max workgroups = ceil(width/8) * ceil(height/8)
+        else if (bufferName === 'stats_buffer') {
+            const width = state?.screenWidth || 1280
+            const height = state?.screenHeight || 720
+            const workgroupsX = Math.ceil(width / 8)
+            const workgroupsY = Math.ceil(height / 8)
+            const numWorkgroups = workgroupsX * workgroupsY
+            // Layout: [global_min, global_max, wg0_min, wg0_max, ...]
+            // 2 floats for final + 2 floats per workgroup
+            byteSize = (2 + numWorkgroups * 2) * 4 // floats * 4 bytes
+        }
+        // For downsample buffers and others, estimate based on typical usage
+        else if (bufferName.includes('downsample')) {
+            const width = state?.screenWidth || 1280
+            const height = state?.screenHeight || 720
+            // Assume 1/16 of original size
+            byteSize = Math.ceil(width / 4) * Math.ceil(height / 4) * 4 * 4
+        }
+        else {
+            // Default to screen-sized RGBA buffer
+            const width = state?.screenWidth || 1280
+            const height = state?.screenHeight || 720
+            byteSize = width * height * 4 * 4
+        }
+        
+        // Ensure minimum size and alignment
+        byteSize = Math.max(256, byteSize)
+        byteSize = Math.ceil(byteSize / 256) * 256 // Align to 256 bytes
+        
+        const buffer = this.device.createBuffer({
+            size: byteSize,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+        })
+        
+        this.storageBuffers.set(bufferName, buffer)
+        return buffer
+    }
+
+    /**
+     * Create a storage texture view for compute shader output.
+     * Storage textures allow direct writes from compute shaders via textureStore().
+     * 
+     * @param {object} binding - Parsed binding info from shader
+     * @param {object} pass - Pass definition
+     * @param {object} state - Current render state
+     * @returns {GPUTextureView|null}
+     */
+    createStorageTextureView(binding, pass, state) {
+        // Determine which texture to use
+        // Look in pass.storageTextures for mapping: shader_name -> texture_id
+        const storageTextures = pass.storageTextures || {}
+        const textureId = storageTextures[binding.name]
+        
+        
+        if (!textureId) {
+            // Default to outputColor if no explicit mapping
+            if (binding.name === 'output_texture') {
+                return this.getOutputStorageView(state)
+            }
+            console.warn(`No storage texture mapping for ${binding.name}`)
+            return null
+        }
+        
+        // Map textureId to actual texture via state.writeSurfaces
+        if (textureId === 'outputColor') {
+            return this.getOutputStorageView(state)
+        }
+        
+        // Check if it's a surface reference (o0-o7)
+        const surfacePattern = /^o[0-7]$/
+        if (surfacePattern.test(textureId)) {
+            const writeTex = state?.writeSurfaces?.[textureId]
+            if (writeTex) {
+                const texture = this.textures.get(writeTex)
+                if (texture) {
+                    return texture.view
+                }
+            }
+        }
+        
+        // Check if it's a global surface reference
+        if (textureId.startsWith('global_')) {
+            const surfaceName = textureId.replace('global_', '')
+            const writeTex = state?.writeSurfaces?.[surfaceName]
+            if (writeTex) {
+                const texture = this.textures.get(writeTex)
+                if (texture) {
+                    return texture.view
+                }
+            }
+        }
+        
+        // Look up in textures map
+        const texture = this.textures.get(textureId)
+        if (texture) {
+            return texture.view
+        }
+        
+        console.warn(`Storage texture ${textureId} not found`)
         return null
+    }
+
+    /**
+     * Get the storage texture view for compute output.
+     * Uses the surface's write texture (o0 by default) which has STORAGE_BINDING usage.
+     */
+    getOutputStorageView(state) {
+        // Default to o0 surface's write texture
+        const writeTex = state?.writeSurfaces?.['o0']
+        if (writeTex) {
+            const texture = this.textures.get(writeTex)
+            if (texture) {
+                return texture.view
+            }
+        }
+        
+        // Fallback: create a temporary storage texture if surface not available
+        console.warn('Surface o0 write texture not found, using fallback storage texture')
+        const width = state?.screenWidth || 1280
+        const height = state?.screenHeight || 720
+        const key = `outputStorage_${width}x${height}`
+        
+        if (!this.storageTextures) {
+            this.storageTextures = new Map()
+        }
+        
+        if (this.storageTextures.has(key)) {
+            return this.storageTextures.get(key).view
+        }
+        
+        const texture = this.device.createTexture({
+            size: { width, height },
+            format: 'rgba16float',
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | 
+                   GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
+        })
+        
+        const view = texture.createView()
+        this.storageTextures.set(key, { texture, view, width, height })
+        
+        return view
     }
 
     /**

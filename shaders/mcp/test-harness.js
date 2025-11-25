@@ -13,11 +13,13 @@
  * Flags:
  *   --benchmark           # run FPS test (~500ms per effect)
  *   --vision              # run AI vision analysis (requires .openai key)
+ *   --webgpu, --wgsl      # use WebGPU/WGSL backend instead of WebGL2/GLSL
  * 
  * Examples:
  *   node test-harness.js basics/noise              # compile + render only
  *   node test-harness.js "basics/*" --benchmark    # all basics with FPS
  *   node test-harness.js basics/noise --vision     # with AI description
+ *   node test-harness.js nm/normalize --benchmark --webgpu  # test WGSL with FPS
  */
 
 import { createBrowserHarness } from './browser-harness.js';
@@ -55,10 +57,14 @@ function matchEffects(effects, pattern) {
 async function testEffect(harness, effectId, options = {}) {
     const results = { effectId, compile: null, render: null, benchmark: null, vision: null };
     const timings = [];
+    const backend = options.backend || 'webgl2';
     let t0 = Date.now();
     
+    // Clear console messages
+    harness.clearConsoleMessages?.();
+    
     // Compile
-    const compileResult = await harness.compileEffect(effectId);
+    const compileResult = await harness.compileEffect(effectId, { backend });
     timings.push(`compile:${Date.now() - t0}ms`);
     t0 = Date.now();
     results.compile = compileResult.status;
@@ -70,15 +76,31 @@ async function testEffect(harness, effectId, options = {}) {
     console.log(`  ✓ compile`);
     
     // Render (skip compile since already loaded)
-    const renderResult = await harness.renderEffectFrame(effectId, { skipCompile: true });
+    const renderResult = await harness.renderEffectFrame(effectId, { skipCompile: true, backend });
     timings.push(`render:${Date.now() - t0}ms`);
     t0 = Date.now();
     results.render = renderResult.status;
     
     if (renderResult.status === 'error') {
         console.log(`  ❌ render: ${renderResult.error}`);
+        // Show console errors
+        const consoleErrors = harness.getConsoleMessages?.() || [];
+        if (consoleErrors.length > 0) {
+            console.log(`  Console errors:`);
+            for (const msg of consoleErrors.slice(0, 10)) {
+                console.log(`    ${msg.type}: ${msg.text.slice(0, 500)}`);
+            }
+        }
     } else if (renderResult.metrics?.is_monochrome) {
         console.log(`  ⚠ render: monochrome output (${renderResult.metrics.unique_sampled_colors} colors)`);
+        // Show console output for debugging monochrome issues
+        const consoleOutput = harness.getConsoleMessages?.() || [];
+        if (consoleOutput.length > 0) {
+            console.log(`  Console output:`);
+            for (const msg of consoleOutput.slice(0, 10)) {
+                console.log(`    ${msg.type}: ${msg.text.slice(0, 500)}`);
+            }
+        }
     } else {
         console.log(`  ✓ render (${renderResult.metrics?.unique_sampled_colors} colors)`);
     }
@@ -88,7 +110,8 @@ async function testEffect(harness, effectId, options = {}) {
         const benchResult = await harness.benchmarkEffectFps(effectId, {
             targetFps: 30,
             durationSeconds: 0.5,  // 500ms - enough to catch ~30 frames
-            skipCompile: true
+            skipCompile: true,
+            backend
         });
         results.benchmark = benchResult.achieved_fps;
         console.log(`  ✓ benchmark: ${benchResult.achieved_fps} fps`);
@@ -115,8 +138,10 @@ async function main() {
     const pattern = process.argv[2] || 'basics/noise';
     const runBenchmark = process.argv.includes('--benchmark');  // off by default for speed
     const runVision = process.argv.includes('--vision');
+    const useWebGPU = process.argv.includes('--webgpu') || process.argv.includes('--wgsl');
+    const backend = useWebGPU ? 'webgpu' : 'webgl2';
     
-    console.log('Starting browser harness...');
+    console.log(`Starting browser harness (backend: ${backend})...`);
     const harness = await createBrowserHarness({ headless: false });
     
     try {
@@ -138,7 +163,8 @@ async function main() {
             console.log(`[${effectId}]`);
             const result = await testEffect(harness, effectId, { 
                 benchmark: runBenchmark, 
-                vision: runVision 
+                vision: runVision,
+                backend
             });
             results.push(result);
         }

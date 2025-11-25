@@ -10,17 +10,15 @@ void main() {
     float minVal = 100000.0;
     float maxVal = -100000.0;
 
-    // Sample a grid of points to estimate min/max
-    // This avoids TDR (Timeout Detection and Recovery) on some drivers
-    // We use a fixed number of samples to keep performance predictable
-    const int SAMPLES_X = 64;
-    const int SAMPLES_Y = 64;
+    // Sample a 24x24 grid of points to estimate min/max
+    // 576 samples is a good balance between accuracy and performance
+    const int SAMPLES = 24;
     
-    for (int y = 0; y < SAMPLES_Y; y++) {
-        for (int x = 0; x < SAMPLES_X; x++) {
+    for (int y = 0; y < SAMPLES; y++) {
+        for (int x = 0; x < SAMPLES; x++) {
             // Map grid to texture coordinates
-            int texX = int(float(x) / float(SAMPLES_X - 1) * float(size.x - 1));
-            int texY = int(float(y) / float(SAMPLES_Y - 1) * float(size.y - 1));
+            int texX = (x * (size.x - 1)) / (SAMPLES - 1);
+            int texY = (y * (size.y - 1)) / (SAMPLES - 1);
             
             vec4 color = texelFetch(inputTex, ivec2(texX, texY), 0);
             

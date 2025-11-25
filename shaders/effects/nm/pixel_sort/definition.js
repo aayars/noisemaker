@@ -1,8 +1,15 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Pixel Sort
- * /shaders/effects/pixel_sort/pixel_sort.wgsl
+ * Pixel Sort - GPGPU Implementation
+ * 
+ * Multi-pass GPGPU pipeline using textures as data buffers:
+ * 1. Prepare: Pad to square, rotate by angle, optionally invert for darkest
+ * 2. Luminance: Compute per-pixel luminance → store in texture
+ * 3. Find Brightest: Find brightest x per row → store in texture  
+ * 4. Compute Rank: For each pixel, count brighter pixels → store rank
+ * 5. Gather: Use ranks to gather sorted pixels with alignment
+ * 6. Finalize: Rotate back, max blend with original
  */
 export default class PixelSort extends Effect {
   name = "PixelSort";
@@ -29,13 +36,13 @@ export default class PixelSort extends Effect {
             control: "checkbox"
         }
     }
-};
+  };
 
   textures = {
     prepared: { width: "100%", height: "100%", format: "rgba16f" },
-    stats: { width: 1, height: "100%", format: "rgba16f" },
-    histogram: { width: 256, height: "100%", format: "rgba16f" },
-    cumulative: { width: 256, height: "100%", format: "rgba16f" },
+    luminance: { width: "100%", height: "100%", format: "rgba16f" },
+    brightest: { width: "100%", height: "100%", format: "rgba16f" },
+    rank: { width: "100%", height: "100%", format: "rgba16f" },
     sorted: { width: "100%", height: "100%", format: "rgba16f" }
   };
 
@@ -47,109 +54,56 @@ export default class PixelSort extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        resolution: "resolution",
+        angled: "angled",
+        darkest: "darkest"
+      },
       outputs: {
         outputColor: "prepared"
       }
     },
     {
-      name: "stats",
+      name: "luminance",
       type: "render",
-      program: "stats",
+      program: "luminance",
       inputs: {
         inputTex: "prepared"
       },
       outputs: {
-        outputColor: "stats"
+        outputColor: "luminance"
       }
     },
     {
-      name: "histogram_clear",
+      name: "find_brightest",
       type: "render",
-      program: "clear",
-      inputs: {},
-      outputs: {
-        outputColor: "histogram"
-      }
-    },
-    {
-      name: "histogram_r",
-      type: "render",
-      program: "histogram",
-      drawMode: "points",
-      count: "input",
-      blend: ["ONE", "ONE"],
-      uniforms: { channel: 0 },
+      program: "find_brightest",
       inputs: {
-        inputTex: "prepared"
+        lumTex: "luminance"
       },
       outputs: {
-        outputColor: "histogram"
+        outputColor: "brightest"
       }
     },
     {
-      name: "histogram_g",
+      name: "compute_rank",
       type: "render",
-      program: "histogram",
-      drawMode: "points",
-      count: "input",
-      blend: ["ONE", "ONE"],
-      uniforms: { channel: 1 },
+      program: "compute_rank",
       inputs: {
-        inputTex: "prepared"
+        lumTex: "luminance"
       },
       outputs: {
-        outputColor: "histogram"
+        outputColor: "rank"
       }
     },
     {
-      name: "histogram_b",
+      name: "gather_sorted",
       type: "render",
-      program: "histogram",
-      drawMode: "points",
-      count: "input",
-      blend: ["ONE", "ONE"],
-      uniforms: { channel: 2 },
+      program: "gather_sorted",
       inputs: {
-        inputTex: "prepared"
-      },
-      outputs: {
-        outputColor: "histogram"
-      }
-    },
-    {
-      name: "histogram_a",
-      type: "render",
-      program: "histogram",
-      drawMode: "points",
-      count: "input",
-      blend: ["ONE", "ONE"],
-      uniforms: { channel: 3 },
-      inputs: {
-        inputTex: "prepared"
-      },
-      outputs: {
-        outputColor: "histogram"
-      }
-    },
-    {
-      name: "cumulative",
-      type: "render",
-      program: "cumulative",
-      inputs: {
-        inputTex: "histogram"
-      },
-      outputs: {
-        outputColor: "cumulative"
-      }
-    },
-    {
-      name: "resolve",
-      type: "render",
-      program: "resolve",
-      inputs: {
-        inputTex: "prepared",
-        statsTex: "stats",
-        cumulativeTex: "cumulative"
+        preparedTex: "prepared",
+        rankTex: "rank",
+        brightestTex: "brightest"
       },
       outputs: {
         outputColor: "sorted"
@@ -162,6 +116,11 @@ export default class PixelSort extends Effect {
       inputs: {
         inputTex: "sorted",
         originalTex: "inputTex"
+      },
+      uniforms: {
+        resolution: "resolution",
+        angled: "angled",
+        darkest: "darkest"
       },
       outputs: {
         outputColor: "outputColor"

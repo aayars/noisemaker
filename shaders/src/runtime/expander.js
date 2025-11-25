@@ -4,12 +4,13 @@ import { stdEnums } from '../lang/std_enums.js';
 /**
  * Expands the Logical Graph (plans) into a Render Graph (passes).
  * @param {object} compilationResult { plans, diagnostics }
- * @returns {object} { passes, errors }
+ * @returns {object} { passes, errors, programs, textureSpecs }
  */
 export function expand(compilationResult) {
     const passes = [];
     const errors = [];
     const programs = {};
+    const textureSpecs = {}; // nodeId_texName -> { width, height, format }
     const textureMap = new Map(); // logical_id -> virtual_texture_id
 
     // Helper to resolve enum paths
@@ -55,6 +56,14 @@ export function expand(compilationResult) {
             // Generate a unique ID for this effect instance
             const nodeId = `node_${step.temp}`;
 
+            // Collect texture specs from effect definition
+            if (effectDef.textures) {
+                for (const [texName, spec] of Object.entries(effectDef.textures)) {
+                    const virtualTexId = `${nodeId}_${texName}`;
+                    textureSpecs[virtualTexId] = { ...spec };
+                }
+            }
+
             // Resolve inputs
             // If step.from is null, it's a generator (no input).
             // If step.from is a number, it refers to a previous temp output.
@@ -81,6 +90,9 @@ export function expand(compilationResult) {
                     drawMode: passDef.drawMode,
                     count: passDef.count,
                     blend: passDef.blend,
+                    workgroups: passDef.workgroups,
+                    storageBuffers: passDef.storageBuffers,
+                    storageTextures: passDef.storageTextures,
                     inputs: {},
                     outputs: {},
                     uniforms: {}
@@ -279,5 +291,5 @@ export function expand(compilationResult) {
         }
     }
 
-    return { passes, errors, programs };
+    return { passes, errors, programs, textureSpecs };
 }

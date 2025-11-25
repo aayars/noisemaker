@@ -24,7 +24,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
  * @returns {string|null} API key or null if not found
  */
 export function getOpenAIApiKey() {
-    // First check for .openai file in project root
+    // Read from .openai file in project root
     const keyFile = path.join(PROJECT_ROOT, '.openai');
     try {
         const key = fs.readFileSync(keyFile, 'utf-8').trim();
@@ -32,8 +32,7 @@ export function getOpenAIApiKey() {
     } catch {
         // File doesn't exist or can't be read
     }
-    // Fall back to environment variable
-    return process.env.OPENAI_API_KEY || null;
+    return null;
 }
 
 /**
@@ -205,15 +204,15 @@ export function computeImageMetrics(data, width, height) {
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
  * @param {string} effectId - Effect identifier
  * @param {object} options
- * @param {number} [options.time] - Time to render at
+ * @param {number} [options.time] - Time to render at (ignored - uses page's natural render loop)
  * @param {[number,number]} [options.resolution] - Resolution [width, height]
  * @param {number} [options.seed] - Random seed
  * @param {Record<string,any>} [options.uniforms] - Uniform overrides
- * @param {number} [options.warmupFrames=1] - Frames to render before capture
+ * @param {number} [options.warmupFrames=10] - Frames to wait before capture (default 10 for stability)
  * @returns {Promise<{status: 'ok'|'error', frame: {image_uri: string, width: number, height: number}, metrics: object}>}
  */
 export async function renderEffectFrame(page, effectId, options = {}) {
-    const warmupFrames = options.warmupFrames ?? 1;
+    const warmupFrames = options.warmupFrames ?? 10;
     const skipCompile = options.skipCompile ?? false;
     
     // Compile the effect (unless already done)
@@ -229,22 +228,50 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         }
     }
     
-    // Single round-trip: apply uniforms, render warmup, read pixels, compute metrics in browser
-    const result = await page.evaluate(async ({ uniforms, warmupFrames }) => {
+    // Wait for the page's natural render loop to run warmup frames
+    // Use a longer timeout since we're waiting for actual frame renders
+    const FRAME_WAIT_TIMEOUT = 5000;  // 5 seconds should be plenty for 10 frames
+    try {
+        await page.waitForFunction(({ warmupFrames }) => {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            if (!pipeline) return false;
+            const frameCount = window.__noisemakerFrameCount || 0;
+            // Store baseline if not set
+            if (window.__noisemakerTestBaselineFrame === undefined) {
+                window.__noisemakerTestBaselineFrame = frameCount;
+            }
+            return frameCount >= window.__noisemakerTestBaselineFrame + warmupFrames;
+        }, { warmupFrames }, { timeout: FRAME_WAIT_TIMEOUT });
+    } catch (err) {
+        // Check frame count for debugging
+        const debugInfo = await page.evaluate(() => ({
+            frameCount: window.__noisemakerFrameCount,
+            baseline: window.__noisemakerTestBaselineFrame,
+            hasPipeline: !!window.__noisemakerRenderingPipeline
+        }));
+        return {
+            status: 'error',
+            frame: null,
+            metrics: null,
+            error: `Frame wait timeout: ${JSON.stringify(debugInfo)}`
+        };
+    }
+    
+    // Clear baseline for next test
+    await page.evaluate(() => {
+        delete window.__noisemakerTestBaselineFrame;
+    });
+    
+    // Single round-trip: apply uniforms, read pixels, compute metrics in browser
+    const result = await page.evaluate(async ({ uniforms }) => {
         const pipeline = window.__noisemakerRenderingPipeline;
         if (!pipeline) {
             return { error: 'Pipeline not available' };
         }
         
-        // Apply uniform overrides
+        // Apply uniform overrides (will take effect on next frame, but we've already rendered warmup)
         if (uniforms && pipeline.globalUniforms) {
             Object.assign(pipeline.globalUniforms, uniforms);
-        }
-        
-        // Render warmup frames
-        const t = performance.now() / 1000;
-        for (let i = 0; i < warmupFrames; i++) {
-            pipeline.render(t + i * 0.016);
         }
         
         const backend = pipeline.backend;
@@ -288,11 +315,37 @@ export async function renderEffectFrame(page, effectId, options = {}) {
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureInfo.handle, 0);
             
-            data = new Uint8Array(width * height * 4);
-            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+            // Check for float buffer extension (required for rgba16f textures)
+            const hasFloatExt = !!gl.getExtension('EXT_color_buffer_float');
+            let isFloat = false;
+            
+            if (hasFloatExt) {
+                // Try reading as float first (for rgba16f textures)
+                data = new Float32Array(width * height * 4);
+                gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, data);
+                if (gl.getError() === gl.NO_ERROR) {
+                    isFloat = true;
+                } else {
+                    // Fall back to UNSIGNED_BYTE
+                    data = new Uint8Array(width * height * 4);
+                    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+                }
+            } else {
+                data = new Uint8Array(width * height * 4);
+                gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+            }
             
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.deleteFramebuffer(fbo);
+            
+            // Convert float data to 0-255 range for consistent metrics
+            if (isFloat) {
+                const converted = new Uint8Array(data.length);
+                for (let i = 0; i < data.length; i++) {
+                    converted[i] = Math.max(0, Math.min(255, Math.round(data[i] * 255)));
+                }
+                data = converted;
+            }
         }
         
         // Compute metrics in browser to avoid transferring megabytes of pixel data
@@ -344,7 +397,7 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         };
         
         return { width, height, metrics };
-    }, { uniforms: options.uniforms, warmupFrames });
+    }, { uniforms: options.uniforms });
     
     if (result.error) {
         return {
@@ -457,7 +510,7 @@ export async function benchmarkEffectFps(page, effectId, options = {}) {
  * @param {[number,number]} [options.resolution] - Resolution [width, height]
  * @param {number} [options.seed] - Random seed
  * @param {Record<string,any>} [options.uniforms] - Uniform overrides
- * @param {string} [options.apiKey] - OpenAI API key (falls back to OPENAI_API_KEY env var)
+ * @param {string} [options.apiKey] - OpenAI API key (falls back to .openai file in project root)
  * @param {string} [options.model='gpt-4o'] - Vision model to use
  * @returns {Promise<{status: 'ok'|'error', frame: {image_uri: string}, vision: {description: string, tags: string[], notes?: string}}>}
  */
@@ -490,7 +543,7 @@ export async function describeEffectFrame(page, effectId, prompt, options = {}) 
             status: 'error',
             frame: { image_uri: imageUri },
             vision: null,
-            error: 'No OpenAI API key found. Create .openai file in project root or set OPENAI_API_KEY environment variable.'
+            error: 'No OpenAI API key found. Create .openai file in project root.'
         };
     }
     

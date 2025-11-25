@@ -877,7 +877,8 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                 }
             } catch (err) {
                 console.error(err);
-                showStatus(`compilation failed: ${err.message}`, 'error');
+                const errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+                showStatus(`compilation failed: ${errMsg}`, 'error');
             }
         }
 

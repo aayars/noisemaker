@@ -29,7 +29,7 @@ export function compileGraph(source, options = {}) {
     }
     
     // Stage 2: Expand logical graph into render passes
-    const { passes, errors: expandErrors, programs } = expand(compilationResult)
+    const { passes, errors: expandErrors, programs, textureSpecs } = expand(compilationResult)
     
     if (expandErrors && expandErrors.length > 0) {
         throw {
@@ -48,7 +48,7 @@ export function compileGraph(source, options = {}) {
         passes,
         programs,
         allocations,
-        textures: extractTextureSpecs(passes, options),
+        textures: extractTextureSpecs(passes, options, textureSpecs),
         compiledAt: Date.now()
     }
     
@@ -69,8 +69,11 @@ export async function createRuntime(source, options = {}) {
 
 /**
  * Extract texture specifications from passes
+ * @param {Array} passes - Render passes
+ * @param {object} options - Runtime options with width/height
+ * @param {object} textureSpecs - Effect-defined texture specs from expander
  */
-function extractTextureSpecs(passes, options) {
+function extractTextureSpecs(passes, options, textureSpecs = {}) {
     const textures = new Map()
     const defaultWidth = options.width || 800
     const defaultHeight = options.height || 600
@@ -82,12 +85,23 @@ function extractTextureSpecs(passes, options) {
                 if (texId.startsWith('global_')) continue
                 
                 if (!textures.has(texId)) {
-                    textures.set(texId, {
-                        width: defaultWidth,
-                        height: defaultHeight,
-                        format: 'rgba16f',
-                        usage: ['render', 'sample']
-                    })
+                    // Use effect-defined specs if available
+                    const effectSpec = textureSpecs[texId]
+                    if (effectSpec) {
+                        textures.set(texId, {
+                            width: effectSpec.width || defaultWidth,
+                            height: effectSpec.height || defaultHeight,
+                            format: effectSpec.format || 'rgba16f',
+                            usage: ['render', 'sample']
+                        })
+                    } else {
+                        textures.set(texId, {
+                            width: defaultWidth,
+                            height: defaultHeight,
+                            format: 'rgba16f',
+                            usage: ['render', 'sample']
+                        })
+                    }
                 }
             }
         }

@@ -1,6 +1,6 @@
-// GPGPU Pass 1: 16:1 pyramid reduction from original image
+// GPGPU Pass 2: 16:1 reduction of min/max texture
+// Input has min in .r, max in .g from previous reduce pass
 // Each output pixel covers a 16x16 block of input
-// Output: .r = min RGB, .g = max RGB
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;
 
@@ -32,15 +32,11 @@ fn main(input : VertexOutput) -> @location(0) vec4<f32> {
             
             let color : vec4<f32> = textureLoad(inputTex, sampleCoord, 0);
             
-            // Compute RGB min/max
-            let pixelMin : f32 = min(min(color.r, color.g), color.b);
-            let pixelMax : f32 = max(max(color.r, color.g), color.b);
-            
-            minVal = min(minVal, pixelMin);
-            maxVal = max(maxVal, pixelMax);
+            // Input has min in .r, max in .g
+            minVal = min(minVal, color.r);
+            maxVal = max(maxVal, color.g);
         }
     }
     
-    // Store min in r, max in g
     return vec4<f32>(minVal, maxVal, 0.0, 1.0);
 }

@@ -74,11 +74,14 @@ export class BrowserHarness {
         this.page.setDefaultTimeout(STATUS_TIMEOUT);
         this.page.setDefaultNavigationTimeout(STATUS_TIMEOUT);
         
-        // Capture console errors
+        // Capture console messages
         this.consoleMessages = [];
         this.page.on('console', msg => {
             const text = msg.text();
-            if (text.includes('Error') || text.includes('warning') || msg.type() === 'error') {
+            // Capture all messages for debugging
+            if (text.includes('Error') || text.includes('error') || text.includes('warning') || 
+                text.includes('Storage') || text.includes('getOutput') ||
+                msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }
         });
@@ -145,6 +148,20 @@ export class BrowserHarness {
                 resolve();
             }, 1000);
         });
+    }
+    
+    /**
+     * Clear console messages
+     */
+    clearConsoleMessages() {
+        this.consoleMessages = [];
+    }
+    
+    /**
+     * Get console messages
+     */
+    getConsoleMessages() {
+        return this.consoleMessages || [];
     }
     
     /**

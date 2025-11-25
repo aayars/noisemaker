@@ -351,7 +351,9 @@ export class WebGL2Backend extends Backend {
         if (pass.blend) {
             gl.enable(gl.BLEND)
             if (Array.isArray(pass.blend)) {
-                gl.blendFunc(pass.blend[0], pass.blend[1])
+                const srcFactor = this.resolveBlendFactor(pass.blend[0])
+                const dstFactor = this.resolveBlendFactor(pass.blend[1])
+                gl.blendFunc(srcFactor, dstFactor)
             } else {
                 // Default to additive
                 gl.blendFunc(gl.ONE, gl.ONE)
@@ -648,6 +650,47 @@ export class WebGL2Backend extends Backend {
         }
         
         return formats[format] || formats['rgba8']
+    }
+
+    /**
+     * Convert blend factor string to GL constant
+     * @param {string|number} factor - Blend factor string (e.g., "ONE", "SRC_ALPHA") or GL constant
+     * @returns {number} GL blend factor constant
+     */
+    resolveBlendFactor(factor) {
+        const gl = this.gl
+        if (typeof factor === 'number') return factor
+        
+        const factors = {
+            'ZERO': gl.ZERO,
+            'ONE': gl.ONE,
+            'SRC_COLOR': gl.SRC_COLOR,
+            'ONE_MINUS_SRC_COLOR': gl.ONE_MINUS_SRC_COLOR,
+            'DST_COLOR': gl.DST_COLOR,
+            'ONE_MINUS_DST_COLOR': gl.ONE_MINUS_DST_COLOR,
+            'SRC_ALPHA': gl.SRC_ALPHA,
+            'ONE_MINUS_SRC_ALPHA': gl.ONE_MINUS_SRC_ALPHA,
+            'DST_ALPHA': gl.DST_ALPHA,
+            'ONE_MINUS_DST_ALPHA': gl.ONE_MINUS_DST_ALPHA,
+            'CONSTANT_COLOR': gl.CONSTANT_COLOR,
+            'ONE_MINUS_CONSTANT_COLOR': gl.ONE_MINUS_CONSTANT_COLOR,
+            'CONSTANT_ALPHA': gl.CONSTANT_ALPHA,
+            'ONE_MINUS_CONSTANT_ALPHA': gl.ONE_MINUS_CONSTANT_ALPHA,
+            'SRC_ALPHA_SATURATE': gl.SRC_ALPHA_SATURATE,
+            // WebGPU-style lowercase
+            'zero': gl.ZERO,
+            'one': gl.ONE,
+            'src': gl.SRC_COLOR,
+            'one-minus-src': gl.ONE_MINUS_SRC_COLOR,
+            'dst': gl.DST_COLOR,
+            'one-minus-dst': gl.ONE_MINUS_DST_COLOR,
+            'src-alpha': gl.SRC_ALPHA,
+            'one-minus-src-alpha': gl.ONE_MINUS_SRC_ALPHA,
+            'dst-alpha': gl.DST_ALPHA,
+            'one-minus-dst-alpha': gl.ONE_MINUS_DST_ALPHA
+        }
+        
+        return factors[factor] || gl.ONE
     }
 
     getName() {
