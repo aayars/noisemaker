@@ -376,8 +376,8 @@ float simplexValue(vec2 st, float freq, float s, float blend) {
 
 // end simplex
 
-// Noisemaker value noise - Apache 2.0 License
-// https://github.com/aayars/py-noisemaker/blob/master/noisemaker/value.py
+// Noisemaker value noise - MIT License
+// https://github.com/noisedeck/noisemaker/blob/master/noisemaker/value.py
 int positiveModulo(int value, int modulus) {
     if (modulus == 0) {
         return 0;

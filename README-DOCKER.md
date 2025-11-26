@@ -92,5 +92,5 @@ docker run noisemaker noisemaker apply --help
 
 ### See also
 
-- [source](https://github.com/aayars/noisemaker)
+- [source](https://github.com/noisedeck/noisemaker)
 - [readthedocs](http://noisemaker.readthedocs.io/en/latest/)

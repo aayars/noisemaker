@@ -34,7 +34,7 @@ reload_presets(PRESETS)
     help="""
         Noisemaker - Let's make generative art with noise
 
-    https://github.com/aayars/noisemaker
+    https://github.com/noisedeck/noisemaker
         """,
     context_settings=cli.CLICK_CONTEXT_SETTINGS,
 )

@@ -33,4 +33,4 @@ Additional platform-specific guides:
 
 ## License
 
-Noisemaker is released under the [Apache 2.0 License](LICENSE).
+Noisemaker is released under the [MIT License](LICENSE).

@@ -297,8 +297,8 @@ float sineNoise(vec2 st, float xFreq, float yFreq, float s, float blend) {
     return (x + y) * 0.5 + 0.5;
 }
 
-// Noisemaker value noise - Apache 2.0 License
-// https://github.com/aayars/py-noisemaker/blob/master/noisemaker/value.py
+// Noisemaker value noise - MIT License
+// https://github.com/noisedeck/noisemaker/blob/master/noisemaker/value.py
 int positiveModulo(int value, int modulus) {
     if (modulus == 0) {
         return 0;
@@ -771,8 +771,8 @@ void main() {
             color.rgb = hsv2rgb(color.rgb);
         } else {
             // oklab
-            // magic values from py-noisemaker - Apache 2.0 License
-            // https://github.com/aayars/py-noisemaker/blob/master/noisemaker/generators.py
+            // magic values from py-noisemaker - MIT License
+            // https://github.com/noisedeck/noisemaker/blob/master/noisemaker/generators.py
             color.g = color.g * -.509 + .276;
             color.b = color.b * -.509 + .198;
 

@@ -334,8 +334,8 @@ fn sineNoise(st: vec2<f32>, xFreq: f32, yFreq: f32, s: f32, blend: f32) -> f32 {
     return (x + y) * 0.5 + 0.5;
 }
 
-// Noisemaker value noise - Apache 2.0 License
-// https://github.com/aayars/py-noisemaker/blob/master/noisemaker/value.py
+// Noisemaker value noise - MIT License
+// https://github.com/noisedeck/noisemaker/blob/master/noisemaker/value.py
 fn positiveModulo(value: i32, modulus: i32) -> i32 {
     if (modulus == 0) {
         return 0;
@@ -819,8 +819,8 @@ fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
             color = vec4<f32>(hsv2rgb(color.rgb), color.a);
         } else {
             // oklab
-            // magic values from py-noisemaker - Apache 2.0 License
-            // https://github.com/aayars/py-noisemaker/blob/master/noisemaker/generators.py
+            // magic values from py-noisemaker - MIT License
+            // https://github.com/noisedeck/noisemaker/blob/master/noisemaker/generators.py
             color.g = color.g * -.509 + .276;
             color.b = color.b * -.509 + .198;
 

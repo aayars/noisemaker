@@ -305,8 +305,8 @@ void main() {
         color.rgb = srgbToLinear(color.rgb);
     } else if (colorMode == 3) {
         // oklab
-        // magic values from py-noisemaker - Apache 2.0 License
-        // https://github.com/aayars/py-noisemaker/blob/master/noisemaker/generators.py
+        // magic values from py-noisemaker - MIT License
+        // https://github.com/noisedeck/noisemaker/blob/master/noisemaker/generators.py
         color.g = color.g * -.509 + .276;
         color.b = color.b * -.509 + .198;
 

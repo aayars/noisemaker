@@ -82,7 +82,7 @@ Install `Noisemaker`_ in a new virtualenv:
 
     source noisemaker/bin/activate
 
-    pip install git+https://github.com/aayars/noisemaker
+    pip install git+https://github.com/noisedeck/noisemaker
 
 TensorFlow is included as a dependency and will be installed automatically.
 
@@ -95,7 +95,7 @@ Activate the virtual environment, and run:
 
 .. code-block:: bash
 
-    pip install --upgrade git+https://github.com/aayars/noisemaker
+    pip install --upgrade git+https://github.com/noisedeck/noisemaker
 
 Development
 ~~~~~~~~~~~
@@ -104,7 +104,7 @@ To install noisemaker in a dev env with code quality tools:
 
 .. code-block:: bash
 
-    git clone https://github.com/aayars/noisemaker
+    git clone https://github.com/noisedeck/noisemaker
 
     cd noisemaker
 
@@ -171,9 +171,9 @@ Indices and tables
 
 .. _`Python 3.10+`: https://www.python.org/
 .. _`Python 3`: https://www.python.org/
-.. _`Noisemaker`: https://github.com/aayars/noisemaker
-.. _`Colab Notebook`: https://colab.research.google.com/github/aayars/noisemaker/blob/main/py_noisemaker.ipynb
-.. _`Noisemaker on Docker`: https://github.com/aayars/noisemaker/blob/main/README-DOCKER.md
+.. _`Noisemaker`: https://github.com/noisedeck/noisemaker
+.. _`Colab Notebook`: https://colab.research.google.com/github/noisedeck/noisemaker/blob/main/py_noisemaker.ipynb
+.. _`Noisemaker on Docker`: https://github.com/noisedeck/noisemaker/blob/main/README-DOCKER.md
 .. _`TensorFlow`: https://www.tensorflow.org/
 .. _`install TensorFlow`: https://www.tensorflow.org/install/
 

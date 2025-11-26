@@ -74,8 +74,8 @@ float periodicFunction(float p) {
     return map(sin(p * TAU), -1.0, 1.0, 0.0, 1.0);
 }
 
-// Noisemaker value noise - Apache 2.0 License
-// https://github.com/aayars/py-noisemaker/blob/master/noisemaker/value.py
+// Noisemaker value noise - MIT License
+// https://github.com/noisedeck/noisemaker/blob/master/noisemaker/value.py
 vec3 randomFromLatticeWithOffset(vec2 st, float xFreq, float yFreq, float s, ivec2 offset) {
     vec2 lattice = vec2(st.x * xFreq, st.y * yFreq);
     vec2 baseFloor = floor(lattice);

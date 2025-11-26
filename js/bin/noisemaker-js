@@ -24,7 +24,7 @@ const MAIN_HELP = `Usage: noisemaker-js [OPTIONS] COMMAND [ARGS]...
 
       Noisemaker - Let's make generative art with noise
 
-  https://github.com/aayars/noisemaker
+  https://github.com/noisedeck/noisemaker
 
 Options:
   -h, --help     Show this message and exit.

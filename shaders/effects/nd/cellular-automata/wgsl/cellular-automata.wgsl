@@ -1,5 +1,5 @@
-// Copyright 2025 Noise Factor LLC
-// Licensed under the Apache License, Version 2.0
+// Copyright 2025 Alex Ayars and Noise Factor LLC
+// Licensed under the MIT License
 
 // Cellular automata display pass (WGSL).
 

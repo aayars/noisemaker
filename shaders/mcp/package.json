@@ -28,6 +28,6 @@
     "testing",
     "copilot"
   ],
-  "author": "Noisemaker",
-  "license": "Apache-2.0"
+  "author": "Noise Factor LLC <team@noisefactor.io>",
+  "license": "MIT"
 }
