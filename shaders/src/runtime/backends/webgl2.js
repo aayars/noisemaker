@@ -171,6 +171,50 @@ export class WebGL2Backend extends Backend {
         this.fbos.set(id, fbo)
     }
 
+    /**
+     * Create or retrieve an MRT FBO for multiple render targets
+     * @param {string} id - Unique identifier for this MRT configuration
+     * @param {Array<WebGLTexture>} textures - Array of texture handles to attach
+     * @returns {WebGLFramebuffer}
+     */
+    createMRTFBO(id, textures) {
+        const gl = this.gl
+        
+        // Check if already cached
+        if (this.fbos.has(id)) {
+            return this.fbos.get(id)
+        }
+        
+        const fbo = gl.createFramebuffer()
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
+        
+        const drawBuffers = []
+        for (let i = 0; i < textures.length; i++) {
+            const attachment = gl.COLOR_ATTACHMENT0 + i
+            gl.framebufferTexture2D(
+                gl.FRAMEBUFFER,
+                attachment,
+                gl.TEXTURE_2D,
+                textures[i],
+                0
+            )
+            drawBuffers.push(attachment)
+        }
+        
+        // Enable all color attachments for writing
+        gl.drawBuffers(drawBuffers)
+        
+        // Check FBO status
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            console.error(`MRT FBO incomplete for ${id}: ${status}`)
+        }
+        
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        this.fbos.set(id, fbo)
+        return fbo
+    }
+
     destroyTexture(id) {
         const gl = this.gl
         const tex = this.textures.get(id)
@@ -296,44 +340,100 @@ export class WebGL2Backend extends Backend {
 
     executePass(pass, state) {
         const gl = this.gl
-        const program = this.programs.get(pass.program)
+        
+        // WebGL2 GPGPU: Convert compute passes to render passes
+        // Compute shaders don't exist in WebGL2, so we use fragment shaders
+        // with fullscreen triangles as a GPGPU fallback
+        const effectivePass = pass.type === 'compute' ? this.convertComputeToRender(pass) : pass
+        
+        const program = this.programs.get(effectivePass.program)
         
         if (!program) {
-            console.error(`Program ${pass.program} not found for pass ${pass.id}`)
+            console.error(`Program ${effectivePass.program} not found for pass ${effectivePass.id}`)
             throw {
                 code: 'ERR_PROGRAM_NOT_FOUND',
-                pass: pass.id,
-                program: pass.program
+                pass: effectivePass.id,
+                program: effectivePass.program
             }
         }
         
         // Use program
         gl.useProgram(program.handle)
         
-        // Bind output FBO
-        let outputId = pass.outputs.color || Object.values(pass.outputs)[0]
+        // Check for MRT (Multiple Render Targets)
+        const outputKeys = Object.keys(effectivePass.outputs || {})
+        const isMRT = effectivePass.drawBuffers > 1 || outputKeys.length > 1
         
-        // Resolve global surface to current write buffer
-        if (outputId.startsWith('global_')) {
-            const surfaceName = outputId.replace('global_', '')
-            if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
-                outputId = state.writeSurfaces[surfaceName]
+        let fbo = null
+        let viewportTex = null
+        
+        if (isMRT) {
+            // MRT pass - bind multiple outputs
+            const textures = []
+            const resolvedOutputIds = []
+            
+            for (const outputKey of outputKeys) {
+                let outputId = effectivePass.outputs[outputKey]
+                
+                // Resolve global surface to current write buffer
+                if (outputId.startsWith('global_')) {
+                    const surfaceName = outputId.replace('global_', '')
+                    if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
+                        outputId = state.writeSurfaces[surfaceName]
+                    }
+                }
+                
+                resolvedOutputIds.push(outputId)
+                const tex = this.textures.get(outputId)
+                if (tex) {
+                    textures.push(tex.handle)
+                    if (!viewportTex) viewportTex = tex
+                } else {
+                    console.warn(`[executePass MRT] Texture not found for ${outputId} in pass ${effectivePass.id}`)
+                }
             }
-        }
+            
+            if (textures.length > 0) {
+                // Create unique ID for this MRT configuration
+                const mrtId = `mrt_${effectivePass.id}_${resolvedOutputIds.join('_')}`
+                fbo = this.createMRTFBO(mrtId, textures)
+            }
+        } else {
+            // Single output pass
+            let outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0]
+            
+            // Resolve global surface to current write buffer
+            if (outputId && outputId.startsWith('global_')) {
+                const surfaceName = outputId.replace('global_', '')
+                if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
+                    outputId = state.writeSurfaces[surfaceName]
+                }
+            }
 
-        const fbo = this.fbos.get(outputId)
-        if (!fbo && outputId !== 'screen') {
-             console.warn(`[executePass] FBO not found for ${outputId} in pass ${pass.id}`)
+            fbo = this.fbos.get(outputId)
+            if (!fbo && outputId !== 'screen') {
+                console.warn(`[executePass] FBO not found for ${outputId} in pass ${effectivePass.id}`)
+            }
+            
+            viewportTex = this.textures.get(outputId)
         }
         
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo || null)
         
+        // For MRT, we need to call drawBuffers again after binding the FBO
+        if (isMRT && fbo) {
+            const drawBuffers = []
+            for (let i = 0; i < outputKeys.length; i++) {
+                drawBuffers.push(gl.COLOR_ATTACHMENT0 + i)
+            }
+            gl.drawBuffers(drawBuffers)
+        }
+        
         // Set viewport
-        const tex = this.textures.get(outputId)
-        if (tex) {
-            gl.viewport(0, 0, tex.width, tex.height)
-        } else if (pass.viewport) {
-            gl.viewport(pass.viewport.x, pass.viewport.y, pass.viewport.w, pass.viewport.h)
+        if (viewportTex) {
+            gl.viewport(0, 0, viewportTex.width, viewportTex.height)
+        } else if (effectivePass.viewport) {
+            gl.viewport(effectivePass.viewport.x, effectivePass.viewport.y, effectivePass.viewport.w, effectivePass.viewport.h)
         } else {
             gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
         }
@@ -343,17 +443,17 @@ export class WebGL2Backend extends Backend {
         // gl.clear(gl.COLOR_BUFFER_BIT)
         
         // Bind input textures
-        this.bindTextures(pass, program, state)
+        this.bindTextures(effectivePass, program, state)
         
         // Bind uniforms
-        this.bindUniforms(pass, program, state)
+        this.bindUniforms(effectivePass, program, state)
         
         // Handle Blending
-        if (pass.blend) {
+        if (effectivePass.blend) {
             gl.enable(gl.BLEND)
-            if (Array.isArray(pass.blend)) {
-                const srcFactor = this.resolveBlendFactor(pass.blend[0])
-                const dstFactor = this.resolveBlendFactor(pass.blend[1])
+            if (Array.isArray(effectivePass.blend)) {
+                const srcFactor = this.resolveBlendFactor(effectivePass.blend[0])
+                const dstFactor = this.resolveBlendFactor(effectivePass.blend[1])
                 gl.blendFunc(srcFactor, dstFactor)
             } else {
                 // Default to additive
@@ -364,15 +464,15 @@ export class WebGL2Backend extends Backend {
         }
 
         // Draw
-        if (pass.drawMode === 'points') {
-            let count = pass.count || 1000
+        if (effectivePass.drawMode === 'points') {
+            let count = effectivePass.count || 1000
             if (count === 'auto' || count === 'screen' || count === 'input') {
                 // Determine count based on mode
                 let refTex = null
                 
-                if (count === 'input' && pass.inputs && pass.inputs.inputTex) {
+                if (count === 'input' && effectivePass.inputs && effectivePass.inputs.inputTex) {
                     // Use input texture dimensions
-                    const inputId = pass.inputs.inputTex
+                    const inputId = effectivePass.inputs.inputTex
                     if (inputId.startsWith('global_')) {
                         const surfaceName = inputId.replace('global_', '')
                         const surfaceTex = state.surfaces?.[surfaceName]
@@ -409,9 +509,9 @@ export class WebGL2Backend extends Backend {
         let error = gl.getError()
         while (error !== gl.NO_ERROR) {
             // Build detailed error context
-            const outputId = pass.outputs?.color || Object.values(pass.outputs || {})[0] || 'unknown'
-            const inputIds = pass.inputs ? Object.entries(pass.inputs).map(([k,v]) => `${k}=${v}`).join(', ') : 'none'
-            console.error(`WebGL Error ${error} in pass ${pass.id} (effect: ${pass.effectKey || 'unknown'}, program: ${pass.program}, output: ${outputId}, inputs: ${inputIds})`)
+            const outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0] || 'unknown'
+            const inputIds = effectivePass.inputs ? Object.entries(effectivePass.inputs).map(([k,v]) => `${k}=${v}`).join(', ') : 'none'
+            console.error(`WebGL Error ${error} in pass ${effectivePass.id} (effect: ${effectivePass.effectKey || 'unknown'}, program: ${effectivePass.program}, output: ${outputId}, inputs: ${inputIds})`)
             error = gl.getError()
         }
         
@@ -419,6 +519,48 @@ export class WebGL2Backend extends Backend {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.useProgram(null)
         gl.disable(gl.BLEND)
+    }
+
+    /**
+     * Convert a compute pass to a GPGPU render pass for WebGL2 fallback
+     * WebGL2 doesn't support compute shaders, so we use fragment shaders
+     * with fullscreen triangles to achieve similar functionality.
+     */
+    convertComputeToRender(pass) {
+        // Create a render-equivalent pass
+        const renderPass = {
+            ...pass,
+            type: 'render',
+            _originalType: 'compute'
+        }
+        
+        // Map compute outputs to render outputs
+        // Compute shaders typically write to storage buffers/textures
+        // For GPGPU, we write to framebuffer color attachments
+        if (pass.storageTextures) {
+            renderPass.outputs = {}
+            for (const [key, texId] of Object.entries(pass.storageTextures)) {
+                // Map storage texture to render output
+                renderPass.outputs[key] = texId
+            }
+        }
+        
+        // If outputs exist but use compute conventions (outputBuffer -> outputColor)
+        if (pass.outputs) {
+            renderPass.outputs = {}
+            for (const [key, texId] of Object.entries(pass.outputs)) {
+                // Normalize output names
+                const normalizedKey = key === 'outputBuffer' ? 'color' : key
+                renderPass.outputs[normalizedKey] = texId
+            }
+        }
+        
+        // Ensure we have at least one output
+        if (!renderPass.outputs || Object.keys(renderPass.outputs).length === 0) {
+            renderPass.outputs = { color: 'outputColor' }
+        }
+        
+        return renderPass
     }
 
     bindTextures(pass, program, state) {

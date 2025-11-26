@@ -85,7 +85,6 @@ export function expand(compilationResult) {
                 const pass = {
                     id: passId,
                     program: passDef.program,
-                    programSpec: passDef.programSpec,
                     type: passDef.type || 'render',
                     drawMode: passDef.drawMode,
                     count: passDef.count,

@@ -66,11 +66,6 @@ export class Pipeline {
     resolveProgramSpec(pass) {
         const programs = this.graph?.programs
 
-        // Check pass-level programSpec first (inline shaders take priority)
-        if (pass.programSpec) {
-            return pass.programSpec
-        }
-
         if (programs instanceof Map && programs.has(pass.program)) {
             return programs.get(pass.program)
         }

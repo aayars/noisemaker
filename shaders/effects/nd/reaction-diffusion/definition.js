@@ -194,7 +194,7 @@ export default class ReactionDiffusion extends Effect {
   passes = [
     {
       name: "simulate",
-      type: "render",
+      type: "compute",  // GPGPU: reaction-diffusion simulation step
       program: "reaction-diffusion-fb",
       inputs: {
         bufTex: "global_reaction_diffusion_state",

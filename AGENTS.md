@@ -86,6 +86,28 @@ Shaders implementation is under shaders/
 
 **CRITICAL - Surface Architecture**: Surfaces `o0`..`o7` are reserved for **USER USE ONLY**. Effects requiring internal feedback or temporary storage MUST allocate their own surfaces (e.g., `_feedbackBuffer`, `_temp0`) in the effect's `textures` property. NEVER hardwire `o0`..`o7` within effect definitions as this corrupts the user's composition graph. Use `inputTex` as the default for effect source parameters.
 
+### Compute Pass Semantics
+
+Use `type: "compute"` for passes that update state, run simulations, or produce multiple outputs. This is **semantically correct** even for WebGL2 targets:
+
+- **WebGPU**: Native compute shaders execute directly
+- **WebGL2**: Runtime automatically converts to GPGPU render passes
+
+The WebGL2 backend handles compute-to-render conversion transparently:
+- Fragment shaders perform the compute work
+- Multiple Render Targets (MRT) handle multi-output passes
+- Points draw mode enables scatter operations (agent deposit)
+
+**Never** write separate "simplified" shaders for WebGL2. Use `type: "compute"` for semantic clarity and let the backend handle the conversion.
+
+### Agent-Based Effects Pattern
+
+Effects like `erosion_worms` and `physarum` follow this structure:
+1. **Agent pass** (`type: "compute"`): Update agent state (position, direction, etc.) with MRT for multiple state textures
+2. **Deposit pass** (`drawMode: "points"`): Agents scatter trails to accumulation texture
+3. **Diffuse pass** (`type: "compute"`): Blur/spread accumulated trails
+4. **Blend pass** (`type: "render"`): Combine with input for final output
+
 ### Shader MCP Tools
 
 When working on shaders, you have access to MCP tools for testing effects:

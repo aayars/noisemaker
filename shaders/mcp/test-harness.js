@@ -14,6 +14,9 @@
  *   --benchmark           # run FPS test (~500ms per effect)
  *   --vision              # run AI vision analysis (requires .openai key)
  *   --uniforms            # test that uniform controls affect output
+ *   --structure           # test for unused files, compute passes, and leaked internal uniforms
+ *   --alg-equiv           # test algorithmic equivalence between GLSL and WGSL shaders (requires .openai key)
+ *   --verbose             # show additional diagnostic info
  *   --webgpu, --wgsl      # use WebGPU/WGSL backend instead of WebGL2/GLSL
  * 
  * Examples:
@@ -21,11 +24,13 @@
  *   node test-harness.js "basics/*" --benchmark    # all basics with FPS
  *   node test-harness.js basics/noise --vision     # with AI description
  *   node test-harness.js nm/worms --uniforms       # test uniform responsiveness
+ *   node test-harness.js nm/worms --structure      # test shader organization
  *   node test-harness.js nm/normalize --benchmark --webgpu  # test WGSL with FPS
+ *   node test-harness.js "nm/*" --alg-equiv        # test GLSL/WGSL algorithmic equivalence
  */
 
 import { createBrowserHarness } from './browser-harness.js';
-import { getOpenAIApiKey } from './core-operations.js';
+import { getOpenAIApiKey, checkEffectStructure, checkShaderParity } from './core-operations.js';
 
 /**
  * Match effect IDs against a pattern
@@ -57,13 +62,76 @@ function matchEffects(effects, pattern) {
 }
 
 async function testEffect(harness, effectId, options = {}) {
-    const results = { effectId, compile: null, render: null, uniforms: null, benchmark: null, vision: null };
+    const results = { effectId, compile: null, render: null, uniforms: null, structure: null, algEquiv: null, benchmark: null, vision: null };
     const timings = [];
     const backend = options.backend || 'webgl2';
     let t0 = Date.now();
     
     // Clear console messages
     harness.clearConsoleMessages?.();
+    
+    // Structure test (runs before compilation, uses filesystem)
+    if (options.structure) {
+        t0 = Date.now();
+        const structureResult = await checkEffectStructure(effectId, { backend });
+        timings.push(`structure:${Date.now() - t0}ms`);
+        results.structure = structureResult;
+        
+        // Report unused files
+        if (structureResult.unusedFiles?.length > 0) {
+            console.log(`  ⚠ unused files: ${structureResult.unusedFiles.join(', ')}`);
+        } else if (structureResult.unusedFiles) {
+            console.log(`  ✓ no unused shader files`);
+        }
+        
+        // Report leaked internal uniforms
+        if (structureResult.leakedInternalUniforms?.length > 0) {
+            console.log(`  ⚠ leaked internal uniforms: ${structureResult.leakedInternalUniforms.join(', ')}`);
+        } else {
+            console.log(`  ✓ no leaked internal uniforms`);
+        }
+        
+        // Report compute pass check for multi-pass effects
+        if (structureResult.multiPass) {
+            if (structureResult.hasComputePass) {
+                console.log(`  ✓ multi-pass: has compute/gpgpu pass`);
+            } else if (structureResult.computePassExempt) {
+                console.log(`  ⊘ multi-pass: exempt (${structureResult.computePassExemptReason})`);
+            } else {
+                console.log(`  ⚠ multi-pass: NO compute pass (${structureResult.passCount} passes, types: ${structureResult.passTypes?.join(', ')})`);
+            }
+        }
+        
+        t0 = Date.now();
+    }
+    
+    // Algorithmic equivalence test (runs before compilation, uses filesystem + AI)
+    if (options.algEquiv && getOpenAIApiKey()) {
+        t0 = Date.now();
+        const algEquivResult = await checkShaderParity(effectId);
+        timings.push(`alg-equiv:${Date.now() - t0}ms`);
+        results.algEquiv = algEquivResult;
+        
+        if (algEquivResult.status === 'divergent') {
+            console.log(`  ⚠ ALG-EQUIV DIVERGENT`);
+            for (const pair of algEquivResult.pairs.filter(p => p.parity === 'divergent')) {
+                console.log(`    ${pair.program}: ${pair.notes}`);
+                if (pair.concerns?.length > 0) {
+                    for (const concern of pair.concerns) {
+                        console.log(`      - ${concern}`);
+                    }
+                }
+            }
+        } else if (algEquivResult.status === 'ok' && algEquivResult.pairs.length > 0) {
+            console.log(`  ✓ alg-equiv: ${algEquivResult.pairs.length} pairs equivalent`);
+        } else if (algEquivResult.pairs.length === 0) {
+            console.log(`  ⊘ alg-equiv: ${algEquivResult.summary}`);
+        } else {
+            console.log(`  ✗ alg-equiv: ${algEquivResult.summary}`);
+        }
+        
+        t0 = Date.now();
+    }
     
     // Compile
     const compileResult = await harness.compileEffect(effectId, { backend });
@@ -174,6 +242,9 @@ async function main() {
     const runBenchmark = process.argv.includes('--benchmark');  // off by default for speed
     const runVision = process.argv.includes('--vision');
     const runUniforms = process.argv.includes('--uniforms');
+    const runStructure = process.argv.includes('--structure');
+    const runAlgEquiv = process.argv.includes('--alg-equiv');
+    const verbose = process.argv.includes('--verbose');
     
     // Extract vision prompt from --prompt "..." argument
     let visionPrompt = null;
@@ -209,6 +280,9 @@ async function main() {
                 benchmark: runBenchmark, 
                 vision: runVision,
                 uniforms: runUniforms,
+                structure: runStructure,
+                algEquiv: runAlgEquiv,
+                verbose,
                 visionPrompt,
                 backend
             });
@@ -221,6 +295,49 @@ async function main() {
         console.log(`\n=== Summary ===`);
         console.log(`${passed}/${results.length} passed in ${elapsed}s`);
         console.log(`${(elapsed / results.length).toFixed(2)}s per effect (excluding browser startup)`);
+        
+        // Structure summary if run
+        if (runStructure) {
+            const withUnused = results.filter(r => r.structure?.unusedFiles?.length > 0);
+            const multiPassNoCompute = results.filter(r => 
+                r.structure?.multiPass && !r.structure?.hasComputePass && !r.structure?.computePassExempt
+            );
+            
+            if (withUnused.length > 0) {
+                console.log(`\n⚠ Effects with unused shader files: ${withUnused.length}`);
+                for (const r of withUnused) {
+                    console.log(`  ${r.effectId}: ${r.structure.unusedFiles.join(', ')}`);
+                }
+            }
+            
+            if (multiPassNoCompute.length > 0) {
+                console.log(`\n⚠ Multi-pass effects missing compute passes: ${multiPassNoCompute.length}`);
+                for (const r of multiPassNoCompute) {
+                    console.log(`  ${r.effectId}: ${r.structure.passCount} passes (${r.structure.passTypes?.join(', ')})`);
+                }
+            }
+        }
+        
+        // Algorithmic equivalence summary if run
+        if (runAlgEquiv) {
+            const divergent = results.filter(r => r.algEquiv?.status === 'divergent');
+            const checked = results.filter(r => r.algEquiv?.pairs?.length > 0);
+            
+            console.log(`\n=== Algorithmic Equivalence Summary ===`);
+            console.log(`${checked.length} effects with shader pairs checked`);
+            
+            if (divergent.length > 0) {
+                console.log(`\n⚠ DIVERGENT implementations: ${divergent.length}`);
+                for (const r of divergent) {
+                    console.log(`  ${r.effectId}:`);
+                    for (const pair of r.algEquiv.pairs.filter(p => p.parity === 'divergent')) {
+                        console.log(`    ${pair.program}: ${pair.notes}`);
+                    }
+                }
+            } else if (checked.length > 0) {
+                console.log(`✓ All shader pairs are algorithmically equivalent`);
+            }
+        }
         
     } catch (error) {
         console.error('Test failed:', error);

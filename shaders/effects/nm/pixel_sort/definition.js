@@ -51,7 +51,7 @@ export default class PixelSort extends Effect {
   passes = [
     {
       name: "prepare",
-      type: "render",
+      type: "compute",  // GPGPU: rotate, invert
       program: "prepare",
       inputs: {
         inputTex: "inputTex"
@@ -67,7 +67,7 @@ export default class PixelSort extends Effect {
     },
     {
       name: "luminance",
-      type: "render",
+      type: "compute",  // GPGPU: compute per-pixel luminance
       program: "luminance",
       inputs: {
         inputTex: "prepared"
@@ -78,7 +78,7 @@ export default class PixelSort extends Effect {
     },
     {
       name: "find_brightest",
-      type: "render",
+      type: "compute",  // GPGPU: per-row analysis
       program: "find_brightest",
       inputs: {
         lumTex: "luminance"
@@ -89,7 +89,7 @@ export default class PixelSort extends Effect {
     },
     {
       name: "compute_rank",
-      type: "render",
+      type: "compute",  // GPGPU: count brighter pixels
       program: "compute_rank",
       inputs: {
         lumTex: "luminance"
@@ -100,7 +100,7 @@ export default class PixelSort extends Effect {
     },
     {
       name: "gather_sorted",
-      type: "render",
+      type: "compute",  // GPGPU: gather sorted pixels
       program: "gather_sorted",
       inputs: {
         preparedTex: "prepared",

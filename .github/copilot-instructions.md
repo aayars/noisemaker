@@ -27,6 +27,7 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
   - WGSL struct members end with `,` (comma), not `;` (semicolon).
   - Controls in `shaders/demo.html` must match Python effect params (except "shape").
   - **CRITICAL**: Surfaces `o0`..`o7` are **USER-ONLY**. Effects MUST allocate internal surfaces (e.g., `_feedbackBuffer`) in their `textures` property for feedback/temp storage. NEVER hardwire `o0`..`o7` in effect definitions.
+  - **COMPUTE SEMANTICS**: Use `type: "compute"` for state updates, simulations, and multi-output passes. This is semantically correct even on WebGL2 - the runtime converts to GPGPU render passes automatically. Never write separate "simplified" WebGL2 shaders.
 
 ## Integration Points
 - **Python CLI**: `noisemaker` command for image generation and effects.
@@ -35,6 +36,11 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
 - **Shaders**: Viewer in `shaders/demo.html`, tests in `shaders/tests/`.
 
 ## Shader Testing
+
+**MANDATORY**: All shader work under `/shaders` MUST use the `noisemaker-shader-tools` MCP Server.
+
+Do NOT use terminal commands or other tools for shader testing. MCP tools are the only supported interface.
+
 - Resolve *all* console errors before returning a solution.
 - The shader must run in the browser with no errors, or your turn is not over.
 
@@ -45,7 +51,7 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
 - Main docs: [README.md](../README.md)
 - Python agent rules: [AGENTS.md](../AGENTS.md)
 - Shader agent rules: [shaders/AGENTS.md](../shaders/AGENTS.md)
-- Docker usage: [docker/README.md](../docker/README.md)
+- Shader MCP docs: [shaders/mcp/README.md](../shaders/mcp/README.md)
 
 ---
 

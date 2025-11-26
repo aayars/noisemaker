@@ -33,7 +33,7 @@ export default class Shadow extends Effect {
   passes = [
     {
       name: "value-map",
-      type: "render",
+      type: "compute",  // GPGPU: compute value map
       program: "shadow_value_map",
       inputs: {
         input_texture: "inputTex"
@@ -44,7 +44,7 @@ export default class Shadow extends Effect {
     },
     {
       name: "sobel",
-      type: "render",
+      type: "compute",  // GPGPU: edge detection
       program: "shadow_sobel",
       inputs: {
         value_texture: "shadowValueMap"
@@ -55,7 +55,7 @@ export default class Shadow extends Effect {
     },
     {
       name: "sharpen",
-      type: "render",
+      type: "compute",  // GPGPU: sharpen
       program: "shadow_sharpen",
       inputs: {
         gradient_texture: "shadowSobel"

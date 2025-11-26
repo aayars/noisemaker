@@ -10,6 +10,8 @@ export {
     renderEffectFrame,
     benchmarkEffectFps,
     describeEffectFrame,
+    checkEffectStructure,
+    checkShaderParity,
     computeImageMetrics,
     waitForCompileStatus,
     getOpenAIApiKey,

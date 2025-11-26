@@ -42,7 +42,7 @@ export default class ConvFeedback extends Effect {
   passes = [
     {
       name: "blur",
-      type: "render",
+      type: "compute",  // GPGPU: blur convolution
       program: "conv_feedback_blur",
       inputs: {
         input_texture: "inputTex"

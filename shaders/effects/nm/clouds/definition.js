@@ -60,7 +60,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "reduce",
-      type: "render", 
+      type: "compute",  // GPGPU: min/max reduction
       program: "clouds_reduce",
       inputs: {
         downsampleTex: "downsampleTex"
@@ -71,7 +71,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "stats",
-      type: "render",
+      type: "compute",  // GPGPU: final reduction to 1x1
       program: "clouds_stats",
       inputs: {
         reduceTex: "reduce1Tex"
@@ -82,7 +82,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "shade",
-      type: "render",
+      type: "compute",  // GPGPU: normalized mask computation
       program: "clouds_shade",
       inputs: {
         downsampleTex: "downsampleTex",

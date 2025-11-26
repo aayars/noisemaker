@@ -194,6 +194,20 @@ const TOOLS = [
             },
             required: ['effect_id', 'target_fps']
         }
+    },
+    {
+        name: 'check_alg_equiv',
+        description: 'Check algorithmic equivalence between GLSL and WGSL shader implementations. Uses AI to compare shader pairs and flag divergent implementations. Only flags truly divergent algorithms, not language-specific syntax differences.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                effect_id: {
+                    type: 'string',
+                    description: 'Effect identifier (e.g., "basics/noise", "nm/worms")'
+                }
+            },
+            required: ['effect_id']
+        }
     }
 ];
 
@@ -276,6 +290,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         backend: args.backend
                     }
                 );
+                return {
+                    content: [{
+                        type: 'text',
+                        text: JSON.stringify(result, null, 2)
+                    }]
+                };
+            }
+            
+            case 'check_alg_equiv': {
+                const result = await harness.checkShaderParity(args.effect_id);
                 return {
                     content: [{
                         type: 'text',

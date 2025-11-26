@@ -24,12 +24,16 @@ node shaders/mcp/test-harness.js basics/noise
 ## Tools
 
 | Tool | Purpose |
-|------|---------||
+|------|---------|
 | `compile_effect` | Verify shader compiles cleanly |
 | `render_effect_frame` | Render frame, check for monochrome output |
 | `describe_effect_frame` | AI vision analysis of rendered output |
 | `benchmark_effect_fps` | Measure sustained framerate |
 | `testUniformResponsiveness` | Verify uniform controls affect output |
+| `checkEffectStructure` | Detect unused files and compute pass requirements |
+| `check_alg_equiv` | Compare GLSL/WGSL algorithmic equivalence |
+
+See [Tool Reference](docs/TOOL_REFERENCE.md) for complete input/output schemas.
 
 ## Architecture
 
@@ -39,123 +43,7 @@ The implementation follows a three-layer design:
 2. **Browser Harness** (`browser-harness.js`) - Playwright-based browser session management
 3. **MCP Server** (`server.js`) - Thin façade exposing tools over stdio
 
-## Tool Examples
-
-### `compile_effect`
-
-Compile a shader effect and verify it compiles cleanly.
-
-**Input:**
-```json
-{
-  "effect_id": "basics/noise",
-  "backend": "webgl2"
-}
-```
-
-**Output:**
-```json
-{
-  "status": "ok",
-  "backend": "webgl2",
-  "passes": [
-    { "id": "basics/noise", "status": "ok" }
-  ]
-}
-```
-
-### `render_effect_frame`
-
-Render a single frame and analyze if output is monochrome/blank.
-
-**Input:**
-```json
-{
-  "effect_id": "basics/noise",
-  "test_case": {
-    "time": 0,
-    "resolution": [512, 512],
-    "seed": 42,
-    "uniforms": {}
-  }
-}
-```
-
-**Output:**
-```json
-{
-  "status": "ok",
-  "frame": {
-    "image_uri": "data:image/png;base64,...",
-    "width": 512,
-    "height": 512
-  },
-  "metrics": {
-    "mean_rgb": [0.5, 0.5, 0.5],
-    "std_rgb": [0.2, 0.2, 0.2],
-    "luma_variance": 0.04,
-    "unique_sampled_colors": 847,
-    "is_all_zero": false,
-    "is_monochrome": false
-  }
-}
-```
-
-### `describe_effect_frame`
-
-Render a frame and get an AI vision description.
-
-**Input:**
-```json
-{
-  "effect_id": "basics/noise",
-  "prompt": "Describe the visual pattern and color distribution",
-  "test_case": {}
-}
-```
-
-**Output:**
-```json
-{
-  "status": "ok",
-  "frame": { "image_uri": "data:image/png;base64,..." },
-  "vision": {
-    "description": "A procedural noise pattern with smooth gradients...",
-    "tags": ["noise", "gradient", "abstract", "grayscale"],
-    "notes": "Pattern appears to be simplex noise with good coverage"
-  }
-}
-```
-
-### `benchmark_effect_fps`
-
-Verify a shader can sustain a target framerate.
-
-**Input:**
-```json
-{
-  "effect_id": "basics/noise",
-  "target_fps": 60,
-  "duration_seconds": 5,
-  "resolution": [1920, 1080],
-  "backend": "webgl2"
-}
-```
-
-**Output:**
-```json
-{
-  "status": "ok",
-  "backend": "webgl2",
-  "achieved_fps": 58.5,
-  "meets_target": false,
-  "stats": {
-    "frame_count": 293,
-    "avg_frame_time_ms": 17.1,
-    "p95_frame_time_ms": 19.2
-  }
-}
-```
+See [Architecture](docs/ARCHITECTURE.md) for details.
 
 ## Installation
 
@@ -175,37 +63,13 @@ Verify a shader can sustain a target framerate.
    echo "sk-..." > .openai
    ```
 
-## VS Code Integration
+See [VS Code Integration](docs/VSCODE_INTEGRATION.md) for MCP server configuration.
 
-The MCP server is configured in `.vscode/settings.json`:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "noisemaker-shader-tools": {
-        "command": "node",
-        "args": ["${workspaceFolder}/shaders/mcp/server.js"]
-      }
-    }
-  }
-}
-```
-
-Once configured, the coding agent will have access to the shader testing tools. Example agent workflow:
-
-1. Agent modifies a shader effect
-2. Agent calls `compile_effect` to verify compilation
-3. Agent calls `render_effect_frame` to check for visual output
-4. If issues found, agent iterates on fixes
-5. Agent calls `benchmark_effect_fps` to verify performance
-
-## Testing
+## Test Harness
 
 Run the test harness to verify the setup:
 
 ```bash
-cd shaders/mcp
 node test-harness.js [pattern] [flags]
 ```
 
@@ -216,6 +80,9 @@ node test-harness.js [pattern] [flags]
 | `--benchmark` | Run FPS test (~500ms per effect) |
 | `--vision` | Run AI vision analysis (requires .openai key) |
 | `--uniforms` | Test that uniform controls affect output |
+| `--structure` | Check for unused files, compute passes, and leaked internal uniforms |
+| `--alg-equiv` | Compare GLSL/WGSL algorithmic equivalence (requires .openai key) |
+| `--verbose` | Show additional diagnostic information |
 | `--webgpu` | Use WebGPU/WGSL backend instead of WebGL2/GLSL |
 
 ### Examples
@@ -225,19 +92,9 @@ node test-harness.js basics/noise              # compile + render only
 node test-harness.js "basics/*" --benchmark    # all basics with FPS
 node test-harness.js basics/noise --vision     # with AI description
 node test-harness.js nm/worms --uniforms       # test uniform responsiveness
+node test-harness.js nm/worms --structure      # test shader organization
 node test-harness.js nm/normalize --webgpu     # test WGSL backend
-```
-
-## Manual Server Testing
-
-Start the server directly:
-```bash
-node shaders/mcp/server.js
-```
-
-Then send JSON-RPC messages over stdin. Example:
-```json
-{"jsonrpc":"2.0","id":1,"method":"tools/list"}
+node test-harness.js "basics/*" --alg-equiv    # check GLSL/WGSL algorithmic equivalence
 ```
 
 ## Development Notes

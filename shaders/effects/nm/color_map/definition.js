@@ -36,7 +36,7 @@ export default class ColorMap extends Effect {
   passes = [
     {
       name: "reduce_1",
-      type: "render",
+      type: "compute",  // GPGPU: min/max reduction pass 1
       program: "reduce_1",
       inputs: {
         input_texture: "inputTex"
@@ -47,7 +47,7 @@ export default class ColorMap extends Effect {
     },
     {
       name: "reduce_2",
-      type: "render",
+      type: "compute",  // GPGPU: min/max reduction pass 2
       program: "reduce_2",
       inputs: {
         reduceTex1: "reduceTex1"

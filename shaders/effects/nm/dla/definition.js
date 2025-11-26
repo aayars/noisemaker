@@ -72,28 +72,35 @@ export default class Dla extends Effect {
     }
 };
 
+  // Agent state texture: 256x256 agents = 65536 walkers
+  // Each pixel stores: xy = position, z = seed, w = stuck flag
+  textures = {
+    global_grid_state: { width: "100%", height: "100%", format: "rgba16f" },
+    global_agent_state: { width: 256, height: 256, format: "rgba16f" }
+  };
+
   passes = [
     {
       name: "decay_grid",
-      type: "render",
+      type: "compute",  // GPGPU: grid state update
       program: "init_from_prev",
       inputs: {
         gridTex: "global_grid_state"
       },
       outputs: {
-        outGrid: "global_grid_state"
+        dlaOutColor: "global_grid_state"
       }
     },
     {
       name: "simulate_agents",
-      type: "render",
+      type: "compute",  // GPGPU: agent simulation
       program: "agent_walk",
       inputs: {
         agentTex: "global_agent_state",
         gridTex: "global_grid_state"
       },
       outputs: {
-        outAgents: "global_agent_state"
+        dlaOutColor: "global_agent_state"
       }
     },
     {
@@ -101,64 +108,13 @@ export default class Dla extends Effect {
       type: "render",
       program: "save_cluster",
       drawMode: "points",
-      count: "auto",
+      count: 65536,  // 256x256 agents
       blend: ["ONE", "ONE"],
-      programSpec: {
-        vertex: `#version 300 es
-        precision highp float;
-        uniform sampler2D agentTex;
-        out float v_weight;
-
-        ivec2 decodeIndex(int index, ivec2 dims) {
-            int x = index % dims.x;
-            int y = index / dims.x;
-            return ivec2(x, y);
-        }
-
-        void main() {
-            ivec2 dims = textureSize(agentTex, 0);
-            ivec2 coord = decodeIndex(gl_VertexID, dims);
-            vec2 uv = (vec2(coord) + 0.5) / vec2(dims);
-            vec4 state = texture(agentTex, uv);
-            float weight = clamp(state.w, 0.0, 1.0);
-            v_weight = weight;
-            if (weight < 0.5) {
-                gl_Position = vec4(-2.0, -2.0, 0.0, 1.0);
-                gl_PointSize = 1.0;
-                return;
-            }
-
-            vec2 clip = state.xy * 2.0 - 1.0;
-            gl_Position = vec4(clip, 0.0, 1.0);
-            gl_PointSize = 4.5;
-        }`,
-        fragment: `#version 300 es
-        precision highp float;
-        in float v_weight;
-        layout(location = 0) out vec4 dlaOutColor;
-        uniform float alpha;
-
-        float falloff(vec2 coord) {
-          vec2 centered = coord * 2.0 - 1.0;
-          float d = dot(centered, centered);
-          return clamp(1.0 - d, 0.0, 1.0);
-        }
-
-        void main() {
-          if (v_weight < 0.5) {
-            discard;
-          }
-          float shape = falloff(gl_PointCoord);
-          float energy = v_weight * shape * clamp(alpha + 0.1, 0.0, 1.2);
-          vec3 tint = vec3(1.0, 0.25, 0.9);
-          dlaOutColor = vec4(tint * energy, energy);
-        }`
-      },
       inputs: {
         agentTex: "global_agent_state"
       },
       outputs: {
-        outGrid: "global_grid_state"
+        dlaOutColor: "global_grid_state"
       }
     },
     {
@@ -170,7 +126,7 @@ export default class Dla extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        dlaOutColor: "outputColor"
       }
     }
   ];

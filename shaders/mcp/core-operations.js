@@ -639,3 +639,416 @@ User prompt: ${prompt}`;
         };
     }
 }
+
+/**
+ * Effects that are exempt from compute pass requirements for multi-pass pipelines.
+ * These are typically simple filter chains or effects where GPGPU provides no benefit.
+ */
+const COMPUTE_PASS_EXEMPT_EFFECTS = new Set([
+    // Simple filter chains
+    'basics/blend', 'basics/layer', 'basics/mask', 'basics/modulate',
+    // Effects with legitimate multi-pass render pipelines (blur, bloom, etc.)
+    'nm/blur',  // Multi-pass gaussian blur is fine as render passes
+    'nm/bloom', // Blur + composite is fine
+    // Add more as needed with justification
+]);
+
+/**
+ * Internal uniforms that should NOT be exposed as UI controls.
+ * These are system-managed uniforms set by the runtime.
+ * Note: 'speed' is allowed as a user-exposed uniform.
+ */
+const INTERNAL_UNIFORMS = new Set(['channels', 'time']);
+
+/**
+ * Check effect structure for unused files and compute pass requirements
+ * 
+ * @param {string} effectId - Effect identifier (e.g., "nm/worms")
+ * @param {object} options
+ * @param {'webgl2'|'webgpu'} [options.backend='webgpu'] - Backend to check (affects which shader dir to scan)
+ * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[], computePassExempt: boolean, computePassExemptReason?: string, leakedInternalUniforms: string[]}>}
+ */
+export async function checkEffectStructure(effectId, options = {}) {
+    const backend = options.backend || 'webgpu';
+    const shaderDir = backend === 'webgpu' ? 'wgsl' : 'glsl';
+    const shaderExt = backend === 'webgpu' ? '.wgsl' : '.glsl';
+    
+    // Parse effect ID to get directory path
+    const [namespace, effectName] = effectId.split('/');
+    const effectDir = path.join(PROJECT_ROOT, 'shaders', 'effects', namespace, effectName);
+    
+    const result = {
+        unusedFiles: [],
+        multiPass: false,
+        hasComputePass: false,
+        passCount: 0,
+        passTypes: [],
+        computePassExempt: false,
+        computePassExemptReason: null,
+        leakedInternalUniforms: []
+    };
+    
+    try {
+        // Read definition.js to get passes
+        const definitionPath = path.join(effectDir, 'definition.js');
+        const definitionSource = fs.readFileSync(definitionPath, 'utf-8');
+        
+        // Extract passes section from definition
+        // Look for passes = [ ... ] or passes: [ ... ]
+        const passesMatch = definitionSource.match(/passes\s*[=:]\s*\[([\s\S]*?)\];/);
+        const passesSection = passesMatch ? passesMatch[1] : '';
+        
+        // Extract pass programs and types from passes section only
+        const referencedPrograms = new Set();
+        const passTypes = [];
+        
+        // Parse passes array - look for program: "name" patterns within passes section
+        const programMatches = passesSection.matchAll(/program:\s*["']([^"']+)["']/g);
+        for (const match of programMatches) {
+            referencedPrograms.add(match[1]);
+        }
+        
+        // Parse pass types - look for type: "compute" or type: "render" patterns within passes section
+        // Only match render|compute|gpgpu - valid pass types
+        const typeMatches = passesSection.matchAll(/type:\s*["'](render|compute|gpgpu)["']/g);
+        for (const match of typeMatches) {
+            passTypes.push(match[1]);
+        }
+        
+        result.passCount = referencedPrograms.size;
+        result.passTypes = passTypes;
+        result.multiPass = referencedPrograms.size > 1;
+        result.hasComputePass = passTypes.includes('compute') || passTypes.includes('gpgpu');
+        
+        // Check if exempt from compute pass requirement
+        if (COMPUTE_PASS_EXEMPT_EFFECTS.has(effectId)) {
+            result.computePassExempt = true;
+            result.computePassExemptReason = 'explicitly exempt';
+        } else if (!result.multiPass) {
+            result.computePassExempt = true;
+            result.computePassExemptReason = 'single-pass effect';
+        }
+        
+        // Check for leaked internal uniforms exposed as UI controls
+        // Extract globals section from definition
+        const globalsMatch = definitionSource.match(/globals\s*[=:]\s*\{([\s\S]*?)\n\s{2}\};/);
+        const globalsSection = globalsMatch ? globalsMatch[1] : '';
+        
+        // Look for global entries that expose internal uniforms as controls
+        // An internal uniform is leaked if:
+        // 1. It has a uniform property matching an internal name, AND
+        // 2. It doesn't have ui.control set to false
+        for (const internalName of INTERNAL_UNIFORMS) {
+            // Check if there's a global with uniform: "internalName" or uniform: 'internalName'
+            // and it doesn't have control: false in its ui section
+            const uniformPattern = new RegExp(
+                `(\\w+):\\s*\\{[^}]*uniform:\\s*["']${internalName}["'][^}]*\\}`,
+                'g'
+            );
+            const matches = [...globalsSection.matchAll(uniformPattern)];
+            
+            for (const match of matches) {
+                const globalBlock = match[0];
+                // Check if ui.control is explicitly set to false
+                const hasControlFalse = /ui:\s*\{[^}]*control:\s*false[^}]*\}/.test(globalBlock);
+                if (!hasControlFalse) {
+                    result.leakedInternalUniforms.push(internalName);
+                }
+            }
+        }
+        
+        // List shader files in the appropriate directory
+        const shaderDirPath = path.join(effectDir, shaderDir);
+        let shaderFiles = [];
+        
+        try {
+            shaderFiles = fs.readdirSync(shaderDirPath)
+                .filter(f => f.endsWith(shaderExt))
+                .map(f => f.replace(shaderExt, ''));
+        } catch (err) {
+            // Shader directory doesn't exist - that's a bigger problem, but not what we're testing here
+            return result;
+        }
+        
+        // Find unused files
+        for (const file of shaderFiles) {
+            if (!referencedPrograms.has(file)) {
+                result.unusedFiles.push(file + shaderExt);
+            }
+        }
+        
+    } catch (err) {
+        // Can't read definition - skip structure check
+        result.error = err.message;
+    }
+    
+    return result;
+}
+
+/**
+ * Check algorithmic parity between GLSL and WGSL shader implementations.
+ * 
+ * Uses OpenAI API to compare shader pairs and determine if they implement
+ * equivalent algorithms, accounting for language differences between GLSL and WGSL.
+ * 
+ * @param {string} effectId - Effect identifier (e.g., "basics/noise")
+ * @param {object} options
+ * @param {string} [options.apiKey] - OpenAI API key (falls back to .openai file)
+ * @param {string} [options.model='gpt-4o'] - Model to use for comparison
+ * @returns {Promise<{status: 'ok'|'error'|'divergent', pairs: Array<{program: string, glsl: string, wgsl: string, parity: 'equivalent'|'divergent'|'missing', notes?: string}>, summary: string}>}
+ */
+export async function checkShaderParity(effectId, options = {}) {
+    const apiKey = options.apiKey || getOpenAIApiKey();
+    if (!apiKey) {
+        return {
+            status: 'error',
+            pairs: [],
+            summary: 'No OpenAI API key found. Create .openai file in project root.'
+        };
+    }
+    
+    const model = options.model || 'gpt-4o';
+    
+    // Parse effect ID to get directory path
+    const [namespace, effectName] = effectId.split('/');
+    const effectDir = path.join(PROJECT_ROOT, 'shaders', 'effects', namespace, effectName);
+    
+    const glslDir = path.join(effectDir, 'glsl');
+    const wgslDir = path.join(effectDir, 'wgsl');
+    
+    // Check if both directories exist
+    let glslFiles = [];
+    let wgslFiles = [];
+    
+    try {
+        glslFiles = fs.readdirSync(glslDir).filter(f => f.endsWith('.glsl') || f.endsWith('.vert') || f.endsWith('.frag'));
+    } catch {
+        // GLSL directory doesn't exist
+    }
+    
+    try {
+        wgslFiles = fs.readdirSync(wgslDir).filter(f => f.endsWith('.wgsl'));
+    } catch {
+        // WGSL directory doesn't exist
+    }
+    
+    if (glslFiles.length === 0 && wgslFiles.length === 0) {
+        return {
+            status: 'error',
+            pairs: [],
+            summary: `No shader files found for ${effectId}`
+        };
+    }
+    
+    if (glslFiles.length === 0) {
+        return {
+            status: 'ok',
+            pairs: [],
+            summary: `${effectId}: WGSL-only effect (${wgslFiles.length} files), no parity check needed`
+        };
+    }
+    
+    if (wgslFiles.length === 0) {
+        return {
+            status: 'ok',
+            pairs: [],
+            summary: `${effectId}: GLSL-only effect (${glslFiles.length} files), no parity check needed`
+        };
+    }
+    
+    // Find matching pairs by base name
+    // GLSL can have .glsl, .vert, .frag extensions
+    // WGSL always has .wgsl extension
+    const pairs = [];
+    const processedWgsl = new Set();
+    
+    for (const glslFile of glslFiles) {
+        // Get base name (strip extension)
+        const baseName = glslFile.replace(/\.(glsl|vert|frag)$/, '');
+        const wgslFile = `${baseName}.wgsl`;
+        
+        if (wgslFiles.includes(wgslFile)) {
+            processedWgsl.add(wgslFile);
+            
+            const glslPath = path.join(glslDir, glslFile);
+            const wgslPath = path.join(wgslDir, wgslFile);
+            
+            const glslSource = fs.readFileSync(glslPath, 'utf-8');
+            const wgslSource = fs.readFileSync(wgslPath, 'utf-8');
+            
+            pairs.push({
+                program: baseName,
+                glslFile,
+                wgslFile,
+                glsl: glslSource,
+                wgsl: wgslSource
+            });
+        }
+    }
+    
+    // Note any unmatched files
+    const unmatchedGlsl = glslFiles.filter(f => {
+        const baseName = f.replace(/\.(glsl|vert|frag)$/, '');
+        return !wgslFiles.includes(`${baseName}.wgsl`);
+    });
+    
+    const unmatchedWgsl = wgslFiles.filter(f => !processedWgsl.has(f));
+    
+    if (pairs.length === 0) {
+        const summary = [];
+        if (unmatchedGlsl.length > 0) summary.push(`GLSL-only: ${unmatchedGlsl.join(', ')}`);
+        if (unmatchedWgsl.length > 0) summary.push(`WGSL-only: ${unmatchedWgsl.join(', ')}`);
+        return {
+            status: 'ok',
+            pairs: [],
+            summary: `${effectId}: No matching shader pairs found. ${summary.join('. ')}`
+        };
+    }
+    
+    // Read the effect definition for context
+    let definitionSource = '';
+    try {
+        const definitionPath = path.join(effectDir, 'definition.js');
+        definitionSource = fs.readFileSync(definitionPath, 'utf-8');
+    } catch {
+        // Definition file doesn't exist or can't be read
+    }
+    
+    // Compare each pair using OpenAI API
+    const results = [];
+    let hasDivergent = false;
+    
+    for (const pair of pairs) {
+        const systemPrompt = `You are an expert shader programmer analyzing algorithmic equivalence between GLSL (WebGL2) and WGSL (WebGPU) shader implementations.
+
+IMPORTANT CONTEXT about our shader pipeline:
+- We use "type: compute" semantically for passes that do GPGPU-style work (simulations, state updates, multi-output)
+- On WebGPU: These run as native @compute shaders
+- On WebGL2: These are AUTOMATICALLY converted to render passes (fragment shaders with MRT)
+- Therefore, a GLSL fragment shader and a WGSL compute shader for the same pass ARE expected to be equivalent
+- The conversion handles: workgroup concepts → pixel iteration, storage textures → render targets
+- Do NOT flag as divergent just because one is a fragment shader and one is a compute shader
+
+Your task is to determine if these two shaders implement the SAME algorithm, accounting for:
+- Language syntax differences (vec3 vs vec3<f32>, etc.)
+- Built-in function name differences (mix vs mix, texture vs textureSample, etc.)
+- Binding/uniform declaration differences
+- Fragment shader vs compute shader structural differences (these are expected cross-backend)
+- Minor numerical precision variations that are acceptable
+
+Flag as DIVERGENT only if:
+- The core algorithm is fundamentally different
+- One has features the other lacks entirely
+- Mathematical operations differ in ways that would produce notably different output
+- Control flow logic differs substantially
+
+Respond with JSON containing:
+- parity: "equivalent" or "divergent"
+- confidence: "high", "medium", or "low"
+- notes: Brief explanation of your assessment (1-2 sentences)
+- concerns: Array of specific concerns if any (empty array if none)`;
+
+        // Build context about this specific program from the definition
+        let programContext = '';
+        if (definitionSource) {
+            // Extract the pass definition for this program
+            const passPattern = new RegExp(`\\{[^}]*program:\\s*["']${pair.program}["'][^}]*\\}`, 's');
+            const passMatch = definitionSource.match(passPattern);
+            if (passMatch) {
+                programContext = `\n\n=== Pass Definition for "${pair.program}" ===\n${passMatch[0]}`;
+            }
+        }
+
+        const userPrompt = `Compare these shader implementations for algorithmic equivalence:
+${definitionSource ? `\n=== Effect Definition (for context) ===\n${definitionSource.slice(0, 2000)}${definitionSource.length > 2000 ? '\n... (truncated)' : ''}` : ''}
+${programContext}
+
+=== GLSL (${pair.glslFile}) ===
+${pair.glsl}
+
+=== WGSL (${pair.wgslFile}) ===
+${pair.wgsl}
+
+Are these implementations algorithmically equivalent?`;
+
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    max_tokens: 500,
+                    response_format: { type: 'json_object' }
+                })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                results.push({
+                    program: pair.program,
+                    parity: 'error',
+                    notes: `API error: ${response.status} - ${errorText.slice(0, 100)}`
+                });
+                continue;
+            }
+            
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content;
+            
+            if (!content) {
+                results.push({
+                    program: pair.program,
+                    parity: 'error',
+                    notes: 'No response from model'
+                });
+                continue;
+            }
+            
+            const analysis = JSON.parse(content);
+            const isDivergent = analysis.parity === 'divergent';
+            if (isDivergent) hasDivergent = true;
+            
+            results.push({
+                program: pair.program,
+                parity: analysis.parity,
+                confidence: analysis.confidence,
+                notes: analysis.notes,
+                concerns: analysis.concerns || []
+            });
+            
+        } catch (err) {
+            results.push({
+                program: pair.program,
+                parity: 'error',
+                notes: `Analysis failed: ${err.message}`
+            });
+        }
+    }
+    
+    // Build summary
+    const equivalent = results.filter(r => r.parity === 'equivalent').length;
+    const divergent = results.filter(r => r.parity === 'divergent').length;
+    const errors = results.filter(r => r.parity === 'error').length;
+    
+    let summaryParts = [`${effectId}: ${pairs.length} shader pair(s) analyzed`];
+    if (equivalent > 0) summaryParts.push(`${equivalent} equivalent`);
+    if (divergent > 0) summaryParts.push(`${divergent} DIVERGENT`);
+    if (errors > 0) summaryParts.push(`${errors} errors`);
+    if (unmatchedGlsl.length > 0) summaryParts.push(`${unmatchedGlsl.length} GLSL-only`);
+    if (unmatchedWgsl.length > 0) summaryParts.push(`${unmatchedWgsl.length} WGSL-only`);
+    
+    return {
+        status: hasDivergent ? 'divergent' : 'ok',
+        pairs: results,
+        unmatchedGlsl,
+        unmatchedWgsl,
+        summary: summaryParts.join(', ')
+    };
+}

@@ -910,27 +910,27 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                                     if (!instance.shaders) instance.shaders = {};
                                     for (const pass of instance.passes) {
                                         if (pass.program) {
-                                            const existingShaders = instance.shaders[pass.program];
-                                            const hasInlineGLSL = !!(pass.programSpec && (pass.programSpec.fragment || pass.programSpec.vertex)) ||
-                                                !!(existingShaders && (existingShaders.fragment || existingShaders.vertex || existingShaders.glsl));
-                                            const hasInlineWGSL = !!(existingShaders && existingShaders.wgsl);
                                             try {
                                                 const shaderBucket = instance.shaders[pass.program] ?? (instance.shaders[pass.program] = {});
                                                 
-                                                // Load GLSL shader if no inline GLSL
-                                                if (!hasInlineGLSL) {
-                                                    const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${pass.program}.glsl`);
-                                                    if (glslRes.ok) {
-                                                        shaderBucket.glsl = await glslRes.text();
-                                                    }
+                                                // Try loading combined .glsl first, then separate .vert/.frag
+                                                const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${pass.program}.glsl`);
+                                                if (glslRes.ok) {
+                                                    shaderBucket.glsl = await glslRes.text();
+                                                } else {
+                                                    // Try separate vertex/fragment files
+                                                    const [vertRes, fragRes] = await Promise.all([
+                                                        fetch(`${dir.path}/${effectName}/glsl/${pass.program}.vert`),
+                                                        fetch(`${dir.path}/${effectName}/glsl/${pass.program}.frag`)
+                                                    ]);
+                                                    if (vertRes.ok) shaderBucket.vertex = await vertRes.text();
+                                                    if (fragRes.ok) shaderBucket.fragment = await fragRes.text();
                                                 }
                                                 
-                                                // Load WGSL shader if no inline WGSL (even if inline GLSL exists)
-                                                if (!hasInlineWGSL) {
-                                                    const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${pass.program}.wgsl`);
-                                                    if (wgslRes.ok) {
-                                                        shaderBucket.wgsl = await wgslRes.text();
-                                                    }
+                                                // Load WGSL shader from file
+                                                const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${pass.program}.wgsl`);
+                                                if (wgslRes.ok) {
+                                                    shaderBucket.wgsl = await wgslRes.text();
                                                 }
                                             } catch (e) {
                                                 console.warn(`Failed to load shaders for ${pass.program}`, e);

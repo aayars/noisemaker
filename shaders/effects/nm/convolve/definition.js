@@ -54,7 +54,7 @@ export default class Convolve extends Effect {
   passes = [
     {
       name: "convolve",
-      type: "render",
+      type: "compute",  // GPGPU: convolution
       program: "convolve_render",
       inputs: {
         input_texture: "inputTex"
@@ -65,7 +65,7 @@ export default class Convolve extends Effect {
     },
     {
       name: "reduce_1",
-      type: "render",
+      type: "compute",  // GPGPU: min/max reduction pass 1
       program: "reduce_1",
       inputs: {
         input_texture: "convolved"
@@ -76,7 +76,7 @@ export default class Convolve extends Effect {
     },
     {
       name: "reduce_2",
-      type: "render",
+      type: "compute",  // GPGPU: min/max reduction pass 2
       program: "reduce_2",
       inputs: {
         input_texture: "minmax_1"

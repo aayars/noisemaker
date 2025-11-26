@@ -19,6 +19,8 @@ import {
     renderEffectFrame,
     benchmarkEffectFps,
     describeEffectFrame,
+    checkEffectStructure,
+    checkShaderParity,
     STATUS_TIMEOUT
 } from './core-operations.js';
 
@@ -220,6 +222,26 @@ export class BrowserHarness {
         }
         
         return result;
+    }
+    
+    /**
+     * Check effect structure for unused files and compute pass requirements
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[]}>}
+     */
+    async checkEffectStructure(effectId, options = {}) {
+        return await checkEffectStructure(effectId, options);
+    }
+    
+    /**
+     * Check algorithmic parity between GLSL and WGSL shader implementations
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @returns {Promise<{status: 'ok'|'error'|'divergent', pairs: Array, summary: string}>}
+     */
+    async checkShaderParity(effectId, options = {}) {
+        return await checkShaderParity(effectId, options);
     }
     
     /**

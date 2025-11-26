@@ -337,6 +337,108 @@ Output:
 
 ---
 
+## checkEffectStructure
+
+**Purpose**: Analyze effect structure for unused shader files, compute pass requirements, and leaked internal uniforms.
+
+This tool helps enforce best practices for shader effect organization:
+- Detects unused shader files that should be removed or integrated
+- Ensures multi-pass effects use compute/GPGPU shaders for heavy workloads
+- Verifies that internal uniforms (channels, time) are not exposed as UI controls
+
+### Input Schema
+
+```json
+{
+  "effect_id": "nm/worms",
+  "backend": "webgpu"
+}
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `effect_id` | string | ✓ | - | Effect identifier |
+| `backend` | string | | "webgpu" | "webgl2" or "webgpu" (determines which shader dir to scan) |
+
+### Output Schema
+
+```json
+{
+  "unusedFiles": ["old_shader.wgsl", "deprecated.wgsl"],
+  "multiPass": true,
+  "hasComputePass": true,
+  "passCount": 3,
+  "passTypes": ["compute", "compute", "compute"],
+  "computePassExempt": false,
+  "computePassExemptReason": null,
+  "leakedInternalUniforms": []
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `unusedFiles` | string[] | Shader files not referenced by any pass |
+| `multiPass` | boolean | True if effect has more than one pass |
+| `hasComputePass` | boolean | True if at least one pass is compute/gpgpu |
+| `passCount` | number | Number of passes in the effect |
+| `passTypes` | string[] | Types of each pass ("render", "compute", "gpgpu") |
+| `computePassExempt` | boolean | True if effect is exempt from compute requirement |
+| `computePassExemptReason` | string \| null | Reason for exemption if applicable |
+| `leakedInternalUniforms` | string[] | Internal uniforms (channels, time) exposed as controls |
+
+### Internal Uniform Leaks
+
+Internal uniforms are system-managed values that should NOT be exposed as user controls:
+
+| Uniform | Description |
+|---------|-------------|
+| `channels` | Number of color channels (system-managed) |
+| `time` | Animation time (system-managed) |
+
+Note: `speed` is allowed as a user-exposed uniform since it controls animation speed.
+
+### Compute Pass Exemptions
+
+Effects can be exempt from the compute pass requirement:
+
+| Exemption | Reason |
+|-----------|--------|
+| Single-pass effects | No multi-pass overhead to optimize |
+| Explicitly exempt | Listed in `COMPUTE_PASS_EXEMPT_EFFECTS` set |
+
+### CLI Usage
+
+```bash
+node test-harness.js nm/worms --structure --webgpu
+```
+
+Output:
+```
+[nm/worms]
+  ✓ no unused shader files
+  ✓ no leaked internal uniforms
+  ✓ multi-pass: has compute/gpgpu pass
+  ✓ compile
+  ✓ render (887 colors)
+```
+
+Summary output for multiple effects:
+```
+⚠ Effects with unused shader files: 3
+  nm/worms: buffer_to_texture.wgsl, final_blend.wgsl
+  nm/dla: dla.wgsl, init_seeds.wgsl
+  nm/erosion_worms: erosion_worms.wgsl, fade_trails.wgsl
+
+⚠ Multi-pass effects missing compute passes: 2
+  nm/convolve: 4 passes (render, render, render, render)
+  nm/fibers: 4 passes (render, render, render, render)
+
+⚠ Effects with leaked internal uniforms: 1
+  nm/bad_effect: channels, time
+```
+
+---
+
 ## Error Responses
 
 All tools return errors in this format:

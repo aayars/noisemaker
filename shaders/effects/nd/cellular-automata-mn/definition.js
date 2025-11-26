@@ -341,7 +341,7 @@ export default class CellularAutomataMN extends Effect {
   passes = [
     {
       name: "update",
-      type: "render",
+      type: "compute",  // GPGPU: cellular automata MN state update
       program: "cellular-automata-mn-fb",
       inputs: {
         bufTex: "global_ca_mn_state",
