@@ -13,6 +13,7 @@ export default class Convolve extends Effect {
     kernel: {
         type: "int",
         default: 800,
+        uniform: "kernel",
         min: 800,
         max: 810,
         step: 1,
@@ -24,6 +25,7 @@ export default class Convolve extends Effect {
     with_normalize: {
         type: "float",
         default: 1.0,
+        uniform: "with_normalize",
         min: 0,
         max: 1,
         step: 1,
@@ -35,6 +37,7 @@ export default class Convolve extends Effect {
     alpha: {
         type: "float",
         default: 1,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

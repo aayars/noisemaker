@@ -13,6 +13,7 @@ export default class Reverb extends Effect {
     octaves: {
         type: "int",
         default: 3,
+        uniform: "octaves",
         min: 1,
         max: 8,
         step: 1,
@@ -24,6 +25,7 @@ export default class Reverb extends Effect {
     iterations: {
         type: "int",
         default: 2,
+        uniform: "iterations",
         min: 1,
         max: 8,
         step: 1,
@@ -35,6 +37,7 @@ export default class Reverb extends Effect {
     ridges: {
         type: "boolean",
         default: false,
+        uniform: "ridges",
         ui: {
             label: "Ridges",
             control: "checkbox"

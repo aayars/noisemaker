@@ -9,6 +9,7 @@ export default class FeedbackMixer extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class FeedbackMixer extends Effect {
     feedback: {
       type: "float",
       default: 50,
+      uniform: "feedback",
       min: 0,
       max: 100,
       ui: {
@@ -29,6 +31,7 @@ export default class FeedbackMixer extends Effect {
     mixAmt: {
       type: "float",
       default: 0,
+      uniform: "mixAmt",
       min: -100,
       max: 100,
       ui: {
@@ -39,6 +42,7 @@ export default class FeedbackMixer extends Effect {
     scaleAmt: {
       type: "float",
       default: 100,
+      uniform: "scaleAmt",
       min: 75,
       max: 200,
       ui: {
@@ -49,6 +53,7 @@ export default class FeedbackMixer extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {

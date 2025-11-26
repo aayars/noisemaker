@@ -15,6 +15,7 @@ export default class Shapes3D extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -25,6 +26,7 @@ export default class Shapes3D extends Effect {
     shapeA: {
       type: "int",
       default: 30,
+      uniform: "shapeA",
       choices: {
         "Capsule Horiz": 70,
         "Capsule Vert": 60,
@@ -44,6 +46,7 @@ export default class Shapes3D extends Effect {
     shapeB: {
       type: "int",
       default: 10,
+      uniform: "shapeB",
       choices: {
         "Capsule Horiz": 70,
         "Capsule Vert": 60,
@@ -63,6 +66,7 @@ export default class Shapes3D extends Effect {
     shapeAScale: {
       type: "float",
       default: 64,
+      uniform: "shapeAScale",
       min: 1,
       max: 100,
       ui: {
@@ -73,6 +77,7 @@ export default class Shapes3D extends Effect {
     shapeBScale: {
       type: "float",
       default: 27,
+      uniform: "shapeBScale",
       min: 1,
       max: 100,
       ui: {
@@ -83,6 +88,7 @@ export default class Shapes3D extends Effect {
     shapeAThickness: {
       type: "float",
       default: 5,
+      uniform: "shapeAThickness",
       min: 1,
       max: 50,
       ui: {
@@ -93,6 +99,7 @@ export default class Shapes3D extends Effect {
     shapeBThickness: {
       type: "float",
       default: 5,
+      uniform: "shapeBThickness",
       min: 1,
       max: 50,
       ui: {
@@ -103,6 +110,7 @@ export default class Shapes3D extends Effect {
     blendMode: {
       type: "int",
       default: 10,
+      uniform: "blendMode",
       choices: {
         Intersect: null,
         Max: 40,
@@ -124,6 +132,7 @@ export default class Shapes3D extends Effect {
     smoothness: {
       type: "float",
       default: 1,
+      uniform: "smoothness",
       min: 1,
       max: 100,
       ui: {
@@ -134,6 +143,7 @@ export default class Shapes3D extends Effect {
     spin: {
       type: "float",
       default: 0,
+      uniform: "spin",
       min: -180,
       max: 180,
       ui: {
@@ -144,6 +154,7 @@ export default class Shapes3D extends Effect {
     flip: {
       type: "float",
       default: 0,
+      uniform: "flip",
       min: -180,
       max: 180,
       ui: {
@@ -154,6 +165,7 @@ export default class Shapes3D extends Effect {
     spinSpeed: {
       type: "float",
       default: 2,
+      uniform: "spinSpeed",
       min: -10,
       max: 10,
       ui: {
@@ -164,6 +176,7 @@ export default class Shapes3D extends Effect {
     flipSpeed: {
       type: "float",
       default: 2,
+      uniform: "flipSpeed",
       min: -10,
       max: 10,
       ui: {
@@ -174,6 +187,7 @@ export default class Shapes3D extends Effect {
     cameraDist: {
       type: "float",
       default: 8,
+      uniform: "cameraDist",
       min: 5,
       max: 20,
       ui: {
@@ -184,6 +198,7 @@ export default class Shapes3D extends Effect {
     backgroundColor: {
       type: "vec3",
       default: [1.0, 1.0, 1.0],
+      uniform: "backgroundColor",
       ui: {
         label: "bkg color",
         control: "color"
@@ -192,6 +207,7 @@ export default class Shapes3D extends Effect {
     backgroundOpacity: {
       type: "float",
       default: 0,
+      uniform: "backgroundOpacity",
       min: 0,
       max: 100,
       ui: {
@@ -202,6 +218,7 @@ export default class Shapes3D extends Effect {
     colorMode: {
       type: "int",
       default: 10,
+      uniform: "colorMode",
       choices: {
         Depth: 0,
         Diffuse: 1,
@@ -215,6 +232,7 @@ export default class Shapes3D extends Effect {
     source: {
       type: "int",
       default: 0,
+      uniform: "source",
       choices: {
         None: 0,
         Input: 3
@@ -227,6 +245,7 @@ export default class Shapes3D extends Effect {
     palette: {
       type: "palette",
       default: 40,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -236,6 +255,7 @@ export default class Shapes3D extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -249,6 +269,7 @@ export default class Shapes3D extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -259,6 +280,7 @@ export default class Shapes3D extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -269,6 +291,7 @@ export default class Shapes3D extends Effect {
     wrap: {
       type: "int",
       default: 1,
+      uniform: "wrap",
       choices: {
         Clamp: 2,
         Mirror: 0,
@@ -282,6 +305,7 @@ export default class Shapes3D extends Effect {
     paletteMode: {
       type: "int",
       default: 0,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -289,6 +313,7 @@ export default class Shapes3D extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.83, 0.6, 0.63],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -297,6 +322,7 @@ export default class Shapes3D extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -305,6 +331,7 @@ export default class Shapes3D extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -313,6 +340,7 @@ export default class Shapes3D extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.3, 0.1, 0],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -321,6 +349,7 @@ export default class Shapes3D extends Effect {
     repetition: {
       type: "boolean",
       default: false,
+      uniform: "repetition",
       ui: {
         label: "repeat",
         control: "checkbox"
@@ -329,6 +358,7 @@ export default class Shapes3D extends Effect {
     animation: {
       type: "int",
       default: 1,
+      uniform: "animation",
       choices: {
         "Rotate Scene": 0,
         "Rotate Shape": 1
@@ -341,6 +371,7 @@ export default class Shapes3D extends Effect {
     flythroughSpeed: {
       type: "float",
       default: 0,
+      uniform: "flythroughSpeed",
       min: -10,
       max: 10,
       ui: {
@@ -351,6 +382,7 @@ export default class Shapes3D extends Effect {
     spacing: {
       type: "int",
       default: 10,
+      uniform: "spacing",
       min: 5,
       max: 20,
       ui: {

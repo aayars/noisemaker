@@ -13,6 +13,7 @@ export default class LensWarp extends Effect {
     displacement: {
         type: "float",
         default: 0.0625,
+        uniform: "displacement",
         min: 0,
         max: 0.5,
         step: 0.0025,

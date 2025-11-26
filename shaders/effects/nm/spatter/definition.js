@@ -13,6 +13,7 @@ export default class Spatter extends Effect {
     color: {
         type: "boolean",
         default: true,
+        uniform: "color",
         ui: {
             label: "Color",
             control: "checkbox"

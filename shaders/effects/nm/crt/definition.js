@@ -13,6 +13,7 @@ export default class Crt extends Effect {
     speed: {
       type: "float",
       default: 1.0,
+      uniform: "speed",
       min: 0.0,
       max: 5.0,
       step: 0.1,

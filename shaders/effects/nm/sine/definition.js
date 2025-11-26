@@ -13,6 +13,7 @@ export default class Sine extends Effect {
     amount: {
         type: "float",
         default: 3,
+        uniform: "amount",
         min: 0,
         max: 20,
         step: 0.1,
@@ -24,6 +25,7 @@ export default class Sine extends Effect {
     rgb: {
         type: "boolean",
         default: false,
+        uniform: "rgb",
         ui: {
             label: "RGB",
             control: "checkbox"

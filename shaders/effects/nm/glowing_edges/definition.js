@@ -13,6 +13,7 @@ export default class GlowingEdges extends Effect {
     sobel_metric: {
         type: "enum",
         default: 1,
+        uniform: "sobel_metric",
         ui: {
             label: "Sobel Metric"
         }
@@ -20,6 +21,7 @@ export default class GlowingEdges extends Effect {
     alpha: {
         type: "float",
         default: 1,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.05,

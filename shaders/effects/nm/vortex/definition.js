@@ -12,6 +12,7 @@ export default class Vortex extends Effect {
     displacement: {
       type: "float",
       default: 1.0,
+      uniform: "displacement",
       min: 0,
       max: 4,
       step: 0.01,
@@ -23,6 +24,7 @@ export default class Vortex extends Effect {
     speed: {
       type: "float",
       default: 1.0,
+      uniform: "speed",
       min: 0,
       max: 5,
       step: 0.1,

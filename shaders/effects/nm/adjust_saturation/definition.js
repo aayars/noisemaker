@@ -13,6 +13,7 @@ export default class AdjustSaturation extends Effect {
     amount: {
         type: "float",
         default: 0.75,
+        uniform: "amount",
         min: 0,
         max: 4,
         step: 0.05,

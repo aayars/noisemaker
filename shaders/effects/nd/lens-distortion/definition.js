@@ -9,6 +9,7 @@ export default class LensDistortion extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class LensDistortion extends Effect {
     shape: {
       type: "int",
       default: 0,
+      uniform: "shape",
       choices: {
         Circle: 0,
         Cosine: 10,
@@ -36,6 +38,7 @@ export default class LensDistortion extends Effect {
     distortion: {
       type: "float",
       default: 0,
+      uniform: "distortion",
       min: -100,
       max: 100,
       ui: {
@@ -46,6 +49,7 @@ export default class LensDistortion extends Effect {
     loopScale: {
       type: "float",
       default: 100,
+      uniform: "loopScale",
       min: 1,
       max: 100,
       ui: {
@@ -56,6 +60,7 @@ export default class LensDistortion extends Effect {
     loopAmp: {
       type: "float",
       default: 0,
+      uniform: "loopAmp",
       min: -100,
       max: 100,
       ui: {
@@ -66,6 +71,7 @@ export default class LensDistortion extends Effect {
     aspectLens: {
       type: "boolean",
       default: false,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"
@@ -74,6 +80,7 @@ export default class LensDistortion extends Effect {
     mode: {
       type: "int",
       default: 0,
+      uniform: "mode",
       choices: {
         "Chromatic (rgb)": 0,
         "Prismatic (hsv)": 1
@@ -86,6 +93,7 @@ export default class LensDistortion extends Effect {
     aberrationAmt: {
       type: "float",
       default: 50,
+      uniform: "aberrationAmt",
       min: 0,
       max: 100,
       ui: {
@@ -96,6 +104,7 @@ export default class LensDistortion extends Effect {
     blendMode: {
       type: "int",
       default: 0,
+      uniform: "blendMode",
       choices: {
         Add: 0,
         Alpha: 1
@@ -108,6 +117,7 @@ export default class LensDistortion extends Effect {
     modulate: {
       type: "boolean",
       default: false,
+      uniform: "modulate",
       ui: {
         label: "modulate",
         control: "checkbox"
@@ -116,6 +126,7 @@ export default class LensDistortion extends Effect {
     tint: {
       type: "vec3",
       default: [0.0, 0.0, 0.0],
+      uniform: "tint",
       ui: {
         label: "tint",
         control: "color"
@@ -124,6 +135,7 @@ export default class LensDistortion extends Effect {
     opacity: {
       type: "float",
       default: 0,
+      uniform: "opacity",
       min: 0,
       max: 100,
       ui: {
@@ -134,6 +146,7 @@ export default class LensDistortion extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -144,6 +157,7 @@ export default class LensDistortion extends Effect {
     hueRange: {
       type: "float",
       default: 0,
+      uniform: "hueRange",
       min: 0,
       max: 100,
       ui: {
@@ -154,6 +168,7 @@ export default class LensDistortion extends Effect {
     saturation: {
       type: "float",
       default: 0,
+      uniform: "saturation",
       min: -100,
       max: 100,
       ui: {
@@ -164,6 +179,7 @@ export default class LensDistortion extends Effect {
     passthru: {
       type: "float",
       default: 50,
+      uniform: "passthru",
       min: 0,
       max: 100,
       ui: {
@@ -174,6 +190,7 @@ export default class LensDistortion extends Effect {
     vignetteAmt: {
       type: "float",
       default: 0,
+      uniform: "vignetteAmt",
       min: -100,
       max: 100,
       ui: {

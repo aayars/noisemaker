@@ -9,6 +9,7 @@ export default class Kaleido extends Effect {
     kaleido: {
       type: "int",
       default: 8,
+      uniform: "kaleido",
       min: 2,
       max: 32,
       ui: {
@@ -19,6 +20,7 @@ export default class Kaleido extends Effect {
     metric: {
       type: "int",
       default: 0,
+      uniform: "metric",
       choices: {
         Circle: 0,
         Diamond: 1,
@@ -35,6 +37,7 @@ export default class Kaleido extends Effect {
     direction: {
       type: "int",
       default: 2,
+      uniform: "direction",
       choices: {
         Clockwise: 0,
         Counterclock: 1,
@@ -48,6 +51,7 @@ export default class Kaleido extends Effect {
     loopOffset: {
       type: "int",
       default: 10,
+      uniform: "loopOffset",
       choices: {
         "Shapes:": null,
         Circle: 10,
@@ -87,6 +91,7 @@ export default class Kaleido extends Effect {
     loopScale: {
       type: "float",
       default: 1,
+      uniform: "loopScale",
       min: 1,
       max: 100,
       ui: {
@@ -97,6 +102,7 @@ export default class Kaleido extends Effect {
     loopAmp: {
       type: "float",
       default: 5,
+      uniform: "loopAmp",
       min: -100,
       max: 100,
       ui: {
@@ -107,6 +113,7 @@ export default class Kaleido extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -117,6 +124,7 @@ export default class Kaleido extends Effect {
     wrap: {
       type: "boolean",
       default: true,
+      uniform: "wrap",
       ui: {
         label: "wrap",
         control: "checkbox"
@@ -125,6 +133,7 @@ export default class Kaleido extends Effect {
     kernel: {
       type: "int",
       default: 0,
+      uniform: "kernel",
       choices: {
         None: 0,
         Blur: 1,
@@ -147,6 +156,7 @@ export default class Kaleido extends Effect {
     effectWidth: {
       type: "float",
       default: 0,
+      uniform: "effectWidth",
       min: 0,
       max: 10,
       ui: {

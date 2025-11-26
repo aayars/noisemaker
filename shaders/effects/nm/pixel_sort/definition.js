@@ -20,6 +20,7 @@ export default class PixelSort extends Effect {
     angled: {
         type: "float",
         default: 0,
+        uniform: "angled",
         min: -180,
         max: 180,
         step: 1,
@@ -31,6 +32,7 @@ export default class PixelSort extends Effect {
     darkest: {
         type: "boolean",
         default: false,
+        uniform: "darkest",
         ui: {
             label: "Darkest First",
             control: "checkbox"

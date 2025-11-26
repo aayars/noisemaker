@@ -9,6 +9,7 @@ export default class Palette extends Effect {
     paletteType: {
       type: "int",
       default: 0,
+      uniform: "paletteType",
       choices: {
         Cosine: 0,
         "Five Color": 1
@@ -21,6 +22,7 @@ export default class Palette extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -34,6 +36,7 @@ export default class Palette extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -44,6 +47,7 @@ export default class Palette extends Effect {
     freq: {
       type: "int",
       default: 1,
+      uniform: "freq",
       min: 1,
       max: 4,
       ui: {
@@ -54,6 +58,7 @@ export default class Palette extends Effect {
     color1: {
       type: "vec3",
       default: [1.0, 0.0, 0.0],
+      uniform: "color1",
       ui: {
         label: "color 1",
         control: "color"
@@ -62,6 +67,7 @@ export default class Palette extends Effect {
     color2: {
       type: "vec3",
       default: [1.0, 1.0, 0.0],
+      uniform: "color2",
       ui: {
         label: "color 2",
         control: "color"
@@ -70,6 +76,7 @@ export default class Palette extends Effect {
     color3: {
       type: "vec3",
       default: [0.0, 1.0, 0.0],
+      uniform: "color3",
       ui: {
         label: "color 3",
         control: "color"
@@ -78,6 +85,7 @@ export default class Palette extends Effect {
     color4: {
       type: "vec3",
       default: [0.0, 1.0, 1.0],
+      uniform: "color4",
       ui: {
         label: "color 4",
         control: "color"
@@ -86,6 +94,7 @@ export default class Palette extends Effect {
     color5: {
       type: "vec3",
       default: [0.0, 0.0, 1.0],
+      uniform: "color5",
       ui: {
         label: "color 5",
         control: "color"
@@ -94,6 +103,7 @@ export default class Palette extends Effect {
     tint: {
       type: "vec3",
       default: [1.0, 1.0, 1.0],
+      uniform: "tint",
       ui: {
         label: "tint",
         control: "color"
@@ -102,6 +112,7 @@ export default class Palette extends Effect {
     smoother: {
       type: "boolean",
       default: true,
+      uniform: "smoother",
       ui: {
         label: "smoother",
         control: "checkbox"
@@ -110,6 +121,7 @@ export default class Palette extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -120,6 +132,7 @@ export default class Palette extends Effect {
     offsetR: {
       type: "float",
       default: 50,
+      uniform: "offsetR",
       min: 0,
       max: 100,
       ui: {
@@ -130,6 +143,7 @@ export default class Palette extends Effect {
     phaseR: {
       type: "float",
       default: 0,
+      uniform: "phaseR",
       min: 0,
       max: 100,
       ui: {
@@ -140,6 +154,7 @@ export default class Palette extends Effect {
     offsetG: {
       type: "float",
       default: 50,
+      uniform: "offsetG",
       min: 0,
       max: 100,
       ui: {
@@ -150,6 +165,7 @@ export default class Palette extends Effect {
     phaseG: {
       type: "float",
       default: 33,
+      uniform: "phaseG",
       min: 0,
       max: 100,
       ui: {
@@ -160,6 +176,7 @@ export default class Palette extends Effect {
     offsetB: {
       type: "float",
       default: 50,
+      uniform: "offsetB",
       min: 0,
       max: 100,
       ui: {
@@ -170,6 +187,7 @@ export default class Palette extends Effect {
     phaseB: {
       type: "float",
       default: 67,
+      uniform: "phaseB",
       min: 0,
       max: 100,
       ui: {
@@ -180,6 +198,7 @@ export default class Palette extends Effect {
     ampR: {
       type: "float",
       default: 50,
+      uniform: "ampR",
       min: 0,
       max: 100,
       ui: {
@@ -190,6 +209,7 @@ export default class Palette extends Effect {
     ampB: {
       type: "float",
       default: 50,
+      uniform: "ampB",
       min: 0,
       max: 100,
       ui: {
@@ -200,6 +220,7 @@ export default class Palette extends Effect {
     ampG: {
       type: "float",
       default: 50,
+      uniform: "ampG",
       min: 0,
       max: 100,
       ui: {
@@ -210,6 +231,7 @@ export default class Palette extends Effect {
     colorMode: {
       type: "int",
       default: 2,
+      uniform: "colorMode",
       choices: {
         Hsv: 0,
         Oklab: 1,

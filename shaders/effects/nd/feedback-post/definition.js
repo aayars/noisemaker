@@ -9,6 +9,7 @@ export default class FeedbackPost extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class FeedbackPost extends Effect {
     blendMode: {
       type: "int",
       default: 10,
+      uniform: "blendMode",
       choices: {
         Add: 0,
         Cloak: 100,
@@ -48,6 +50,7 @@ export default class FeedbackPost extends Effect {
     mixAmt: {
       type: "float",
       default: 0,
+      uniform: "mixAmt",
       min: 0,
       max: 100,
       ui: {
@@ -58,6 +61,7 @@ export default class FeedbackPost extends Effect {
     scaleAmt: {
       type: "float",
       default: 100,
+      uniform: "scaleAmt",
       min: 75,
       max: 200,
       ui: {
@@ -68,6 +72,7 @@ export default class FeedbackPost extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -78,6 +83,7 @@ export default class FeedbackPost extends Effect {
     refractAAmt: {
       type: "float",
       default: 0,
+      uniform: "refractAAmt",
       min: 0,
       max: 100,
       ui: {
@@ -88,6 +94,7 @@ export default class FeedbackPost extends Effect {
     refractBAmt: {
       type: "float",
       default: 0,
+      uniform: "refractBAmt",
       min: 0,
       max: 100,
       ui: {
@@ -98,6 +105,7 @@ export default class FeedbackPost extends Effect {
     refractADir: {
       type: "float",
       default: 0,
+      uniform: "refractADir",
       min: 0,
       max: 360,
       ui: {
@@ -108,6 +116,7 @@ export default class FeedbackPost extends Effect {
     refractBDir: {
       type: "float",
       default: 0,
+      uniform: "refractBDir",
       min: 0,
       max: 360,
       ui: {
@@ -118,6 +127,7 @@ export default class FeedbackPost extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: -180,
       max: 180,
       ui: {
@@ -128,6 +138,7 @@ export default class FeedbackPost extends Effect {
     intensity: {
       type: "float",
       default: 0,
+      uniform: "intensity",
       min: -100,
       max: 100,
       ui: {
@@ -138,6 +149,7 @@ export default class FeedbackPost extends Effect {
     aberrationAmt: {
       type: "float",
       default: 0,
+      uniform: "aberrationAmt",
       min: 0,
       max: 100,
       ui: {
@@ -148,6 +160,7 @@ export default class FeedbackPost extends Effect {
     distortion: {
       type: "float",
       default: 0,
+      uniform: "distortion",
       min: -100,
       max: 100,
       ui: {
@@ -158,6 +171,7 @@ export default class FeedbackPost extends Effect {
     aspectLens: {
       type: "boolean",
       default: false,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"

@@ -9,6 +9,7 @@ export default class Composite extends Effect {
     tex: {
       type: "surface",
       default: "inputTex",
+      uniform: "tex",
       ui: {
         label: "source surface B"
       }
@@ -16,6 +17,7 @@ export default class Composite extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -26,6 +28,7 @@ export default class Composite extends Effect {
     blendMode: {
       type: "int",
       default: 1,
+      uniform: "blendMode",
       choices: {
         "Color Splash": 0,
         "Greenscreen A > B": 1,
@@ -52,6 +55,7 @@ export default class Composite extends Effect {
     inputColor: {
       type: "vec3",
       default: [0.0, 0.0, 0.0],
+      uniform: "inputColor",
       ui: {
         label: "color",
         control: "color"
@@ -60,6 +64,7 @@ export default class Composite extends Effect {
     range: {
       type: "float",
       default: 20,
+      uniform: "range",
       min: 0,
       max: 100,
       ui: {
@@ -70,6 +75,7 @@ export default class Composite extends Effect {
     mixAmt: {
       type: "float",
       default: 50,
+      uniform: "mixAmt",
       min: 0,
       max: 100,
       ui: {

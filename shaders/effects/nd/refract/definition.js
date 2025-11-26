@@ -9,6 +9,7 @@ export default class Refract extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class Refract extends Effect {
     blendMode: {
       type: "int",
       default: 10,
+      uniform: "blendMode",
       choices: {
         Add: 0,
         "Color Burn": 2,
@@ -47,6 +49,7 @@ export default class Refract extends Effect {
     mixAmt: {
       type: "float",
       default: 50,
+      uniform: "mixAmt",
       min: 0,
       max: 100,
       ui: {
@@ -57,6 +60,7 @@ export default class Refract extends Effect {
     mode: {
       type: "int",
       default: 0,
+      uniform: "mode",
       choices: {
         Refract: 0,
         Reflect: 1
@@ -69,6 +73,7 @@ export default class Refract extends Effect {
     amount: {
       type: "float",
       default: 50,
+      uniform: "amount",
       min: 0,
       max: 100,
       ui: {
@@ -79,6 +84,7 @@ export default class Refract extends Effect {
     refractDir: {
       type: "float",
       default: 0,
+      uniform: "refractDir",
       min: 0,
       max: 360,
       ui: {
@@ -89,6 +95,7 @@ export default class Refract extends Effect {
     wrap: {
       type: "int",
       default: 0,
+      uniform: "wrap",
       choices: {
         Clamp: 2,
         Mirror: 0,

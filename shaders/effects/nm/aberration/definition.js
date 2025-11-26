@@ -13,6 +13,7 @@ export default class Aberration extends Effect {
     displacement: {
         type: "float",
         default: 0.005,
+        uniform: "displacement",
         min: 0,
         max: 0.05,
         step: 0.001,
@@ -24,6 +25,7 @@ export default class Aberration extends Effect {
     speed: {
         type: "float",
         default: 0.2,
+        uniform: "speed",
         min: 0,
         max: 2.0,
         step: 0.01,

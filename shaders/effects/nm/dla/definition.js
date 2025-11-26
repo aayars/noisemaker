@@ -13,6 +13,7 @@ export default class Dla extends Effect {
     padding: {
         type: "float",
         default: 2,
+        uniform: "padding",
         min: 1,
         max: 8,
         step: 0.5,
@@ -24,6 +25,7 @@ export default class Dla extends Effect {
     seed_density: {
         type: "float",
         default: 0.005,
+        uniform: "seed_density",
         min: 0.001,
         max: 0.1,
         step: 0.001,
@@ -35,6 +37,7 @@ export default class Dla extends Effect {
     density: {
         type: "float",
         default: 0.2,
+        uniform: "density",
         min: 0.01,
         max: 0.8,
         step: 0.01,
@@ -46,6 +49,7 @@ export default class Dla extends Effect {
     speed: {
         type: "float",
         default: 1,
+        uniform: "speed",
         min: 0.1,
         max: 4,
         step: 0.1,
@@ -57,6 +61,7 @@ export default class Dla extends Effect {
     alpha: {
         type: "float",
         default: 0.75,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.05,

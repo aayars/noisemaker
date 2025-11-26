@@ -9,6 +9,7 @@ export default class CellRefract extends Effect {
     metric: {
       type: "int",
       default: 1,
+      uniform: "metric",
       choices: {
         Circle: 0,
         Diamond: 1,
@@ -25,6 +26,7 @@ export default class CellRefract extends Effect {
     scale: {
       type: "float",
       default: 50,
+      uniform: "scale",
       min: 1,
       max: 100,
       ui: {
@@ -35,6 +37,7 @@ export default class CellRefract extends Effect {
     cellScale: {
       type: "float",
       default: 75,
+      uniform: "cellScale",
       min: 1,
       max: 100,
       ui: {
@@ -45,6 +48,7 @@ export default class CellRefract extends Effect {
     cellSmooth: {
       type: "float",
       default: 0,
+      uniform: "cellSmooth",
       min: 0,
       max: 100,
       ui: {
@@ -55,6 +59,7 @@ export default class CellRefract extends Effect {
     cellVariation: {
       type: "float",
       default: 0,
+      uniform: "cellVariation",
       min: 0,
       max: 100,
       ui: {
@@ -65,6 +70,7 @@ export default class CellRefract extends Effect {
     loopAmp: {
       type: "int",
       default: 1,
+      uniform: "loopAmp",
       min: 0,
       max: 5,
       ui: {
@@ -75,6 +81,7 @@ export default class CellRefract extends Effect {
     kernel: {
       type: "int",
       default: 0,
+      uniform: "kernel",
       choices: {
         None: 0,
         Blur: 1,
@@ -98,6 +105,7 @@ export default class CellRefract extends Effect {
     effectWidth: {
       type: "int",
       default: 0,
+      uniform: "effectWidth",
       min: 0,
       max: 10,
       ui: {
@@ -108,6 +116,7 @@ export default class CellRefract extends Effect {
     refractAmt: {
       type: "float",
       default: 23,
+      uniform: "refractAmt",
       min: 0,
       max: 100,
       ui: {
@@ -118,6 +127,7 @@ export default class CellRefract extends Effect {
     refractDir: {
       type: "float",
       default: 0,
+      uniform: "refractDir",
       min: 0,
       max: 360,
       ui: {
@@ -128,6 +138,7 @@ export default class CellRefract extends Effect {
     wrap: {
       type: "int",
       default: 0,
+      uniform: "wrap",
       choices: {
         Mirror: 0,
         Repeat: 1
@@ -140,6 +151,7 @@ export default class CellRefract extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {

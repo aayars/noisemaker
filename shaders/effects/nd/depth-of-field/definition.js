@@ -9,6 +9,7 @@ export default class DepthOfField extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class DepthOfField extends Effect {
     focalDistance: {
       type: "float",
       default: 50,
+      uniform: "focalDistance",
       min: 1,
       max: 100,
       ui: {
@@ -29,6 +31,7 @@ export default class DepthOfField extends Effect {
     aperture: {
       type: "float",
       default: 4,
+      uniform: "aperture",
       min: 1,
       max: 10,
       ui: {
@@ -39,6 +42,7 @@ export default class DepthOfField extends Effect {
     sampleBias: {
       type: "float",
       default: 10,
+      uniform: "sampleBias",
       min: 2,
       max: 20,
       ui: {
@@ -49,6 +53,7 @@ export default class DepthOfField extends Effect {
     depthSource: {
       type: "int",
       default: 1,
+      uniform: "depthSource",
       choices: {
         "inputTex": 0,
         "tex": 1

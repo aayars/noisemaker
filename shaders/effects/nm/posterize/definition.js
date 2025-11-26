@@ -13,6 +13,7 @@ export default class Posterize extends Effect {
     levels: {
         type: "float",
         default: 5,
+        uniform: "levels",
         min: 2,
         max: 32,
         step: 1,
@@ -24,6 +25,7 @@ export default class Posterize extends Effect {
     gamma: {
         type: "float",
         default: 1,
+        uniform: "gamma",
         min: 0.1,
         max: 3,
         step: 0.05,

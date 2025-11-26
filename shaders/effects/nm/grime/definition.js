@@ -13,6 +13,7 @@ export default class Grime extends Effect {
     strength: {
         type: "number",
         default: 1,
+        uniform: "strength",
         min: 0,
         max: 5,
         step: 0.1,
@@ -24,6 +25,7 @@ export default class Grime extends Effect {
     debug_mode: {
         type: "number",
         default: 0,
+        uniform: "debug_mode",
         min: 0,
         max: 4,
         step: 1,

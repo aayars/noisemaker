@@ -9,6 +9,7 @@ export default class Glitch extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class Glitch extends Effect {
     glitchiness: {
       type: "float",
       default: 0,
+      uniform: "glitchiness",
       min: 0,
       max: 100,
       ui: {
@@ -29,6 +31,7 @@ export default class Glitch extends Effect {
     aberrationAmt: {
       type: "float",
       default: 0,
+      uniform: "aberrationAmt",
       min: 0,
       max: 100,
       ui: {
@@ -39,6 +42,7 @@ export default class Glitch extends Effect {
     xChonk: {
       type: "int",
       default: 1,
+      uniform: "xChonk",
       min: 1,
       max: 100,
       ui: {
@@ -49,6 +53,7 @@ export default class Glitch extends Effect {
     yChonk: {
       type: "int",
       default: 1,
+      uniform: "yChonk",
       min: 1,
       max: 100,
       ui: {
@@ -59,6 +64,7 @@ export default class Glitch extends Effect {
     scanlinesAmt: {
       type: "int",
       default: 0,
+      uniform: "scanlinesAmt",
       min: 0,
       max: 100,
       ui: {
@@ -69,6 +75,7 @@ export default class Glitch extends Effect {
     snowAmt: {
       type: "float",
       default: 0,
+      uniform: "snowAmt",
       min: 0,
       max: 100,
       ui: {
@@ -79,6 +86,7 @@ export default class Glitch extends Effect {
     vignetteAmt: {
       type: "float",
       default: 0,
+      uniform: "vignetteAmt",
       min: -100,
       max: 100,
       ui: {
@@ -89,6 +97,7 @@ export default class Glitch extends Effect {
     distortion: {
       type: "float",
       default: 0,
+      uniform: "distortion",
       min: -100,
       max: 100,
       ui: {
@@ -99,6 +108,7 @@ export default class Glitch extends Effect {
     aspectLens: {
       type: "boolean",
       default: false,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"
@@ -107,6 +117,7 @@ export default class Glitch extends Effect {
     kernel: {
       type: "int",
       default: 0,
+      uniform: "kernel",
       ui: {
         label: "kernel",
         control: "slider"
@@ -115,6 +126,7 @@ export default class Glitch extends Effect {
     levels: {
       type: "float",
       default: 0,
+      uniform: "levels",
       ui: {
         label: "levels",
         control: "slider"

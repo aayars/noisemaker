@@ -13,6 +13,7 @@ export default class Lowpoly extends Effect {
     distrib: {
         type: "enum",
         default: 1000000,
+        uniform: "distrib",
         ui: {
             label: "Point Distribution"
         }
@@ -20,6 +21,7 @@ export default class Lowpoly extends Effect {
     freq: {
         type: "int",
         default: 10,
+        uniform: "freq",
         min: 1,
         max: 64,
         step: 1,
@@ -31,6 +33,7 @@ export default class Lowpoly extends Effect {
     dist_metric: {
         type: "enum",
         default: 1,
+        uniform: "dist_metric",
         ui: {
             label: "Distance Metric"
         }

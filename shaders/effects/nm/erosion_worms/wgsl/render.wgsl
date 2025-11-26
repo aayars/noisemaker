@@ -1,4 +1,4 @@
-// Worms effect - Final render pass
+// Erosion Worms - Final render pass
 // Blends trail texture with input
 
 // Packed uniform layout:
@@ -10,8 +10,8 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var u_sampler : sampler;
-@group(0) @binding(1) var mixerTex : texture_2d<f32>;
-@group(0) @binding(2) var wormsTex : texture_2d<f32>;
+@group(0) @binding(1) var trailTex : texture_2d<f32>;
+@group(0) @binding(2) var inputTex : texture_2d<f32>;
 @group(0) @binding(3) var<uniform> uniforms : Uniforms;
 
 @fragment
@@ -23,15 +23,14 @@ fn main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
     let size = vec2<f32>(max(resolution.x, 1.0), max(resolution.y, 1.0));
     let uv = position.xy / size;
     
-    let baseColor = textureSample(mixerTex, u_sampler, uv);
-    let wormsColor = textureSample(wormsTex, u_sampler, uv);
+    let trail = textureSample(trailTex, u_sampler, uv);
+    let img = textureSample(inputTex, u_sampler, uv);
     
     let intensity = clamp(inputIntensity / 100.0, 0.0, 1.0);
     
-    // Blend: add trails on top of input image
-    // Like GLSL: fragColor = img + trail
-    let combined = baseColor.rgb * intensity + wormsColor.rgb;
-    let finalAlpha = max(baseColor.a, wormsColor.a);
+    // Combine: add trails on top of input image
+    let combined = img.rgb * intensity + trail.rgb;
+    let finalAlpha = max(img.a, trail.a);
     
     return vec4<f32>(combined, finalAlpha);
 }

@@ -209,7 +209,7 @@ export class WebGPUBackend extends Backend {
 
     async compileRenderProgram(id, source, spec) {
         // Parse binding declarations from the shader
-        const bindings = this.parseShaderBindings(source)
+        let bindings = this.parseShaderBindings(source)
         
         // Compile fragment module
         const fragmentModule = this.device.createShaderModule({ code: source })
@@ -243,6 +243,24 @@ export class WebGPUBackend extends Backend {
             }
 
             vertexEntryPoint = spec.vertexEntryPoint || DEFAULT_VERTEX_ENTRY_POINT
+            
+            // Parse vertex shader bindings and merge with fragment bindings
+            const vertexBindings = this.parseShaderBindings(vertexSource)
+            if (vertexBindings.length > 0) {
+                // Merge, preferring vertex bindings for conflicts (same group/binding)
+                const bindingKey = b => `${b.group}:${b.binding}`
+                const existingKeys = new Set(bindings.map(bindingKey))
+                for (const vb of vertexBindings) {
+                    if (!existingKeys.has(bindingKey(vb))) {
+                        bindings.push(vb)
+                    }
+                }
+                // Re-sort by group then binding
+                bindings.sort((a, b) => {
+                    if (a.group !== b.group) return a.group - b.group
+                    return a.binding - b.binding
+                })
+            }
         } else {
             vertexModule = this.getDefaultVertexModule()
             vertexEntryPoint = DEFAULT_VERTEX_ENTRY_POINT
@@ -450,7 +468,6 @@ export class WebGPUBackend extends Backend {
             }
         }
         
-        
         if (program.type === 'compute') {
             this.executeComputePass(pass, program, state)
         } else {
@@ -495,9 +512,6 @@ export class WebGPUBackend extends Backend {
             }
         }
 
-        // Create bind group for this pass
-        const bindGroup = this.createBindGroup(pass, program, state)
-
         // Resolve viewport
         const viewport = this.resolveViewport(pass, outputTex)
         
@@ -513,7 +527,7 @@ export class WebGPUBackend extends Backend {
         const renderPassDescriptor = { colorAttachments: [colorAttachment] }
         const passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor)
         
-        // Get or create pipeline for this output format
+        // Get or create pipeline for this output format - do this BEFORE creating bind group
         const resolvedFormat = outputTex.gpuFormat || outputTex.format || program.outputFormat
         
         const pipeline = this.resolveRenderPipeline(program, {
@@ -521,6 +535,9 @@ export class WebGPUBackend extends Backend {
             topology: pass.drawMode === 'points' ? 'point-list' : 'triangle-list',
             format: resolvedFormat
         })
+        
+        // Create bind group for this pass using the ACTUAL pipeline's layout
+        const bindGroup = this.createBindGroup(pass, program, state, pipeline)
         
         passEncoder.setPipeline(pipeline)
         passEncoder.setBindGroup(0, bindGroup)
@@ -647,8 +664,8 @@ export class WebGPUBackend extends Backend {
     }
 
     executeComputePass(pass, program, state) {
-        // Create bind group for this pass
-        const bindGroup = this.createBindGroup(pass, program, state)
+        // Create bind group for this pass using the compute pipeline
+        const bindGroup = this.createBindGroup(pass, program, state, program.pipeline)
 
         // Determine workgroup dispatch size
         const workgroups = this.resolveWorkgroups(pass, state)
@@ -712,11 +729,14 @@ export class WebGPUBackend extends Backend {
      * - Individual uniform bindings (one per uniform variable)
      * - Texture + sampler pairs
      * - Uniform buffer structs
+     * @param {Object} pipeline - Optional resolved pipeline to use for layout (for topology variants)
      */
-    createBindGroup(pass, program, state) {
+    createBindGroup(pass, program, state, pipeline = null) {
         const entries = []
         const bindings = program.bindings || []
         
+        // Use the passed pipeline or fall back to program's default pipeline
+        const targetPipeline = pipeline || program.pipeline
         
         // Get merged uniforms
         const uniforms = { ...state.globalUniforms, ...pass.uniforms }
@@ -729,7 +749,12 @@ export class WebGPUBackend extends Backend {
                 
                 if (texId.startsWith('global_')) {
                     const surfaceName = texId.replace('global_', '')
-                    textureView = state.surfaces?.[surfaceName]?.view
+                    const surfaceObj = state.surfaces?.[surfaceName]
+                    textureView = surfaceObj?.view
+                    // Debug: Show what we're finding for worms passes
+                    if (pass.name?.includes('worms') || pass.program?.includes('worms')) {
+                        console.log(`[WGPU] ${pass.name || pass.program} input ${inputName}=${texId} → surface[${surfaceName}]=${surfaceObj ? 'found' : 'MISSING'}, view=${textureView ? 'ok' : 'MISSING'}`)
+                    }
                 } else {
                     textureView = this.textures.get(texId)?.view
                 }
@@ -840,11 +865,10 @@ export class WebGPUBackend extends Backend {
             return this.createLegacyBindGroup(pass, program, state)
         }
         
-        
-        // Create bind group
+        // Create bind group using the target pipeline's layout
         try {
             const bindGroup = this.device.createBindGroup({
-                layout: program.pipeline.getBindGroupLayout(0),
+                layout: targetPipeline.getBindGroupLayout(0),
                 entries
             })
             return bindGroup

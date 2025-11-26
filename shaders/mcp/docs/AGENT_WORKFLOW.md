@@ -105,6 +105,37 @@ Agent: Slightly below 60fps. The p95 shows some frame spikes.
        Let me optimize the inner loop...
 ```
 
+### 5. Verifying Uniform Controls Work
+
+```
+Agent: The controls don't seem to be affecting the output...
+→ testUniformResponsiveness({ effect_id: "nm/worms" })
+
+Response:
+{
+  "status": "error",
+  "tested_uniforms": ["stride:✗", "kink:✗", "lifetime:✗"],
+  "details": "No uniforms affected output"
+}
+
+Agent: None of the uniforms are working. Let me check if the 
+       effect definition has `uniform:` mappings in the globals...
+[checks definition.js, finds missing uniform: properties]
+
+Agent: I need to add uniform: "uniformName" to each global...
+[fixes definition.js]
+→ testUniformResponsiveness({ effect_id: "nm/worms" })
+
+Response:
+{
+  "status": "ok",
+  "tested_uniforms": ["stride:✓", "kink:✓", "lifetime:✓"],
+  "details": "Uniforms affect output"
+}
+
+Agent: All uniforms now affect the output correctly.
+```
+
 ## Decision Tree
 
 ```
@@ -146,6 +177,7 @@ Start: Agent modifies a shader file
 | Shader compiles, need to verify output | `render_effect_frame` |
 | Output looks wrong, need diagnosis | `describe_effect_frame` |
 | Complex effect, need perf check | `benchmark_effect_fps` |
+| Controls not affecting output | `testUniformResponsiveness` |
 | Quick sanity check | `compile_effect` only |
 
 ## Best Practices

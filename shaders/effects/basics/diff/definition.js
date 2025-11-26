@@ -9,6 +9,7 @@ export default class Diff extends Effect {
     "tex": {
         "type": "surface",
         "default": "inputTex",
+        uniform: "tex",
         "ui": {
             "label": "source surface"
         }

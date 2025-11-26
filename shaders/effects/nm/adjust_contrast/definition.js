@@ -13,6 +13,7 @@ export default class AdjustContrast extends Effect {
     amount: {
         type: "float",
         default: 1.25,
+        uniform: "amount",
         min: 0,
         max: 5,
         step: 0.05,

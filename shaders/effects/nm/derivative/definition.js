@@ -13,6 +13,7 @@ export default class Derivative extends Effect {
     dist_metric: {
         type: "enum",
         default: 1,
+        uniform: "dist_metric",
         ui: {
             label: "Distance Metric"
         }
@@ -20,6 +21,7 @@ export default class Derivative extends Effect {
     with_normalize: {
         type: "boolean",
         default: true,
+        uniform: "with_normalize",
         ui: {
             label: "Normalize",
             control: "checkbox"
@@ -28,6 +30,7 @@ export default class Derivative extends Effect {
     alpha: {
         type: "float",
         default: 1,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

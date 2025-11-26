@@ -9,6 +9,7 @@ export default class WgslMixerDemo extends Effect {
     mixAmt: {
       type: "float",
       default: 0,
+      uniform: "mixAmt",
       min: 0,
       max: 100,
       ui: {

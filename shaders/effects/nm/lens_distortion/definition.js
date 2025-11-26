@@ -13,6 +13,7 @@ export default class LensDistortion extends Effect {
     displacement: {
         type: "float",
         default: 1,
+        uniform: "displacement",
         min: -2,
         max: 2,
         step: 0.01,

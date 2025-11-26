@@ -9,6 +9,7 @@ export default class DemoSynth extends Effect {
     scale: {
       type: "float",
       default: 25,
+      uniform: "scale",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class DemoSynth extends Effect {
     offset: {
       type: "float",
       default: 0,
+      uniform: "offset",
       min: -1000,
       max: 1000,
       ui: {
@@ -29,6 +31,7 @@ export default class DemoSynth extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -39,6 +42,7 @@ export default class DemoSynth extends Effect {
     octaves: {
       type: "int",
       default: 5,
+      uniform: "octaves",
       min: 1,
       max: 10,
       ui: {
@@ -49,6 +53,7 @@ export default class DemoSynth extends Effect {
     colorMode: {
       type: "int",
       default: 0,
+      uniform: "colorMode",
       choices: {
         Mono: 0,
         Rgb: 1,
@@ -62,6 +67,7 @@ export default class DemoSynth extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -72,6 +78,7 @@ export default class DemoSynth extends Effect {
     hueRange: {
       type: "float",
       default: 100,
+      uniform: "hueRange",
       min: 0,
       max: 100,
       ui: {
@@ -82,6 +89,7 @@ export default class DemoSynth extends Effect {
     ridged: {
       type: "boolean",
       default: false,
+      uniform: "ridged",
       ui: {
         label: "ridged",
         control: "checkbox"

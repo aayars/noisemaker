@@ -13,6 +13,7 @@ export default class SimpleFrame extends Effect {
     brightness: {
         type: "float",
         default: 0,
+        uniform: "brightness",
         min: -1,
         max: 1,
         step: 0.01,

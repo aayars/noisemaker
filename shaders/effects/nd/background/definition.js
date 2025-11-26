@@ -9,6 +9,7 @@ export default class Background extends Effect {
     backgroundType: {
       type: "int",
       default: 10,
+      uniform: "backgroundType",
       choices: {
         "Solid": 0,
         "Horizontal 1->2": 10,
@@ -23,6 +24,7 @@ export default class Background extends Effect {
     rotation: {
       type: "float",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: { label: "Rotation", control: "slider" }
@@ -30,6 +32,7 @@ export default class Background extends Effect {
     opacity: {
       type: "float",
       default: 100,
+      uniform: "opacity",
       min: 0,
       max: 100,
       ui: { label: "Opacity", control: "slider" }
@@ -37,11 +40,13 @@ export default class Background extends Effect {
     color1: {
       type: "vec4",
       default: [0, 0, 0, 1],
+      uniform: "color1",
       ui: { label: "Color 1", control: "color" }
     },
     color2: {
       type: "vec4",
       default: [1, 1, 1, 1],
+      uniform: "color2",
       ui: { label: "Color 2", control: "color" }
     }
   };

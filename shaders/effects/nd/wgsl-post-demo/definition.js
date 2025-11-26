@@ -9,6 +9,7 @@ export default class WgslPostDemo extends Effect {
     brightness: {
       type: "int",
       default: 0,
+      uniform: "brightness",
       min: -100,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class WgslPostDemo extends Effect {
     contrast: {
       type: "int",
       default: 0,
+      uniform: "contrast",
       min: -100,
       max: 100,
       ui: {
@@ -29,6 +31,7 @@ export default class WgslPostDemo extends Effect {
     hue: {
       type: "int",
       default: 0,
+      uniform: "hue",
       min: 0,
       max: 360,
       ui: {
@@ -39,6 +42,7 @@ export default class WgslPostDemo extends Effect {
     saturation: {
       type: "int",
       default: 0,
+      uniform: "saturation",
       min: -100,
       max: 100,
       ui: {

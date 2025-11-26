@@ -12,6 +12,7 @@ export default class Wormhole extends Effect {
     kink: {
       type: "float",
       default: 1,
+      uniform: "kink",
       min: 0,
       max: 10,
       step: 0.1,
@@ -23,6 +24,7 @@ export default class Wormhole extends Effect {
     stride: {
       type: "float",
       default: 0.5,
+      uniform: "stride",
       min: 0,
       max: 5,
       step: 0.01,
@@ -34,6 +36,7 @@ export default class Wormhole extends Effect {
     alpha: {
       type: "float",
       default: 0.5,
+      uniform: "alpha",
       min: 0,
       max: 1,
       step: 0.01,
@@ -45,6 +48,7 @@ export default class Wormhole extends Effect {
     speed: {
       type: "float",
       default: 1,
+      uniform: "speed",
       min: 0,
       max: 5,
       step: 0.1,

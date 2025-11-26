@@ -9,6 +9,7 @@ export default class ReactionDiffusion extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class ReactionDiffusion extends Effect {
     sourceF: {
       type: "int",
       default: 0,
+      uniform: "sourceF",
       choices: {
         Slider: 0,
         "Slider + Input": 6,
@@ -36,6 +38,7 @@ export default class ReactionDiffusion extends Effect {
     feed: {
       type: "float",
       default: 18,
+      uniform: "feed",
       min: 10,
       max: 110,
       ui: {
@@ -46,6 +49,7 @@ export default class ReactionDiffusion extends Effect {
     sourceK: {
       type: "int",
       default: 0,
+      uniform: "sourceK",
       choices: {
         Slider: 0,
         "Slider + Input": 6,
@@ -63,6 +67,7 @@ export default class ReactionDiffusion extends Effect {
     kill: {
       type: "float",
       default: 51,
+      uniform: "kill",
       min: 45,
       max: 70,
       ui: {
@@ -73,6 +78,7 @@ export default class ReactionDiffusion extends Effect {
     sourceR1: {
       type: "int",
       default: 0,
+      uniform: "sourceR1",
       choices: {
         Slider: 0,
         "Slider + Input": 6,
@@ -90,6 +96,7 @@ export default class ReactionDiffusion extends Effect {
     rate1: {
       type: "float",
       default: 111,
+      uniform: "rate1",
       min: 50,
       max: 120,
       ui: {
@@ -100,6 +107,7 @@ export default class ReactionDiffusion extends Effect {
     sourceR2: {
       type: "int",
       default: 0,
+      uniform: "sourceR2",
       choices: {
         Slider: 0,
         "Slider + Input": 6,
@@ -117,6 +125,7 @@ export default class ReactionDiffusion extends Effect {
     rate2: {
       type: "float",
       default: 24,
+      uniform: "rate2",
       min: 20,
       max: 50,
       ui: {
@@ -127,6 +136,7 @@ export default class ReactionDiffusion extends Effect {
     weight: {
       type: "float",
       default: 50,
+      uniform: "weight",
       min: 0,
       max: 100,
       ui: {
@@ -137,6 +147,7 @@ export default class ReactionDiffusion extends Effect {
     speed: {
       type: "float",
       default: 100,
+      uniform: "speed",
       min: 10,
       max: 145,
       ui: {
@@ -147,6 +158,7 @@ export default class ReactionDiffusion extends Effect {
     zoom: {
       type: "int",
       default: 8,
+      uniform: "zoom",
       choices: {
         "1x": 1,
         "2x": 2,
@@ -162,6 +174,7 @@ export default class ReactionDiffusion extends Effect {
     smoothing: {
       type: "int",
       default: 1,
+      uniform: "smoothing",
       choices: {
         Constant: 0,
         Linear: 1,

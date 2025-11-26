@@ -9,6 +9,7 @@ export default class Pattern extends Effect {
     patternType: {
       type: "int",
       default: 1,
+      uniform: "patternType",
       choices: {
         Checkers: 0,
         Dots: 1,
@@ -31,6 +32,7 @@ export default class Pattern extends Effect {
     scale: {
       type: "float",
       default: 80,
+      uniform: "scale",
       min: 1,
       max: 100,
       ui: {
@@ -41,6 +43,7 @@ export default class Pattern extends Effect {
     skewAmt: {
       type: "float",
       default: 0,
+      uniform: "skewAmt",
       min: -100,
       max: 100,
       ui: {
@@ -51,6 +54,7 @@ export default class Pattern extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -61,6 +65,7 @@ export default class Pattern extends Effect {
     lineWidth: {
       type: "float",
       default: 100,
+      uniform: "lineWidth",
       min: 1,
       max: 100,
       ui: {
@@ -71,6 +76,7 @@ export default class Pattern extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -81,6 +87,7 @@ export default class Pattern extends Effect {
     animation: {
       type: "int",
       default: 0,
+      uniform: "animation",
       choices: {
         None: 0,
         "Pan With Rotation": 1,
@@ -99,6 +106,7 @@ export default class Pattern extends Effect {
     speed: {
       type: "int",
       default: 1,
+      uniform: "speed",
       min: 0,
       max: 10,
       ui: {
@@ -109,6 +117,7 @@ export default class Pattern extends Effect {
     sharpness: {
       type: "float",
       default: 100,
+      uniform: "sharpness",
       min: 0,
       max: 100,
       ui: {
@@ -119,6 +128,7 @@ export default class Pattern extends Effect {
     color1: {
       type: "vec3",
       default: [1.0, 0.9176470588235294, 0.19215686274509805],
+      uniform: "color1",
       ui: {
         label: "color 1",
         control: "color"
@@ -127,6 +137,7 @@ export default class Pattern extends Effect {
     color2: {
       type: "vec3",
       default: [0.0, 0.0, 0.0],
+      uniform: "color2",
       ui: {
         label: "color 2",
         control: "color"

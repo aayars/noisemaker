@@ -9,6 +9,7 @@ export default class Coalesce extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class Coalesce extends Effect {
     blendMode: {
       type: "int",
       default: 10,
+      uniform: "blendMode",
       choices: {
         Add: 0,
         Alpha: 1,
@@ -55,6 +57,7 @@ export default class Coalesce extends Effect {
     mixAmt: {
       type: "float",
       default: 0,
+      uniform: "mixAmt",
       min: -100,
       max: 100,
       ui: {
@@ -65,6 +68,7 @@ export default class Coalesce extends Effect {
     refractAAmt: {
       type: "float",
       default: 0,
+      uniform: "refractAAmt",
       min: 0,
       max: 100,
       ui: {
@@ -75,6 +79,7 @@ export default class Coalesce extends Effect {
     refractBAmt: {
       type: "float",
       default: 0,
+      uniform: "refractBAmt",
       min: 0,
       max: 100,
       ui: {
@@ -85,6 +90,7 @@ export default class Coalesce extends Effect {
     refractADir: {
       type: "float",
       default: 0,
+      uniform: "refractADir",
       min: 0,
       max: 360,
       ui: {
@@ -95,6 +101,7 @@ export default class Coalesce extends Effect {
     refractBDir: {
       type: "float",
       default: 0,
+      uniform: "refractBDir",
       min: 0,
       max: 360,
       ui: {

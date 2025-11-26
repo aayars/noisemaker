@@ -15,6 +15,7 @@ export default class CellNoise extends Effect {
     metric: {
       type: "int",
       default: 0,
+      uniform: "metric",
       choices: {
         Circle: 0,
         Diamond: 1,
@@ -31,6 +32,7 @@ export default class CellNoise extends Effect {
     scale: {
       type: "float",
       default: 75,
+      uniform: "scale",
       min: 1,
       max: 100,
       ui: {
@@ -41,6 +43,7 @@ export default class CellNoise extends Effect {
     cellScale: {
       type: "float",
       default: 87,
+      uniform: "cellScale",
       min: 1,
       max: 100,
       ui: {
@@ -51,6 +54,7 @@ export default class CellNoise extends Effect {
     cellSmooth: {
       type: "float",
       default: 11,
+      uniform: "cellSmooth",
       min: 0,
       max: 100,
       ui: {
@@ -61,6 +65,7 @@ export default class CellNoise extends Effect {
     cellVariation: {
       type: "float",
       default: 50,
+      uniform: "cellVariation",
       min: 0,
       max: 100,
       ui: {
@@ -71,6 +76,7 @@ export default class CellNoise extends Effect {
     loopAmp: {
       type: "int",
       default: 1,
+      uniform: "loopAmp",
       min: 0,
       max: 5,
       ui: {
@@ -81,6 +87,7 @@ export default class CellNoise extends Effect {
     paletteMode: {
       type: "int",
       default: 4,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -88,6 +95,7 @@ export default class CellNoise extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -98,6 +106,7 @@ export default class CellNoise extends Effect {
     colorMode: {
       type: "int",
       default: 0,
+      uniform: "colorMode",
       choices: {
         Grayscale: 0,
         "Grayscale Inverse": 1,
@@ -111,6 +120,7 @@ export default class CellNoise extends Effect {
     palette: {
       type: "palette",
       default: 32,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -120,6 +130,7 @@ export default class CellNoise extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -128,6 +139,7 @@ export default class CellNoise extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -141,6 +153,7 @@ export default class CellNoise extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -149,6 +162,7 @@ export default class CellNoise extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -159,6 +173,7 @@ export default class CellNoise extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [2, 2, 2],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -167,6 +182,7 @@ export default class CellNoise extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -177,6 +193,7 @@ export default class CellNoise extends Effect {
     palettePhase: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -185,6 +202,7 @@ export default class CellNoise extends Effect {
     texSource: {
       type: "int",
       default: 0,
+      uniform: "texSource",
       choices: {
         None: 0,
         Input: 3
@@ -197,6 +215,7 @@ export default class CellNoise extends Effect {
     texInfluence: {
       type: "int",
       default: 1,
+      uniform: "texInfluence",
       choices: {
         Warp: null,
         "Cell Scale": 1,
@@ -218,6 +237,7 @@ export default class CellNoise extends Effect {
     texIntensity: {
       type: "float",
       default: 100,
+      uniform: "texIntensity",
       min: 0,
       max: 100,
       ui: {

@@ -13,6 +13,7 @@ export default class ColorMap extends Effect {
     displacement: {
         type: "float",
         default: 0.5,
+        uniform: "displacement",
         min: 0,
         max: 1,
         step: 0.01,
@@ -24,6 +25,7 @@ export default class ColorMap extends Effect {
     horizontal: {
         type: "boolean",
         default: false,
+        uniform: "horizontal",
         ui: {
             label: "Horizontal",
             control: "checkbox"

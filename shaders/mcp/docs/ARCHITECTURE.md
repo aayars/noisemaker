@@ -41,6 +41,10 @@ The MCP shader tools system enables VS Code Copilot coding agents to test shader
 │  - renderEffectFrame(): Render frame, compute metrics       │
 │  - benchmarkEffectFps(): Measure sustained framerate        │
 │  - describeEffectFrame(): AI vision analysis                │
+│                                                             │
+│                  Browser Harness Extensions                 │
+│  - getEffectGlobals(): Get effect parameter definitions     │
+│  - testUniformResponsiveness(): Verify controls work        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼

@@ -9,6 +9,7 @@ export default class Final extends Effect {
     enabled: {
       type: "boolean",
       default: false,
+      uniform: "enabled",
       ui: {
         label: "enabled",
         control: "checkbox"
@@ -17,6 +18,7 @@ export default class Final extends Effect {
     brightness: {
       type: "float",
       default: 0,
+      uniform: "brightness",
       min: -100,
       max: 100,
       ui: {
@@ -27,6 +29,7 @@ export default class Final extends Effect {
     contrast: {
       type: "float",
       default: 50,
+      uniform: "contrast",
       min: 0,
       max: 100,
       ui: {
@@ -37,6 +40,7 @@ export default class Final extends Effect {
     saturation: {
       type: "float",
       default: 0,
+      uniform: "saturation",
       min: -100,
       max: 100,
       ui: {
@@ -47,6 +51,7 @@ export default class Final extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -57,6 +62,7 @@ export default class Final extends Effect {
     hueRange: {
       type: "float",
       default: 100,
+      uniform: "hueRange",
       min: 0,
       max: 200,
       ui: {
@@ -67,6 +73,7 @@ export default class Final extends Effect {
     invert: {
       type: "boolean",
       default: false,
+      uniform: "invert",
       ui: {
         label: "invert",
         control: "checkbox"
@@ -75,6 +82,7 @@ export default class Final extends Effect {
     antialias: {
       type: "boolean",
       default: true,
+      uniform: "antialias",
       ui: {
         label: "antialias",
         control: "checkbox"

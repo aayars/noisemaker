@@ -9,6 +9,7 @@ export default class MediaInput extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class MediaInput extends Effect {
     source: {
       type: "int",
       default: 1,
+      uniform: "source",
       choices: {
         Camera: 0,
         File: 1
@@ -31,6 +33,7 @@ export default class MediaInput extends Effect {
     file: {
       type: "file",
       default: null,
+      uniform: "file",
       ui: {
         label: "media file",
         control: "slider"
@@ -39,6 +42,7 @@ export default class MediaInput extends Effect {
     position: {
       type: "int",
       default: 4,
+      uniform: "position",
       choices: {
         "Top Left": 0,
         "Top Center": 1,
@@ -58,6 +62,7 @@ export default class MediaInput extends Effect {
     tiling: {
       type: "int",
       default: 0,
+      uniform: "tiling",
       choices: {
         None: 0,
         "Horiz And Vert": 1,
@@ -72,6 +77,7 @@ export default class MediaInput extends Effect {
     flip: {
       type: "int",
       default: 0,
+      uniform: "flip",
       choices: {
         None: 0,
         "Flip:": null,
@@ -96,6 +102,7 @@ export default class MediaInput extends Effect {
     scaleAmt: {
       type: "float",
       default: 100,
+      uniform: "scaleAmt",
       min: 25,
       max: 400,
       ui: {
@@ -106,6 +113,7 @@ export default class MediaInput extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -116,6 +124,7 @@ export default class MediaInput extends Effect {
     offsetX: {
       type: "float",
       default: 0,
+      uniform: "offsetX",
       min: -100,
       max: 100,
       ui: {
@@ -126,6 +135,7 @@ export default class MediaInput extends Effect {
     offsetY: {
       type: "float",
       default: 0,
+      uniform: "offsetY",
       min: -100,
       max: 100,
       ui: {
@@ -136,6 +146,7 @@ export default class MediaInput extends Effect {
     backgroundColor: {
       type: "vec3",
       default: [0.0, 0.0, 0.0],
+      uniform: "backgroundColor",
       ui: {
         label: "bkg color",
         control: "color"
@@ -144,6 +155,7 @@ export default class MediaInput extends Effect {
     backgroundOpacity: {
       type: "float",
       default: 0,
+      uniform: "backgroundOpacity",
       min: 0,
       max: 100,
       ui: {
@@ -154,6 +166,7 @@ export default class MediaInput extends Effect {
     imageSize: {
       type: "vec2",
       default: [1024, 1024],
+      uniform: "imageSize",
       ui: {
         label: "image size",
         control: "slider"

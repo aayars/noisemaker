@@ -15,6 +15,7 @@ export default class Shapes extends Effect {
     loopAOffset: {
       type: "int",
       default: 40,
+      uniform: "loopAOffset",
       choices: {
         "Shapes:": null,
         Circle: 10,
@@ -54,6 +55,7 @@ export default class Shapes extends Effect {
     loopBOffset: {
       type: "int",
       default: 30,
+      uniform: "loopBOffset",
       choices: {
         "Shapes:": null,
         Circle: 10,
@@ -93,6 +95,7 @@ export default class Shapes extends Effect {
     loopAScale: {
       type: "float",
       default: 1,
+      uniform: "loopAScale",
       min: 1,
       max: 100,
       ui: {
@@ -103,6 +106,7 @@ export default class Shapes extends Effect {
     loopBScale: {
       type: "float",
       default: 1,
+      uniform: "loopBScale",
       min: 1,
       max: 100,
       ui: {
@@ -113,6 +117,7 @@ export default class Shapes extends Effect {
     loopAAmp: {
       type: "float",
       default: 50,
+      uniform: "loopAAmp",
       min: -100,
       max: 100,
       ui: {
@@ -123,6 +128,7 @@ export default class Shapes extends Effect {
     loopBAmp: {
       type: "float",
       default: 50,
+      uniform: "loopBAmp",
       min: -100,
       max: 100,
       ui: {
@@ -133,6 +139,7 @@ export default class Shapes extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -143,6 +150,7 @@ export default class Shapes extends Effect {
     wrap: {
       type: "boolean",
       default: true,
+      uniform: "wrap",
       ui: {
         label: "wrap",
         control: "checkbox"
@@ -151,6 +159,7 @@ export default class Shapes extends Effect {
     palette: {
       type: "palette",
       default: 46,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -160,6 +169,7 @@ export default class Shapes extends Effect {
     paletteMode: {
       type: "int",
       default: 0,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -167,6 +177,7 @@ export default class Shapes extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.83, 0.6, 0.63],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -175,6 +186,7 @@ export default class Shapes extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -183,6 +195,7 @@ export default class Shapes extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -191,6 +204,7 @@ export default class Shapes extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.3, 0.1, 0],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -199,6 +213,7 @@ export default class Shapes extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -212,6 +227,7 @@ export default class Shapes extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -222,6 +238,7 @@ export default class Shapes extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {

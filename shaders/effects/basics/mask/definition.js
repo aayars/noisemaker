@@ -9,6 +9,7 @@ export default class Mask extends Effect {
     "tex": {
         "type": "surface",
         "default": "inputTex",
+        uniform: "tex",
         "ui": {
             "label": "source surface"
         }

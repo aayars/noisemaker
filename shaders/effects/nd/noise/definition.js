@@ -15,6 +15,7 @@ export default class Noise extends Effect {
     aspect: {
       type: "float",
       default: null,
+      uniform: "aspect",
       ui: {
         label: "aspect",
         control: "slider"
@@ -23,6 +24,7 @@ export default class Noise extends Effect {
     noiseType: {
       type: "int",
       default: 10,
+      uniform: "noiseType",
       choices: {
         Constant: 0,
         Linear: 1,
@@ -42,6 +44,7 @@ export default class Noise extends Effect {
     octaves: {
       type: "int",
       default: 2,
+      uniform: "octaves",
       min: 1,
       max: 8,
       ui: {
@@ -52,6 +55,7 @@ export default class Noise extends Effect {
     xScale: {
       type: "float",
       default: 75,
+      uniform: "xScale",
       min: 1,
       max: 100,
       ui: {
@@ -62,6 +66,7 @@ export default class Noise extends Effect {
     yScale: {
       type: "float",
       default: 75,
+      uniform: "yScale",
       min: 1,
       max: 100,
       ui: {
@@ -72,6 +77,7 @@ export default class Noise extends Effect {
     ridges: {
       type: "boolean",
       default: false,
+      uniform: "ridges",
       ui: {
         label: "ridges",
         control: "checkbox"
@@ -80,6 +86,7 @@ export default class Noise extends Effect {
     wrap: {
       type: "boolean",
       default: true,
+      uniform: "wrap",
       ui: {
         label: "wrap",
         control: "checkbox"
@@ -88,6 +95,7 @@ export default class Noise extends Effect {
     refractMode: {
       type: "int",
       default: 2,
+      uniform: "refractMode",
       choices: {
         Color: 0,
         Topology: 1,
@@ -101,6 +109,7 @@ export default class Noise extends Effect {
     refractAmt: {
       type: "float",
       default: 0,
+      uniform: "refractAmt",
       min: 0,
       max: 100,
       ui: {
@@ -111,6 +120,7 @@ export default class Noise extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -121,6 +131,7 @@ export default class Noise extends Effect {
     loopOffset: {
       type: "int",
       default: 300,
+      uniform: "loopOffset",
       choices: {
         "Shapes:": null,
         Circle: 10,
@@ -151,6 +162,7 @@ export default class Noise extends Effect {
     loopScale: {
       type: "float",
       default: 75,
+      uniform: "loopScale",
       min: 1,
       max: 100,
       ui: {
@@ -161,6 +173,7 @@ export default class Noise extends Effect {
     loopAmp: {
       type: "float",
       default: 25,
+      uniform: "loopAmp",
       min: -100,
       max: 100,
       ui: {
@@ -171,6 +184,7 @@ export default class Noise extends Effect {
     kaleido: {
       type: "int",
       default: 1,
+      uniform: "kaleido",
       min: 1,
       max: 32,
       ui: {
@@ -181,6 +195,7 @@ export default class Noise extends Effect {
     metric: {
       type: "int",
       default: 0,
+      uniform: "metric",
       choices: {
         Circle: 0,
         Diamond: 1,
@@ -197,6 +212,7 @@ export default class Noise extends Effect {
     colorMode: {
       type: "int",
       default: 6,
+      uniform: "colorMode",
       choices: {
         Grayscale: 0,
         "Linear Rgb": 1,
@@ -213,6 +229,7 @@ export default class Noise extends Effect {
     paletteMode: {
       type: "int",
       default: 3,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -220,6 +237,7 @@ export default class Noise extends Effect {
     hueRotation: {
       type: "float",
       default: 179,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -230,6 +248,7 @@ export default class Noise extends Effect {
     hueRange: {
       type: "float",
       default: 25,
+      uniform: "hueRange",
       min: 0,
       max: 100,
       ui: {
@@ -240,6 +259,7 @@ export default class Noise extends Effect {
     palette: {
       type: "palette",
       default: 2,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -249,6 +269,7 @@ export default class Noise extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -262,6 +283,7 @@ export default class Noise extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -272,6 +294,7 @@ export default class Noise extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -282,6 +305,7 @@ export default class Noise extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -290,6 +314,7 @@ export default class Noise extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -298,6 +323,7 @@ export default class Noise extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -306,6 +332,7 @@ export default class Noise extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.3, 0.2, 0.2],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"

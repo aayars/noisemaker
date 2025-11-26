@@ -13,6 +13,7 @@ export default class Kaleido extends Effect {
     sides: {
         type: "int",
         default: 6,
+        uniform: "sides",
         min: 2,
         max: 32,
         step: 1,
@@ -24,6 +25,7 @@ export default class Kaleido extends Effect {
     sdf_sides: {
         type: "int",
         default: 5,
+        uniform: "sdf_sides",
         min: 0,
         max: 12,
         step: 1,
@@ -35,6 +37,7 @@ export default class Kaleido extends Effect {
     blend_edges: {
         type: "boolean",
         default: true,
+        uniform: "blend_edges",
         ui: {
             label: "Blend Edges",
             control: "checkbox"
@@ -43,6 +46,7 @@ export default class Kaleido extends Effect {
     point_freq: {
         type: "int",
         default: 1,
+        uniform: "point_freq",
         min: 1,
         max: 32,
         step: 1,
@@ -54,6 +58,7 @@ export default class Kaleido extends Effect {
     point_generations: {
         type: "int",
         default: 1,
+        uniform: "point_generations",
         min: 1,
         max: 5,
         step: 1,
@@ -65,6 +70,7 @@ export default class Kaleido extends Effect {
     point_distrib: {
         type: "enum",
         default: 0,
+        uniform: "point_distrib",
         ui: {
             label: "Distribution"
         }
@@ -72,6 +78,7 @@ export default class Kaleido extends Effect {
     point_drift: {
         type: "float",
         default: 0,
+        uniform: "point_drift",
         min: 0,
         max: 1,
         step: 0.01,
@@ -83,6 +90,7 @@ export default class Kaleido extends Effect {
     point_corners: {
         type: "boolean",
         default: false,
+        uniform: "point_corners",
         ui: {
             label: "Include Corners",
             control: "checkbox"

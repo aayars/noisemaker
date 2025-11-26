@@ -13,6 +13,7 @@ export default class Fibers extends Effect {
     speed: {
       type: "float",
       default: 1.0,
+      uniform: "speed",
       min: 0.0,
       max: 5.0,
       step: 0.1,
@@ -21,6 +22,7 @@ export default class Fibers extends Effect {
     seed: {
       type: "float",
       default: 0.0,
+      uniform: "seed",
       min: 0.0,
       max: 100.0,
       step: 1.0,
@@ -29,6 +31,7 @@ export default class Fibers extends Effect {
     mask_scale: {
       type: "float",
       default: 1.0,
+      uniform: "mask_scale",
       min: 0.1,
       max: 5.0,
       step: 0.1,
@@ -38,6 +41,7 @@ export default class Fibers extends Effect {
     density: {
         type: "float",
         default: 5,
+        uniform: "density",
         min: 1,
         max: 100,
         step: 1,
@@ -46,6 +50,7 @@ export default class Fibers extends Effect {
     stride: {
         type: "float",
         default: 1,
+        uniform: "stride",
         min: 0.1,
         max: 10,
         step: 0.1,
@@ -54,6 +59,7 @@ export default class Fibers extends Effect {
     worm_lifetime: {
         type: "float",
         default: 30,
+        uniform: "worm_lifetime",
         min: 0,
         max: 60,
         step: 1,

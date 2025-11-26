@@ -12,6 +12,7 @@ export default class FeedbackSynth extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -22,6 +23,7 @@ export default class FeedbackSynth extends Effect {
     scaleAmt: {
       type: "float",
       default: 100,
+      uniform: "scaleAmt",
       min: 75,
       max: 200,
       ui: {
@@ -32,6 +34,7 @@ export default class FeedbackSynth extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -42,6 +45,7 @@ export default class FeedbackSynth extends Effect {
     translateX: {
       type: "float",
       default: 0,
+      uniform: "translateX",
       min: -100,
       max: 100,
       ui: {
@@ -52,6 +56,7 @@ export default class FeedbackSynth extends Effect {
     translateY: {
       type: "float",
       default: 0,
+      uniform: "translateY",
       min: -100,
       max: 100,
       ui: {
@@ -62,6 +67,7 @@ export default class FeedbackSynth extends Effect {
     mixAmt: {
       type: "float",
       default: 0,
+      uniform: "mixAmt",
       min: -100,
       max: 100,
       ui: {
@@ -72,6 +78,7 @@ export default class FeedbackSynth extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: -180,
       max: 180,
       ui: {
@@ -82,6 +89,7 @@ export default class FeedbackSynth extends Effect {
     intensity: {
       type: "float",
       default: 0,
+      uniform: "intensity",
       min: -100,
       max: 100,
       ui: {
@@ -92,6 +100,7 @@ export default class FeedbackSynth extends Effect {
     distortion: {
       type: "float",
       default: 0,
+      uniform: "distortion",
       min: -100,
       max: 100,
       ui: {
@@ -102,6 +111,7 @@ export default class FeedbackSynth extends Effect {
     aberrationAmt: {
       type: "float",
       default: 0,
+      uniform: "aberrationAmt",
       min: 0,
       max: 100,
       ui: {
@@ -112,6 +122,7 @@ export default class FeedbackSynth extends Effect {
     aspectLens: {
       type: "boolean",
       default: false,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"

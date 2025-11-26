@@ -13,6 +13,7 @@ export default class Refract extends Effect {
     displacement: {
       type: "float",
       default: 0.5,
+      uniform: "displacement",
       min: 0,
       max: 2,
       step: 0.01,
@@ -24,6 +25,7 @@ export default class Refract extends Effect {
     warp: {
       type: "float",
       default: 0,
+      uniform: "warp",
       min: 0,
       max: 4,
       step: 0.1,
@@ -35,6 +37,7 @@ export default class Refract extends Effect {
     spline_order: {
       type: "int",
       default: 3,
+      uniform: "spline_order",
       min: 0,
       max: 5,
       step: 1,
@@ -46,6 +49,7 @@ export default class Refract extends Effect {
     derivative: {
       type: "int",
       default: 1,
+      uniform: "derivative",
       min: 0,
       max: 3,
       step: 1,
@@ -57,6 +61,7 @@ export default class Refract extends Effect {
     range: {
       type: "float",
       default: 1,
+      uniform: "range",
       min: 0.1,
       max: 4,
       step: 0.1,
@@ -68,6 +73,7 @@ export default class Refract extends Effect {
     speed: {
       type: "float",
       default: 1,
+      uniform: "speed",
       min: 0,
       max: 5,
       step: 0.1,

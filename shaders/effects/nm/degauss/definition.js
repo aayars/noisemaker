@@ -13,6 +13,7 @@ export default class Degauss extends Effect {
     displacement: {
         type: "float",
         default: 0.0625,
+        uniform: "displacement",
         min: 0,
         max: 0.25,
         step: 0.001,
@@ -24,6 +25,7 @@ export default class Degauss extends Effect {
     speed: {
         type: "float",
         default: 1.0,
+        uniform: "speed",
         min: 0.0,
         max: 2.0,
         step: 0.1,

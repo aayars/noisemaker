@@ -4,43 +4,44 @@ precision highp float;
 precision highp int;
 
 uniform vec2 resolution;
-uniform sampler2D stateTex1;
-uniform sampler2D stateTex2;
-uniform sampler2D mixerTex;
+uniform sampler2D agentTex;
+uniform sampler2D inputTex;
 uniform float stride;
 uniform float kink;
 uniform float quantize;
 uniform float time;
 uniform float behavior;
 uniform float lifetime;
+uniform int frame;
 
-layout(location = 0) out vec4 outState1;
-layout(location = 1) out vec4 outState2;
+layout(location = 0) out vec4 agentOut;
 
 const float TAU = 6.283185307179586;
+const float PI = 3.14159265359;
 
-vec2 hash2(uint seed) {
-    uint state = seed * 747796405u + 2891336453u;
-    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    uint x_bits = (word >> 22u) ^ word;
-    
-    state = x_bits * 747796405u + 2891336453u;
-    word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    uint y_bits = (word >> 22u) ^ word;
-    
-    return vec2(float(x_bits) / 4294967295.0, float(y_bits) / 4294967295.0);
+float hash21(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
-float wrap_float(float value, float size) {
-    if (size <= 0.0) {
-        return 0.0;
-    }
-    float scaled = floor(value / size);
-    float wrapped = value - scaled * size;
-    if (wrapped < 0.0) {
-        wrapped = wrapped + size;
-    }
-    return wrapped;
+float rand(inout float seed) {
+    seed = fract(seed * 43758.5453123 + 0.2137);
+    return seed;
+}
+
+vec2 wrap01(vec2 value) {
+    return fract(value);
+}
+
+vec2 spawnPosition(vec2 coord, inout float seed) {
+    float rx = rand(seed);
+    float ry = rand(seed);
+    return vec2(rx, ry);
+}
+
+float spawnHeading(vec2 coord, float seed) {
+    return hash21(coord + seed * 13.1) * TAU - PI;
 }
 
 float srgb_to_linear(float value) {
@@ -74,107 +75,72 @@ float oklab_l(vec3 rgb) {
     return 0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c;
 }
 
-float normalized_sine(float value) {
-    return (sin(value) + 1.0) * 0.5;
-}
-
 void main() {
-    ivec2 stateSize = textureSize(stateTex1, 0);
-    ivec2 coord = ivec2(clamp(gl_FragCoord.xy, vec2(0.0), vec2(stateSize) - vec2(1.0)));
-    vec4 state1 = texelFetch(stateTex1, coord, 0);
-    vec4 state2 = texelFetch(stateTex2, coord, 0);
+    ivec2 dims = textureSize(agentTex, 0);
+    vec2 uv = (gl_FragCoord.xy - 0.5) / vec2(dims);
 
-    // Inactive agent sentinel
-    if (state2.w < 0.0) {
-        outState1 = state1;
-        outState2 = state2;
-        return;
+    // Agent format: [pos.x, pos.y, heading_norm, age_norm]
+    vec4 state = texture(agentTex, uv);
+    vec2 pos = state.xy;          // normalized 0-1
+    float headingNorm = state.z;  // normalized heading
+    float ageNorm = state.w;      // normalized age
+
+    float heading = headingNorm * TAU - PI;
+    float maxLifetime = max(lifetime, 1.0);
+    float age = ageNorm * maxLifetime;
+
+    float noiseSeed = hash21(uv + float(frame) * 0.013 + time * 0.11);
+
+    // Initial spawn on first frame or uninitialized agent
+    if (frame <= 1 || pos == vec2(0.0)) {
+        pos = spawnPosition(uv, noiseSeed);
+        heading = spawnHeading(uv, noiseSeed);
+        age = 0.0;
     }
 
-    // Agent format: state1=[x, y, rot, stride] state2=[r, g, b, seed]
-    float worms_x = state1.x;
-    float worms_y = state1.y;
-    float worms_rot = state1.z;
-    float worms_stride = state1.w;
-    float cr = state2.r;
-    float cg = state2.g;
-    float cb = state2.b;
-    float wseed = state2.w;
-    
-    // Compute agent index from fragment coordinate
-    uint agent_id = uint(coord.y * stateSize.x + coord.x);
-    uint total_agents = uint(stateSize.x * stateSize.y);
-    
-    // Respawn logic using rolling window lifetime
-    float normalized_lifetime = lifetime / 60.0;
-    float normalized_index = float(agent_id) / float(total_agents);
-    float agent_phase = fract(normalized_index);
-    
-    float time_in_cycle = fract(time + agent_phase);
-    float prev_time_in_cycle = fract(time - (1.0 / 60.0) + agent_phase);
-    
-    bool respawn_check = lifetime > 0.0 && normalized_lifetime > 0.0 &&
-                         time_in_cycle < normalized_lifetime &&
-                         prev_time_in_cycle >= normalized_lifetime;
-    
-    if (respawn_check) {
-        // Move to random location
-        uint seed = agent_id + uint(time * 1000.0);
-        vec2 pos = hash2(seed);
-        worms_x = pos.x * resolution.x;
-        worms_y = pos.y * resolution.y;
-        
-        // Sample spawn color
-        int spawn_xi = int(floor(wrap_float(worms_x, resolution.x)));
-        int spawn_yi = int(floor(wrap_float(worms_y, resolution.y)));
-        vec4 spawn_sample = texelFetch(mixerTex, ivec2(spawn_xi, spawn_yi), 0);
-        cr = spawn_sample.r;
-        cg = spawn_sample.g;
-        cb = spawn_sample.b;
-        
-        // Randomize direction
-        uint dir_seed = seed + 12345u;
-        vec2 dir_raw = hash2(dir_seed) * 2.0 - 1.0;
-        float dir_len = length(dir_raw);
-        if (dir_len > 1e-5) {
-            worms_rot = atan(dir_raw.y, dir_raw.x) / TAU;
-        }
-        
-        wseed = 0.0;
+    // Respawn when lifetime exceeded
+    if (age > maxLifetime) {
+        pos = spawnPosition(uv + 0.17, noiseSeed);
+        heading = spawnHeading(uv + 0.53, noiseSeed);
+        age = 0.0;
     }
 
-    // Wrap position
-    float worms_y_wrapped = wrap_float(worms_y, resolution.y);
-    float worms_x_wrapped = wrap_float(worms_x, resolution.x);
-    int yi = int(floor(worms_y_wrapped));
-    int xi = int(floor(worms_x_wrapped));
-
-    // Sample input texture
-    vec4 texel_here = texelFetch(mixerTex, ivec2(xi, yi), 0);
+    // Sample input texture at agent position
+    vec4 texel_here = texture(inputTex, pos);
     float index_value = oklab_l(texel_here.rgb);
 
     int behavior_mode = int(floor(behavior + 0.5));
     float rotation_bias;
 
     if (behavior_mode <= 0) {
+        // No behavior - pure index-driven
         rotation_bias = 0.0;
     } else if (behavior_mode == 10) {
-        float phase = fract(worms_rot);
-        rotation_bias = normalized_sine((time - phase) * TAU);
+        // Meandering - oscillate based on time
+        float phase = fract(headingNorm);
+        rotation_bias = sin((time - phase) * TAU) * 0.5 + 0.5;
+        rotation_bias = rotation_bias * TAU - PI;
     } else {
-        rotation_bias = worms_rot;
+        // Obedient and others - maintain heading bias
+        rotation_bias = heading;
     }
 
     float final_angle = index_value * TAU * kink + rotation_bias;
 
     if (quantize > 0.5) {
-        final_angle = round(final_angle);
+        final_angle = round(final_angle / (PI * 0.25)) * (PI * 0.25);
     }
 
-    // Update position
-    float new_worms_y = worms_y + cos(final_angle) * worms_stride;
-    float new_worms_x = worms_x + sin(final_angle) * worms_stride;
+    // Update position (normalized)
+    float speedPixels = max(stride, 0.1);
+    float step = speedPixels / max(resolution.x, resolution.y);
+    vec2 dir = vec2(cos(final_angle), sin(final_angle));
+    pos = wrap01(pos + dir * step);
 
-    outState1 = vec4(new_worms_x, new_worms_y, worms_rot, worms_stride);
-    outState2 = vec4(cr, cg, cb, wseed + 1.0);
+    age += 1.0;
+
+    // Pack output
+    float headingOut = fract((heading + PI) / TAU);
+    float ageOut = clamp(age / maxLifetime, 0.0, 1.0);
+    agentOut = vec4(pos, headingOut, ageOut);
 }

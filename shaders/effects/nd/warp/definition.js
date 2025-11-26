@@ -9,6 +9,7 @@ export default class Warp extends Effect {
     distortionType: {
       type: "int",
       default: 10,
+      uniform: "distortionType",
       choices: {
         Bulge: 21,
         Perlin: 10,
@@ -27,6 +28,7 @@ export default class Warp extends Effect {
     flip: {
       type: "int",
       default: 0,
+      uniform: "flip",
       choices: {
         None: 0,
         "Flip:": null,
@@ -51,6 +53,7 @@ export default class Warp extends Effect {
     scale: {
       type: "float",
       default: 1,
+      uniform: "scale",
       min: -5,
       max: 5,
       ui: {
@@ -61,6 +64,7 @@ export default class Warp extends Effect {
     rotateAmt: {
       type: "float",
       default: 0,
+      uniform: "rotateAmt",
       min: -180,
       max: 180,
       ui: {
@@ -71,6 +75,7 @@ export default class Warp extends Effect {
     strength: {
       type: "float",
       default: 25,
+      uniform: "strength",
       min: 0,
       max: 100,
       ui: {
@@ -81,6 +86,7 @@ export default class Warp extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -91,6 +97,7 @@ export default class Warp extends Effect {
     wrap: {
       type: "int",
       default: 0,
+      uniform: "wrap",
       choices: {
         Clamp: 2,
         Mirror: 0,
@@ -104,6 +111,7 @@ export default class Warp extends Effect {
     center: {
       type: "float",
       default: 0,
+      uniform: "center",
       min: -5,
       max: 5,
       ui: {
@@ -114,6 +122,7 @@ export default class Warp extends Effect {
     aspectLens: {
       type: "boolean",
       default: true,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"
@@ -122,6 +131,7 @@ export default class Warp extends Effect {
     speed: {
       type: "int",
       default: 1,
+      uniform: "speed",
       min: -5,
       max: 5,
       ui: {
@@ -132,6 +142,7 @@ export default class Warp extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -5,
       max: 5,
       ui: {

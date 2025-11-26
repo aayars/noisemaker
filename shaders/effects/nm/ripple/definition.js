@@ -13,6 +13,7 @@ export default class Ripple extends Effect {
     freq: {
         type: "float",
         default: 3,
+        uniform: "freq",
         min: 1,
         max: 16,
         step: 0.5,
@@ -24,6 +25,7 @@ export default class Ripple extends Effect {
     displacement: {
         type: "float",
         default: 0.025,
+        uniform: "displacement",
         min: 0,
         max: 0.5,
         step: 0.001,
@@ -35,6 +37,7 @@ export default class Ripple extends Effect {
     kink: {
         type: "float",
         default: 1,
+        uniform: "kink",
         min: 0,
         max: 32,
         step: 0.5,
@@ -46,6 +49,7 @@ export default class Ripple extends Effect {
     spline_order: {
         type: "int",
         default: 3,
+        uniform: "spline_order",
         min: 0,
         max: 3,
         step: 1,
@@ -57,6 +61,7 @@ export default class Ripple extends Effect {
     speed: {
         type: "float",
         default: 1,
+        uniform: "speed",
         min: 0,
         max: 5,
         step: 0.1,

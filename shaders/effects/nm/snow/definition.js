@@ -13,6 +13,7 @@ export default class Snow extends Effect {
     alpha: {
         type: "float",
         default: 0.25,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

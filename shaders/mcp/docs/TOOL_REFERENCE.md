@@ -268,6 +268,75 @@ echo "sk-proj-..." > .openai
 
 ---
 
+## testUniformResponsiveness
+
+**Purpose**: Verify that effect uniform controls actually affect the rendered output.
+
+### How It Works
+
+1. **Compile**: Loads and compiles the effect
+2. **Get Globals**: Retrieves the effect's parameter definitions
+3. **Baseline Render**: Renders with default uniform values
+4. **Test Each Uniform**: For each numeric uniform with a range:
+   - Sets the uniform to an extreme value (min or max)
+   - Renders again
+   - Compares output metrics to baseline
+5. **Report**: Returns which uniforms affected output (✓) vs didn't (✗)
+
+### Input Schema
+
+```json
+{
+  "effect_id": "nm/worms",
+  "backend": "webgl2"
+}
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `effect_id` | string | ✓ | - | Effect identifier |
+| `backend` | string | | "webgl2" | "webgl2" or "webgpu" |
+
+### Output Schema
+
+```json
+{
+  "status": "ok",
+  "tested_uniforms": ["stride:✓", "kink:✓", "lifetime:✗"],
+  "details": "Uniforms affect output"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | "ok" \| "error" \| "skipped" | Test result |
+| `tested_uniforms` | string[] | List of tested uniforms with pass/fail |
+| `details` | string | Human-readable explanation |
+
+### Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `ok` | At least one uniform affected output |
+| `error` | No uniforms affected output (likely bug) |
+| `skipped` | Effect has no testable numeric uniforms |
+
+### CLI Usage
+
+```bash
+node test-harness.js nm/worms --uniforms
+```
+
+Output:
+```
+[nm/worms]
+  ✓ compile
+  ✓ render (887 colors)
+  ✓ uniforms: stride:✓, kink:✓, lifetime:✓
+```
+
+---
+
 ## Error Responses
 
 All tools return errors in this format:

@@ -15,6 +15,7 @@ export default class Fractal extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -25,6 +26,7 @@ export default class Fractal extends Effect {
     fractalType: {
       type: "int",
       default: 0,
+      uniform: "fractalType",
       choices: {
         Julia: 0,
         Mandelbrot: 2,
@@ -38,6 +40,7 @@ export default class Fractal extends Effect {
     symmetry: {
       type: "int",
       default: 0,
+      uniform: "symmetry",
       ui: {
         label: "symmetry",
         control: "slider"
@@ -46,6 +49,7 @@ export default class Fractal extends Effect {
     zoomAmt: {
       type: "float",
       default: 0,
+      uniform: "zoomAmt",
       min: 0,
       max: 130,
       ui: {
@@ -56,6 +60,7 @@ export default class Fractal extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -66,6 +71,7 @@ export default class Fractal extends Effect {
     speed: {
       type: "float",
       default: 30,
+      uniform: "speed",
       min: 0,
       max: 100,
       ui: {
@@ -76,6 +82,7 @@ export default class Fractal extends Effect {
     offsetX: {
       type: "float",
       default: 70,
+      uniform: "offsetX",
       min: -100,
       max: 100,
       ui: {
@@ -86,6 +93,7 @@ export default class Fractal extends Effect {
     offsetY: {
       type: "float",
       default: 50,
+      uniform: "offsetY",
       min: -100,
       max: 100,
       ui: {
@@ -96,6 +104,7 @@ export default class Fractal extends Effect {
     centerX: {
       type: "float",
       default: 0,
+      uniform: "centerX",
       min: -100,
       max: 100,
       ui: {
@@ -106,6 +115,7 @@ export default class Fractal extends Effect {
     centerY: {
       type: "float",
       default: 0,
+      uniform: "centerY",
       min: -100,
       max: 100,
       ui: {
@@ -116,6 +126,7 @@ export default class Fractal extends Effect {
     mode: {
       type: "int",
       default: 0,
+      uniform: "mode",
       choices: {
         Iter: 0,
         Z: 1
@@ -128,6 +139,7 @@ export default class Fractal extends Effect {
     iterations: {
       type: "int",
       default: 50,
+      uniform: "iterations",
       min: 1,
       max: 50,
       ui: {
@@ -138,6 +150,7 @@ export default class Fractal extends Effect {
     colorMode: {
       type: "int",
       default: 4,
+      uniform: "colorMode",
       choices: {
         Grayscale: 0,
         Palette: 4,
@@ -151,6 +164,7 @@ export default class Fractal extends Effect {
     palette: {
       type: "palette",
       default: 12,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -160,6 +174,7 @@ export default class Fractal extends Effect {
     paletteMode: {
       type: "int",
       default: 0,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -167,6 +182,7 @@ export default class Fractal extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -175,6 +191,7 @@ export default class Fractal extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -183,6 +200,7 @@ export default class Fractal extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -191,6 +209,7 @@ export default class Fractal extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0, 0, 0],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -199,6 +218,7 @@ export default class Fractal extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -212,6 +232,7 @@ export default class Fractal extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -222,6 +243,7 @@ export default class Fractal extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -232,6 +254,7 @@ export default class Fractal extends Effect {
     hueRange: {
       type: "float",
       default: 100,
+      uniform: "hueRange",
       min: 1,
       max: 100,
       ui: {
@@ -242,6 +265,7 @@ export default class Fractal extends Effect {
     levels: {
       type: "int",
       default: 0,
+      uniform: "levels",
       min: 0,
       max: 32,
       ui: {
@@ -252,6 +276,7 @@ export default class Fractal extends Effect {
     backgroundColor: {
       type: "vec3",
       default: [0.0, 0.0, 0.0],
+      uniform: "backgroundColor",
       ui: {
         label: "bkg color",
         control: "color"
@@ -260,6 +285,7 @@ export default class Fractal extends Effect {
     backgroundOpacity: {
       type: "float",
       default: 100,
+      uniform: "backgroundOpacity",
       min: 0,
       max: 100,
       ui: {
@@ -270,6 +296,7 @@ export default class Fractal extends Effect {
     cutoff: {
       type: "float",
       default: 0,
+      uniform: "cutoff",
       min: 0,
       max: 100,
       ui: {

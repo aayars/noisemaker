@@ -13,6 +13,7 @@ export default class ScanlineError extends Effect {
     speed: {
       type: "float",
       default: 1,
+      uniform: "speed",
       min: 0,
       max: 5,
       step: 0.1,
@@ -24,6 +25,7 @@ export default class ScanlineError extends Effect {
     timeOffset: {
       type: "float",
       default: 0,
+      uniform: "timeOffset",
       min: -10,
       max: 10,
       step: 0.01,
@@ -35,6 +37,7 @@ export default class ScanlineError extends Effect {
     enabled: {
       type: "boolean",
       default: true,
+      uniform: "enabled",
       ui: {
         label: "Enabled",
         control: "checkbox"

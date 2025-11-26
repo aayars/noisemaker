@@ -13,6 +13,7 @@ export default class GlyphMap extends Effect {
     colorize: {
         type: "boolean",
         default: true,
+        uniform: "colorize",
         ui: {
             label: "Colorize",
             control: "checkbox"
@@ -21,6 +22,7 @@ export default class GlyphMap extends Effect {
     zoom: {
         type: "int",
         default: 1,
+        uniform: "zoom",
         min: 1,
         max: 8,
         step: 1,
@@ -32,6 +34,7 @@ export default class GlyphMap extends Effect {
     alpha: {
         type: "float",
         default: 1,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

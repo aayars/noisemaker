@@ -9,6 +9,7 @@ export default class Physarum extends Effect {
     zoom: {
       type: "int",
       default: 1,
+      uniform: "zoom",
       choices: {
         "1x": 1,
         "2x": 2,
@@ -27,6 +28,7 @@ export default class Physarum extends Effect {
     deltaTime: {
       type: "float",
       default: 0.016,
+      uniform: "deltaTime",
       ui: {
         control: false
       }
@@ -34,6 +36,7 @@ export default class Physarum extends Effect {
     moveSpeed: {
       type: "float",
       default: 1.7800000000000011,
+      uniform: "moveSpeed",
       min: 0.05,
       max: 3,
       ui: {
@@ -46,6 +49,7 @@ export default class Physarum extends Effect {
     turnSpeed: {
       type: "float",
       default: 1,
+      uniform: "turnSpeed",
       min: 0,
       max: 3.14159,
       ui: {
@@ -58,6 +62,7 @@ export default class Physarum extends Effect {
     sensorAngle: {
       type: "float",
       default: 1.2599999999999971,
+      uniform: "sensorAngle",
       min: 0.1,
       max: 1.5,
       ui: {
@@ -70,6 +75,7 @@ export default class Physarum extends Effect {
     sensorDistance: {
       type: "float",
       default: 30.700000000000003,
+      uniform: "sensorDistance",
       min: 2,
       max: 32,
       ui: {
@@ -82,6 +88,7 @@ export default class Physarum extends Effect {
     decay: {
       type: "float",
       default: 0.1,
+      uniform: "decay",
       min: 0,
       max: 0.1,
       ui: {
@@ -94,6 +101,7 @@ export default class Physarum extends Effect {
     diffusion: {
       type: "float",
       default: 0.25,
+      uniform: "diffusion",
       min: 0,
       max: 1,
       ui: {
@@ -106,6 +114,7 @@ export default class Physarum extends Effect {
     intensity: {
       type: "float",
       default: 75,
+      uniform: "intensity",
       min: 0,
       max: 100,
       step: 1,
@@ -118,6 +127,7 @@ export default class Physarum extends Effect {
     depositAmount: {
       type: "float",
       default: 0.05,
+      uniform: "depositAmount",
       min: 0,
       max: 0.05,
       ui: {
@@ -130,6 +140,7 @@ export default class Physarum extends Effect {
     lifetime: {
       type: "float",
       default: 10.998912608250976,
+      uniform: "lifetime",
       min: 0,
       max: 60,
       ui: {
@@ -142,6 +153,7 @@ export default class Physarum extends Effect {
     weight: {
       type: "float",
       default: 0,
+      uniform: "weight",
       min: 0,
       max: 100,
       ui: {
@@ -153,6 +165,7 @@ export default class Physarum extends Effect {
     source: {
       type: "int",
       default: 0,
+      uniform: "source",
       choices: {
         "none": 0,
         "pipeline": 1
@@ -166,6 +179,7 @@ export default class Physarum extends Effect {
     inputIntensity: {
       type: "float",
       default: 0,
+      uniform: "inputIntensity",
       min: 0,
       max: 100,
       step: 1,
@@ -178,6 +192,7 @@ export default class Physarum extends Effect {
     colorMode: {
       type: "int",
       default: 0,
+      uniform: "colorMode",
       choices: {
         "grayscale": 0,
         "palette": 1
@@ -191,6 +206,7 @@ export default class Physarum extends Effect {
     palette: {
       type: "palette",
       default: "sproingtime",
+      uniform: "palette",
       requires: {
         "colorMode": 1
       },
@@ -206,6 +222,7 @@ export default class Physarum extends Effect {
     paletteMode: {
       type: "int",
       default: 3,
+      uniform: "paletteMode",
       choices: {
         "hsv": 1,
         "oklab": 2,
@@ -219,6 +236,7 @@ export default class Physarum extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.56, 0.69, 0.32],
+      uniform: "paletteOffset",
       ui: {
         control: false
       }
@@ -226,6 +244,7 @@ export default class Physarum extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.9, 0.43, 0.34],
+      uniform: "paletteAmp",
       ui: {
         control: false
       }
@@ -233,6 +252,7 @@ export default class Physarum extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         control: false
       }
@@ -240,6 +260,7 @@ export default class Physarum extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.03, 0.8, 0.4],
+      uniform: "palettePhase",
       ui: {
         control: false
       }
@@ -247,6 +268,7 @@ export default class Physarum extends Effect {
     cyclePalette: {
       type: "int",
       default: -1,
+      uniform: "cyclePalette",
       choices: {
         "off": 0,
         "forward": 1,
@@ -267,6 +289,7 @@ export default class Physarum extends Effect {
     rotatePalette: {
       type: "float",
       default: 34.168161218985915,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       requires: {
@@ -284,6 +307,7 @@ export default class Physarum extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       requires: {
@@ -301,6 +325,7 @@ export default class Physarum extends Effect {
     spawnPattern: {
       type: "int",
       default: 1,
+      uniform: "spawnPattern",
       choices: {
         "random": 0,
         "clusters": 1,
@@ -316,6 +341,7 @@ export default class Physarum extends Effect {
     resetState: {
       type: "button",
       default: false,
+      uniform: "resetState",
       ui: {
         label: "state",
         type: "button",

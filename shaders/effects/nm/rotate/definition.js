@@ -13,6 +13,7 @@ export default class Rotate extends Effect {
     angle: {
         type: "float",
         default: 0,
+        uniform: "angle",
         min: -180,
         max: 180,
         step: 1,

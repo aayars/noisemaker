@@ -9,6 +9,7 @@ export default class Effects extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class Effects extends Effect {
     effect: {
       type: "int",
       default: 0,
+      uniform: "effect",
       choices: {
         None: 0,
         Bloom: 220,
@@ -48,6 +50,7 @@ export default class Effects extends Effect {
     effectAmt: {
       type: "int",
       default: 1,
+      uniform: "effectAmt",
       min: 0,
       max: 20,
       ui: {
@@ -58,6 +61,7 @@ export default class Effects extends Effect {
     flip: {
       type: "int",
       default: 0,
+      uniform: "flip",
       choices: {
         None: 0,
         "Flip:": null,
@@ -82,6 +86,7 @@ export default class Effects extends Effect {
     scaleAmt: {
       type: "float",
       default: 100,
+      uniform: "scaleAmt",
       min: 25,
       max: 400,
       ui: {
@@ -92,6 +97,7 @@ export default class Effects extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -102,6 +108,7 @@ export default class Effects extends Effect {
     offsetX: {
       type: "float",
       default: 0,
+      uniform: "offsetX",
       min: -100,
       max: 100,
       ui: {
@@ -112,6 +119,7 @@ export default class Effects extends Effect {
     offsetY: {
       type: "float",
       default: 0,
+      uniform: "offsetY",
       min: -100,
       max: 100,
       ui: {
@@ -122,6 +130,7 @@ export default class Effects extends Effect {
     intensity: {
       type: "int",
       default: 0,
+      uniform: "intensity",
       min: -100,
       max: 100,
       ui: {
@@ -132,6 +141,7 @@ export default class Effects extends Effect {
     saturation: {
       type: "int",
       default: 0,
+      uniform: "saturation",
       min: -100,
       max: 100,
       ui: {

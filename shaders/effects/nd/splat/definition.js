@@ -9,6 +9,7 @@ export default class Splat extends Effect {
     useSplats: {
       type: "boolean",
       default: true,
+      uniform: "useSplats",
       ui: {
         label: "splats",
         control: "checkbox"
@@ -17,6 +18,7 @@ export default class Splat extends Effect {
     useSpecks: {
       type: "boolean",
       default: true,
+      uniform: "useSpecks",
       ui: {
         label: "specks",
         control: "checkbox"
@@ -25,6 +27,7 @@ export default class Splat extends Effect {
     splatScale: {
       type: "float",
       default: 3,
+      uniform: "splatScale",
       min: 1,
       max: 5,
       ui: {
@@ -35,6 +38,7 @@ export default class Splat extends Effect {
     splatCutoff: {
       type: "float",
       default: 25,
+      uniform: "splatCutoff",
       min: 0,
       max: 100,
       ui: {
@@ -45,6 +49,7 @@ export default class Splat extends Effect {
     splatSpeed: {
       type: "int",
       default: 1,
+      uniform: "splatSpeed",
       min: 0,
       max: 5,
       ui: {
@@ -55,6 +60,7 @@ export default class Splat extends Effect {
     splatSeed: {
       type: "int",
       default: 1,
+      uniform: "splatSeed",
       min: 1,
       max: 100,
       ui: {
@@ -65,6 +71,7 @@ export default class Splat extends Effect {
     splatMode: {
       type: "int",
       default: 2,
+      uniform: "splatMode",
       choices: {
         Color: 0,
         Displace: 1,
@@ -79,6 +86,7 @@ export default class Splat extends Effect {
     splatColor: {
       type: "vec3",
       default: [1.0, 1.0, 1.0],
+      uniform: "splatColor",
       ui: {
         label: "splat color",
         control: "color"
@@ -87,6 +95,7 @@ export default class Splat extends Effect {
     speckScale: {
       type: "float",
       default: 5,
+      uniform: "speckScale",
       min: 1,
       max: 5,
       ui: {
@@ -97,6 +106,7 @@ export default class Splat extends Effect {
     speckCutoff: {
       type: "float",
       default: 70,
+      uniform: "speckCutoff",
       min: 0,
       max: 100,
       ui: {
@@ -107,6 +117,7 @@ export default class Splat extends Effect {
     speckSpeed: {
       type: "int",
       default: 1,
+      uniform: "speckSpeed",
       min: 0,
       max: 5,
       ui: {
@@ -117,6 +128,7 @@ export default class Splat extends Effect {
     speckSeed: {
       type: "int",
       default: 1,
+      uniform: "speckSeed",
       min: 1,
       max: 100,
       ui: {
@@ -127,6 +139,7 @@ export default class Splat extends Effect {
     speckMode: {
       type: "int",
       default: 0,
+      uniform: "speckMode",
       choices: {
         Color: 0,
         Displace: 1,
@@ -141,6 +154,7 @@ export default class Splat extends Effect {
     speckColor: {
       type: "vec3",
       default: [0.8, 0.8, 0.8],
+      uniform: "speckColor",
       ui: {
         label: "speck color",
         control: "color"

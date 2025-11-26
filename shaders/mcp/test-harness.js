@@ -13,12 +13,14 @@
  * Flags:
  *   --benchmark           # run FPS test (~500ms per effect)
  *   --vision              # run AI vision analysis (requires .openai key)
+ *   --uniforms            # test that uniform controls affect output
  *   --webgpu, --wgsl      # use WebGPU/WGSL backend instead of WebGL2/GLSL
  * 
  * Examples:
  *   node test-harness.js basics/noise              # compile + render only
  *   node test-harness.js "basics/*" --benchmark    # all basics with FPS
  *   node test-harness.js basics/noise --vision     # with AI description
+ *   node test-harness.js nm/worms --uniforms       # test uniform responsiveness
  *   node test-harness.js nm/normalize --benchmark --webgpu  # test WGSL with FPS
  */
 
@@ -55,7 +57,7 @@ function matchEffects(effects, pattern) {
 }
 
 async function testEffect(harness, effectId, options = {}) {
-    const results = { effectId, compile: null, render: null, benchmark: null, vision: null };
+    const results = { effectId, compile: null, render: null, uniforms: null, benchmark: null, vision: null };
     const timings = [];
     const backend = options.backend || 'webgl2';
     let t0 = Date.now();
@@ -113,6 +115,22 @@ async function testEffect(harness, effectId, options = {}) {
         }
     }
     
+    // Uniform responsiveness test
+    if (options.uniforms) {
+        t0 = Date.now();
+        const uniformResult = await harness.testUniformResponsiveness(effectId, { backend });
+        timings.push(`uniforms:${Date.now() - t0}ms`);
+        results.uniforms = uniformResult.status;
+        
+        if (uniformResult.status === 'skipped') {
+            console.log(`  ⊘ uniforms: ${uniformResult.details}`);
+        } else if (uniformResult.status === 'ok') {
+            console.log(`  ✓ uniforms: ${uniformResult.tested_uniforms.join(', ')}`);
+        } else {
+            console.log(`  ✗ uniforms: ${uniformResult.details} [${uniformResult.tested_uniforms.join(', ')}]`);
+        }
+    }
+    
     // Benchmark (skip compile)
     if (options.benchmark) {
         const benchResult = await harness.benchmarkEffectFps(effectId, {
@@ -155,6 +173,7 @@ async function main() {
     const pattern = process.argv[2] || 'basics/noise';
     const runBenchmark = process.argv.includes('--benchmark');  // off by default for speed
     const runVision = process.argv.includes('--vision');
+    const runUniforms = process.argv.includes('--uniforms');
     
     // Extract vision prompt from --prompt "..." argument
     let visionPrompt = null;
@@ -189,6 +208,7 @@ async function main() {
             const result = await testEffect(harness, effectId, { 
                 benchmark: runBenchmark, 
                 vision: runVision,
+                uniforms: runUniforms,
                 visionPrompt,
                 backend
             });

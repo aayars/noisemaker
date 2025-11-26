@@ -13,6 +13,7 @@ export default class StrayHair extends Effect {
     seed: {
         type: "number",
         default: 0,
+        uniform: "seed",
         min: 0,
         max: 1000,
         step: 1,

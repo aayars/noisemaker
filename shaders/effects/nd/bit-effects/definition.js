@@ -9,6 +9,7 @@ export default class BitEffects extends Effect {
     mode: {
       type: "int",
       default: 1,
+      uniform: "mode",
       choices: {
         "Bit Field": 0,
         "Bit Mask": 1
@@ -21,6 +22,7 @@ export default class BitEffects extends Effect {
     loopAmp: {
       type: "float",
       default: 50,
+      uniform: "loopAmp",
       min: 0,
       max: 100,
       ui: {
@@ -31,6 +33,7 @@ export default class BitEffects extends Effect {
     formula: {
       type: "int",
       default: 0,
+      uniform: "formula",
       choices: {
         Alien: 0,
         Sierpinski: 1
@@ -43,6 +46,7 @@ export default class BitEffects extends Effect {
     n: {
       type: "int",
       default: 1,
+      uniform: "n",
       min: 1,
       max: 200,
       ui: {
@@ -53,6 +57,7 @@ export default class BitEffects extends Effect {
     colorScheme: {
       type: "int",
       default: 20,
+      uniform: "colorScheme",
       choices: {
         Blue: 0,
         Cyan: 1,
@@ -77,6 +82,7 @@ export default class BitEffects extends Effect {
     interp: {
       type: "int",
       default: 0,
+      uniform: "interp",
       choices: {
         Constant: 0,
         Linear: 1
@@ -89,6 +95,7 @@ export default class BitEffects extends Effect {
     scale: {
       type: "float",
       default: 75,
+      uniform: "scale",
       min: 1,
       max: 100,
       ui: {
@@ -99,6 +106,7 @@ export default class BitEffects extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -180,
       max: 180,
       ui: {
@@ -109,6 +117,7 @@ export default class BitEffects extends Effect {
     maskFormula: {
       type: "int",
       default: 10,
+      uniform: "maskFormula",
       choices: {
         Invaders: 10,
         "Wide Invaders": 11,
@@ -123,6 +132,7 @@ export default class BitEffects extends Effect {
     tiles: {
       type: "int",
       default: 5,
+      uniform: "tiles",
       min: 1,
       max: 40,
       ui: {
@@ -133,6 +143,7 @@ export default class BitEffects extends Effect {
     complexity: {
       type: "float",
       default: 57,
+      uniform: "complexity",
       min: 1,
       max: 100,
       ui: {
@@ -143,6 +154,7 @@ export default class BitEffects extends Effect {
     maskColorScheme: {
       type: "int",
       default: 1,
+      uniform: "maskColorScheme",
       choices: {
         "Black & White": 0,
         "Just Hue": 3,
@@ -157,6 +169,7 @@ export default class BitEffects extends Effect {
     baseHueRange: {
       type: "float",
       default: 50,
+      uniform: "baseHueRange",
       min: 0,
       max: 100,
       ui: {
@@ -167,6 +180,7 @@ export default class BitEffects extends Effect {
     hueRotation: {
       type: "float",
       default: 180,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -177,6 +191,7 @@ export default class BitEffects extends Effect {
     hueRange: {
       type: "float",
       default: 25,
+      uniform: "hueRange",
       min: 0,
       max: 100,
       ui: {
@@ -187,6 +202,7 @@ export default class BitEffects extends Effect {
     seed: {
       type: "int",
       default: 63,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {

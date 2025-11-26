@@ -15,6 +15,7 @@ export default class ColorLab extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -25,10 +26,12 @@ export default class ColorLab extends Effect {
     colorMode: {
       type: "int",
       default: 2,
+      uniform: "colorMode",
       choices: {
         Grayscale: 0,
         "Linear Rgb": 1,
         "Srgb (default)": 2,
+        uniform: "colorMode",
         Oklab: 3,
         Palette: 4
       },
@@ -40,6 +43,7 @@ export default class ColorLab extends Effect {
     palette: {
       type: "palette",
       default: 46,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -49,6 +53,7 @@ export default class ColorLab extends Effect {
     paletteMode: {
       type: "int",
       default: 0,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -56,6 +61,7 @@ export default class ColorLab extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.83, 0.6, 0.63],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -64,6 +70,7 @@ export default class ColorLab extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -72,6 +79,7 @@ export default class ColorLab extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -80,6 +88,7 @@ export default class ColorLab extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.3, 0.1, 0],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -88,6 +97,7 @@ export default class ColorLab extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -101,6 +111,7 @@ export default class ColorLab extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -111,6 +122,7 @@ export default class ColorLab extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -121,6 +133,7 @@ export default class ColorLab extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -131,6 +144,7 @@ export default class ColorLab extends Effect {
     hueRange: {
       type: "float",
       default: 100,
+      uniform: "hueRange",
       min: 0,
       max: 200,
       ui: {
@@ -141,6 +155,7 @@ export default class ColorLab extends Effect {
     saturation: {
       type: "float",
       default: 0,
+      uniform: "saturation",
       min: -100,
       max: 100,
       ui: {
@@ -151,6 +166,7 @@ export default class ColorLab extends Effect {
     invert: {
       type: "boolean",
       default: false,
+      uniform: "invert",
       ui: {
         label: "invert",
         control: "checkbox"
@@ -159,6 +175,7 @@ export default class ColorLab extends Effect {
     brightness: {
       type: "int",
       default: 0,
+      uniform: "brightness",
       min: -100,
       max: 100,
       ui: {
@@ -169,6 +186,7 @@ export default class ColorLab extends Effect {
     contrast: {
       type: "int",
       default: 50,
+      uniform: "contrast",
       min: 0,
       max: 100,
       ui: {
@@ -179,6 +197,7 @@ export default class ColorLab extends Effect {
     levels: {
       type: "int",
       default: 0,
+      uniform: "levels",
       min: 0,
       max: 32,
       ui: {
@@ -189,6 +208,7 @@ export default class ColorLab extends Effect {
     dither: {
       type: "int",
       default: 0,
+      uniform: "dither",
       choices: {
         None: 0,
         Threshold: 1,

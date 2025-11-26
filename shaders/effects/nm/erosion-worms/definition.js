@@ -9,6 +9,7 @@ export default class ErosionWorms extends Effect {
     channelCount: {
       type: "float",
       default: 4,
+      uniform: "channelCount",
       ui: {
         label: "channels",
         control: "slider"
@@ -17,6 +18,7 @@ export default class ErosionWorms extends Effect {
     density: {
       type: "float",
       default: 5,
+      uniform: "density",
       min: 1,
       max: 100,
       step: 1,
@@ -28,6 +30,7 @@ export default class ErosionWorms extends Effect {
     stride: {
       type: "float",
       default: 1.0,
+      uniform: "stride",
       min: 0.1,
       max: 10.0,
       step: 0.1,
@@ -39,6 +42,7 @@ export default class ErosionWorms extends Effect {
     quantize: {
       type: "boolean",
       default: false,
+      uniform: "quantize",
       ui: {
         label: "quantize",
         control: "checkbox"
@@ -47,6 +51,7 @@ export default class ErosionWorms extends Effect {
     padding1: {
       type: "float",
       default: 0,
+      uniform: "padding1",
       ui: {
         label: "padding",
         control: "slider"
@@ -55,6 +60,7 @@ export default class ErosionWorms extends Effect {
     intensity: {
       type: "float",
       default: 90,
+      uniform: "intensity",
       min: 0,
       max: 100,
       step: 1,
@@ -66,6 +72,7 @@ export default class ErosionWorms extends Effect {
     inverse: {
       type: "boolean",
       default: false,
+      uniform: "inverse",
       ui: {
         label: "inverse",
         control: "checkbox"
@@ -74,6 +81,7 @@ export default class ErosionWorms extends Effect {
     xy_blend: {
       type: "boolean",
       default: false,
+      uniform: "xy_blend",
       ui: {
         label: "xy blend",
         control: "checkbox"
@@ -82,6 +90,7 @@ export default class ErosionWorms extends Effect {
     worm_lifetime: {
       type: "float",
       default: 30,
+      uniform: "worm_lifetime",
       min: 0,
       max: 60,
       step: 1,
@@ -93,6 +102,7 @@ export default class ErosionWorms extends Effect {
     inputIntensity: {
       type: "float",
       default: 100,
+      uniform: "inputIntensity",
       min: 0,
       max: 100,
       step: 1,
@@ -104,6 +114,7 @@ export default class ErosionWorms extends Effect {
     padding3: {
       type: "float",
       default: 0,
+      uniform: "padding3",
       ui: {
         label: "padding",
         control: "slider"
@@ -112,6 +123,7 @@ export default class ErosionWorms extends Effect {
     resetState: {
       type: "button",
       default: false,
+      uniform: "resetState",
       ui: { label: "state" }
     }
   };

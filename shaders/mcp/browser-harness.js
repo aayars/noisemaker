@@ -234,6 +234,136 @@ export class BrowserHarness {
     }
     
     /**
+     * Get effect globals (parameters) for the currently loaded effect
+     * @returns {Promise<Object>} Map of parameter names to their specs
+     */
+    async getEffectGlobals() {
+        return await this.page.evaluate(() => {
+            const effect = window.__noisemakerCurrentEffect;
+            if (!effect || !effect.instance || !effect.instance.globals) {
+                return {};
+            }
+            return effect.instance.globals;
+        });
+    }
+    
+    /**
+     * Test if an effect responds to uniform control changes
+     * Renders with default values, then with modified values, and checks if output differs
+     * @param {string} effectId - Effect to test
+     * @param {object} options
+     * @returns {Promise<{status: 'ok'|'error'|'skipped', tested_uniforms: string[], details: string}>}
+     */
+    async testUniformResponsiveness(effectId, options = {}) {
+        const backend = options.backend || 'webgl2';
+        
+        // Compile the effect first
+        const compileResult = await this.compileEffect(effectId, { backend });
+        if (compileResult.status === 'error') {
+            return { status: 'error', tested_uniforms: [], details: compileResult.message };
+        }
+        
+        // Get globals
+        const globals = await this.getEffectGlobals();
+        
+        // Find testable numeric uniforms (with min/max range or numeric type with default)
+        const testableUniforms = [];
+        for (const [name, spec] of Object.entries(globals)) {
+            if (!spec.uniform) continue;
+            
+            // Skip non-numeric types
+            if (spec.type === 'boolean' || spec.type === 'button' || spec.type === 'member') continue;
+            
+            // Has explicit range
+            if (typeof spec.min === 'number' && typeof spec.max === 'number' && spec.min !== spec.max) {
+                testableUniforms.push({ name, uniformName: spec.uniform, spec });
+            }
+            // Has default and is float/int type - use synthetic range
+            else if (typeof spec.default === 'number' && (spec.type === 'float' || spec.type === 'int')) {
+                const syntheticSpec = {
+                    ...spec,
+                    min: spec.default * 0.1,
+                    max: spec.default * 2 + 1
+                };
+                testableUniforms.push({ name, uniformName: spec.uniform, spec: syntheticSpec });
+            }
+        }
+        
+        if (testableUniforms.length === 0) {
+            return { status: 'skipped', tested_uniforms: [], details: 'No testable numeric uniforms' };
+        }
+        
+        // Render with default values and capture a hash
+        const baseRender = await this.renderEffectFrame(effectId, { 
+            skipCompile: true, 
+            backend,
+            warmupFrames: 5
+        });
+        if (baseRender.status === 'error') {
+            return { status: 'error', tested_uniforms: [], details: baseRender.error };
+        }
+        const baseHash = baseRender.metrics?.unique_sampled_colors || 0;
+        const baseMeanLuma = baseRender.metrics?.mean_rgb ? 
+            (baseRender.metrics.mean_rgb[0] + baseRender.metrics.mean_rgb[1] + baseRender.metrics.mean_rgb[2]) / 3 : 0;
+        
+        // Test each uniform
+        const testedUniforms = [];
+        let anyResponded = false;
+        
+        for (const { name, uniformName, spec } of testableUniforms.slice(0, 3)) { // Test up to 3 uniforms
+            // Pick a value far from default
+            const defaultVal = spec.default ?? spec.min;
+            const testVal = defaultVal === spec.min ? spec.max : spec.min;
+            
+            // Apply the uniform change via page evaluation
+            await this.page.evaluate(({ uniformName, testVal }) => {
+                const pipeline = window.__noisemakerRenderingPipeline;
+                if (pipeline && pipeline.globalUniforms) {
+                    pipeline.globalUniforms[uniformName] = testVal;
+                }
+            }, { uniformName, testVal });
+            
+            // Render again
+            const testRender = await this.renderEffectFrame(effectId, {
+                skipCompile: true,
+                backend,
+                warmupFrames: 5
+            });
+            
+            if (testRender.status === 'ok') {
+                const testHash = testRender.metrics?.unique_sampled_colors || 0;
+                const testMeanLuma = testRender.metrics?.mean_rgb ?
+                    (testRender.metrics.mean_rgb[0] + testRender.metrics.mean_rgb[1] + testRender.metrics.mean_rgb[2]) / 3 : 0;
+                
+                // Check if output changed meaningfully
+                const colorDiff = Math.abs(testHash - baseHash);
+                const lumaDiff = Math.abs(testMeanLuma - baseMeanLuma);
+                
+                if (colorDiff > 5 || lumaDiff > 0.01) {
+                    anyResponded = true;
+                    testedUniforms.push(`${name}:✓`);
+                } else {
+                    testedUniforms.push(`${name}:✗`);
+                }
+            }
+            
+            // Reset uniform to default
+            await this.page.evaluate(({ uniformName, defaultVal }) => {
+                const pipeline = window.__noisemakerRenderingPipeline;
+                if (pipeline && pipeline.globalUniforms) {
+                    pipeline.globalUniforms[uniformName] = defaultVal;
+                }
+            }, { uniformName, defaultVal });
+        }
+        
+        return {
+            status: anyResponded ? 'ok' : 'error',
+            tested_uniforms: testedUniforms,
+            details: anyResponded ? 'Uniforms affect output' : 'No uniforms affected output'
+        };
+    }
+    
+    /**
      * Close the browser harness
      */
     async close() {

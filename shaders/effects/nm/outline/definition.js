@@ -13,6 +13,7 @@ export default class Outline extends Effect {
     sobel_metric: {
         type: "enum",
         default: 1,
+        uniform: "sobel_metric",
         ui: {
             label: "Sobel Metric"
         }
@@ -20,6 +21,7 @@ export default class Outline extends Effect {
     invert: {
         type: "boolean",
         default: false,
+        uniform: "invert",
         ui: {
             label: "Invert",
             control: "checkbox"

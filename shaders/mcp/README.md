@@ -24,11 +24,12 @@ node shaders/mcp/test-harness.js basics/noise
 ## Tools
 
 | Tool | Purpose |
-|------|---------|
+|------|---------||
 | `compile_effect` | Verify shader compiles cleanly |
 | `render_effect_frame` | Render frame, check for monochrome output |
 | `describe_effect_frame` | AI vision analysis of rendered output |
 | `benchmark_effect_fps` | Measure sustained framerate |
+| `testUniformResponsiveness` | Verify uniform controls affect output |
 
 ## Architecture
 
@@ -205,13 +206,26 @@ Run the test harness to verify the setup:
 
 ```bash
 cd shaders/mcp
-node test-harness.js [effect_id]
+node test-harness.js [pattern] [flags]
 ```
 
-Example:
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--benchmark` | Run FPS test (~500ms per effect) |
+| `--vision` | Run AI vision analysis (requires .openai key) |
+| `--uniforms` | Test that uniform controls affect output |
+| `--webgpu` | Use WebGPU/WGSL backend instead of WebGL2/GLSL |
+
+### Examples
+
 ```bash
-node test-harness.js basics/noise
-node test-harness.js nd/physarum
+node test-harness.js basics/noise              # compile + render only
+node test-harness.js "basics/*" --benchmark    # all basics with FPS
+node test-harness.js basics/noise --vision     # with AI description
+node test-harness.js nm/worms --uniforms       # test uniform responsiveness
+node test-harness.js nm/normalize --webgpu     # test WGSL backend
 ```
 
 ## Manual Server Testing

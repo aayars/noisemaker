@@ -12,6 +12,7 @@ export default class Warp extends Effect {
     frequency: {
       type: "float",
       default: 2,
+      uniform: "frequency",
       min: 0.1,
       max: 10,
       step: 0.1,
@@ -23,6 +24,7 @@ export default class Warp extends Effect {
     octaves: {
       type: "float",
       default: 5,
+      uniform: "octaves",
       min: 1,
       max: 10,
       step: 1,
@@ -34,6 +36,7 @@ export default class Warp extends Effect {
     displacement: {
       type: "float",
       default: 0.1,
+      uniform: "displacement",
       min: 0,
       max: 1,
       step: 0.01,
@@ -45,6 +48,7 @@ export default class Warp extends Effect {
     speed: {
       type: "float",
       default: 1,
+      uniform: "speed",
       min: 0,
       max: 5,
       step: 0.1,
@@ -56,6 +60,7 @@ export default class Warp extends Effect {
     spline_order: {
       type: "float",
       default: 2,
+      uniform: "spline_order",
       min: 0,
       max: 3,
       step: 1,

@@ -15,6 +15,7 @@ export default class ShapeMixer extends Effect {
     blendMode: {
       type: "int",
       default: 2,
+      uniform: "blendMode",
       choices: {
         Add: 0,
         Divide: 1,
@@ -35,6 +36,7 @@ export default class ShapeMixer extends Effect {
     loopOffset: {
       type: "int",
       default: 10,
+      uniform: "loopOffset",
       choices: {
         None: 0,
         "Shapes:": null,
@@ -75,6 +77,7 @@ export default class ShapeMixer extends Effect {
     loopScale: {
       type: "float",
       default: 80,
+      uniform: "loopScale",
       min: 1,
       max: 100,
       ui: {
@@ -85,6 +88,7 @@ export default class ShapeMixer extends Effect {
     animate: {
       type: "int",
       default: 1,
+      uniform: "animate",
       choices: {
         Off: 0,
         Forward: 1,
@@ -98,6 +102,7 @@ export default class ShapeMixer extends Effect {
     palette: {
       type: "palette",
       default: 41,
+      uniform: "palette",
       choices: paletteChoices,
       ui: {
         label: "palette",
@@ -107,6 +112,7 @@ export default class ShapeMixer extends Effect {
     paletteMode: {
       type: "int",
       default: 0,
+      uniform: "paletteMode",
       ui: {
         control: false
       }
@@ -114,6 +120,7 @@ export default class ShapeMixer extends Effect {
     paletteOffset: {
       type: "vec3",
       default: [0.83, 0.6, 0.63],
+      uniform: "paletteOffset",
       ui: {
         label: "palette offset",
         control: "slider"
@@ -122,6 +129,7 @@ export default class ShapeMixer extends Effect {
     paletteAmp: {
       type: "vec3",
       default: [0.5, 0.5, 0.5],
+      uniform: "paletteAmp",
       ui: {
         label: "palette amplitude",
         control: "slider"
@@ -130,6 +138,7 @@ export default class ShapeMixer extends Effect {
     paletteFreq: {
       type: "vec3",
       default: [1, 1, 1],
+      uniform: "paletteFreq",
       ui: {
         label: "palette frequency",
         control: "slider"
@@ -138,6 +147,7 @@ export default class ShapeMixer extends Effect {
     palettePhase: {
       type: "vec3",
       default: [0.3, 0.1, 0],
+      uniform: "palettePhase",
       ui: {
         label: "palette phase",
         control: "slider"
@@ -146,6 +156,7 @@ export default class ShapeMixer extends Effect {
     cyclePalette: {
       type: "int",
       default: 1,
+      uniform: "cyclePalette",
       choices: {
         Off: 0,
         Forward: 1,
@@ -159,6 +170,7 @@ export default class ShapeMixer extends Effect {
     rotatePalette: {
       type: "float",
       default: 0,
+      uniform: "rotatePalette",
       min: 0,
       max: 100,
       ui: {
@@ -169,6 +181,7 @@ export default class ShapeMixer extends Effect {
     repeatPalette: {
       type: "int",
       default: 1,
+      uniform: "repeatPalette",
       min: 1,
       max: 5,
       ui: {
@@ -179,6 +192,7 @@ export default class ShapeMixer extends Effect {
     levels: {
       type: "int",
       default: 0,
+      uniform: "levels",
       min: 0,
       max: 32,
       ui: {
@@ -189,6 +203,7 @@ export default class ShapeMixer extends Effect {
     wrap: {
       type: "boolean",
       default: true,
+      uniform: "wrap",
       ui: {
         label: "noise wrap",
         control: "checkbox"
@@ -197,6 +212,7 @@ export default class ShapeMixer extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {

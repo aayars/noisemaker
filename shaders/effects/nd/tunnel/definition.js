@@ -9,6 +9,7 @@ export default class Tunnel extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {
@@ -19,6 +20,7 @@ export default class Tunnel extends Effect {
     distortionType: {
       type: "int",
       default: 0,
+      uniform: "distortionType",
       choices: {
         Circle: 0,
         Triangle: 1,
@@ -35,6 +37,7 @@ export default class Tunnel extends Effect {
     flip: {
       type: "int",
       default: 0,
+      uniform: "flip",
       choices: {
         None: 0,
         "Flip:": null,
@@ -59,6 +62,7 @@ export default class Tunnel extends Effect {
     speed: {
       type: "int",
       default: 1,
+      uniform: "speed",
       min: -5,
       max: 5,
       ui: {
@@ -69,6 +73,7 @@ export default class Tunnel extends Effect {
     rotation: {
       type: "int",
       default: 0,
+      uniform: "rotation",
       min: -5,
       max: 5,
       ui: {
@@ -79,6 +84,7 @@ export default class Tunnel extends Effect {
     center: {
       type: "float",
       default: -5,
+      uniform: "center",
       min: -5,
       max: 5,
       ui: {
@@ -89,6 +95,7 @@ export default class Tunnel extends Effect {
     scale: {
       type: "float",
       default: 0,
+      uniform: "scale",
       min: -5,
       max: 5,
       ui: {
@@ -99,6 +106,7 @@ export default class Tunnel extends Effect {
     aspectLens: {
       type: "boolean",
       default: true,
+      uniform: "aspectLens",
       ui: {
         label: "1:1 aspect",
         control: "checkbox"

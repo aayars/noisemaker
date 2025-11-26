@@ -13,6 +13,7 @@ export default class ErosionWorms extends Effect {
     density: {
         type: "float",
         default: 5,
+        uniform: "density",
         min: 1,
         max: 100,
         step: 1,
@@ -24,6 +25,7 @@ export default class ErosionWorms extends Effect {
     stride: {
         type: "float",
         default: 1,
+        uniform: "stride",
         min: 0.1,
         max: 10,
         step: 0.1,
@@ -35,6 +37,7 @@ export default class ErosionWorms extends Effect {
     quantize: {
         type: "boolean",
         default: false,
+        uniform: "quantize",
         ui: {
             label: "Quantize",
             control: "checkbox"
@@ -43,6 +46,7 @@ export default class ErosionWorms extends Effect {
     intensity: {
         type: "float",
         default: 90,
+        uniform: "intensity",
         min: 0,
         max: 100,
         step: 1,
@@ -54,6 +58,7 @@ export default class ErosionWorms extends Effect {
     inverse: {
         type: "boolean",
         default: false,
+        uniform: "inverse",
         ui: {
             label: "Inverse",
             control: "checkbox"
@@ -62,6 +67,7 @@ export default class ErosionWorms extends Effect {
     xy_blend: {
         type: "boolean",
         default: false,
+        uniform: "xy_blend",
         ui: {
             label: "XY Blend",
             control: "checkbox"
@@ -70,6 +76,7 @@ export default class ErosionWorms extends Effect {
     worm_lifetime: {
         type: "float",
         default: 30,
+        uniform: "worm_lifetime",
         min: 0,
         max: 60,
         step: 1,
@@ -81,6 +88,7 @@ export default class ErosionWorms extends Effect {
     inputIntensity: {
         type: "float",
         default: 100,
+        uniform: "inputIntensity",
         min: 0,
         max: 100,
         step: 1,
@@ -159,6 +167,56 @@ export default class ErosionWorms extends Effect {
         out vec4 fragColor;
         void main() {
             fragColor = vec4(0.1, 0.1, 0.1, 1.0); // Trail intensity
+        }`,
+        vertexWgsl: `
+        struct VertexOutput {
+            @builtin(position) position: vec4<f32>,
+            @location(0) color: vec4<f32>,
+        }
+        
+        @group(0) @binding(0) var agentTex: texture_2d<f32>;
+        
+        @vertex
+        fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+            var output: VertexOutput;
+            
+            let texSize = textureDimensions(agentTex, 0);
+            let width = i32(texSize.x);
+            let height = i32(texSize.y);
+            
+            let id = i32(vertexIndex);
+            let x = id % width;
+            let y = id / width;
+            
+            if (y >= height) {
+                output.position = vec4<f32>(-2.0, -2.0, 0.0, 1.0);
+                output.color = vec4<f32>(0.0);
+                return output;
+            }
+            
+            // Agent format: [pos.x, pos.y, heading_norm, age_norm]
+            let agent = textureLoad(agentTex, vec2<i32>(x, y), 0);
+            let pos = agent.xy; // normalized 0-1
+            
+            // Use subtle gray for trails
+            let trailColor = vec3<f32>(0.1, 0.1, 0.1);
+            
+            // Map 0..1 to clip space -1..1
+            let clipPos = pos * 2.0 - 1.0;
+            
+            output.position = vec4<f32>(clipPos, 0.0, 1.0);
+            output.color = vec4<f32>(trailColor, 1.0);
+            return output;
+        }`,
+        wgsl: `
+        struct FragmentInput {
+            @builtin(position) position: vec4<f32>,
+            @location(0) color: vec4<f32>,
+        }
+        
+        @fragment
+        fn main(input: FragmentInput) -> @location(0) vec4<f32> {
+            return input.color;
         }`
       },
       inputs: {

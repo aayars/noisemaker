@@ -18,6 +18,7 @@ export default class Clouds extends Effect {
     speed: {
       type: "float",
       default: 1.0,
+      uniform: "speed",
       min: 0.0,
       max: 3.0,
       step: 0.05,
@@ -29,6 +30,7 @@ export default class Clouds extends Effect {
     scale: {
       type: "float",
       default: 0.25,
+      uniform: "scale",
       min: 0.1,
       max: 1.0,
       step: 0.05,

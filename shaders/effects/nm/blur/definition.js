@@ -13,6 +13,7 @@ export default class Blur extends Effect {
     amount: {
         type: "float",
         default: 10,
+        uniform: "amount",
         min: 1,
         max: 64,
         step: 1,
@@ -24,6 +25,7 @@ export default class Blur extends Effect {
     spline_order: {
         type: "float",
         default: 3,
+        uniform: "spline_order",
         min: 0,
         max: 3,
         step: 1,

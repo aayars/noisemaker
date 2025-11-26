@@ -9,6 +9,7 @@ export default class Noise3d extends Effect {
     noiseType: {
       type: "int",
       default: 12,
+      uniform: "noiseType",
       choices: {
         Cubes: 50,
         Simplex: 12,
@@ -26,6 +27,7 @@ export default class Noise3d extends Effect {
     noiseScale: {
       type: "float",
       default: 25,
+      uniform: "noiseScale",
       min: 1,
       max: 100,
       ui: {
@@ -36,6 +38,7 @@ export default class Noise3d extends Effect {
     offsetX: {
       type: "float",
       default: 0,
+      uniform: "offsetX",
       min: -100,
       max: 100,
       ui: {
@@ -46,6 +49,7 @@ export default class Noise3d extends Effect {
     offsetY: {
       type: "float",
       default: 0,
+      uniform: "offsetY",
       min: -100,
       max: 100,
       ui: {
@@ -56,6 +60,7 @@ export default class Noise3d extends Effect {
     ridges: {
       type: "boolean",
       default: false,
+      uniform: "ridges",
       ui: {
         label: "ridges",
         control: "checkbox"
@@ -64,6 +69,7 @@ export default class Noise3d extends Effect {
     colorMode: {
       type: "int",
       default: 6,
+      uniform: "colorMode",
       choices: {
         "Depth Map": 8,
         Grayscale: 0,
@@ -78,6 +84,7 @@ export default class Noise3d extends Effect {
     hueRotation: {
       type: "float",
       default: 0,
+      uniform: "hueRotation",
       min: 0,
       max: 360,
       ui: {
@@ -88,6 +95,7 @@ export default class Noise3d extends Effect {
     hueRange: {
       type: "float",
       default: 10,
+      uniform: "hueRange",
       min: 0,
       max: 100,
       ui: {
@@ -98,6 +106,7 @@ export default class Noise3d extends Effect {
     speed: {
       type: "int",
       default: 1,
+      uniform: "speed",
       min: -10,
       max: 10,
       ui: {
@@ -108,6 +117,7 @@ export default class Noise3d extends Effect {
     seed: {
       type: "int",
       default: 1,
+      uniform: "seed",
       min: 1,
       max: 100,
       ui: {

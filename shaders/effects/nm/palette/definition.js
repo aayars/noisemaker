@@ -13,6 +13,7 @@ export default class Palette extends Effect {
     palette_index: {
         type: "int",
         default: 1,
+        uniform: "palette_index",
         min: 0,
         max: 37,
         step: 1,
@@ -24,6 +25,7 @@ export default class Palette extends Effect {
     alpha: {
         type: "float",
         default: 1,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

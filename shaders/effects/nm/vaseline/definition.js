@@ -12,6 +12,7 @@ export default class Vaseline extends Effect {
     alpha: {
         type: "float",
         default: 0.5,
+        uniform: "alpha",
         min: 0,
         max: 1,
         step: 0.01,

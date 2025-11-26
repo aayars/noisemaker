@@ -9,6 +9,7 @@ export default class DisplaceMixer extends Effect {
     mode: {
       type: "int",
       default: 1,
+      uniform: "mode",
       choices: {
         Displace: 0,
         Reflect: 2,
@@ -22,6 +23,7 @@ export default class DisplaceMixer extends Effect {
     displaceSource: {
       type: "int",
       default: 1,
+      uniform: "displaceSource",
       choices: {
         "inputTex": 0,
         "tex": 1
@@ -34,6 +36,7 @@ export default class DisplaceMixer extends Effect {
     intensity: {
       type: "float",
       default: 50,
+      uniform: "intensity",
       min: 0,
       max: 100,
       ui: {
@@ -44,6 +47,7 @@ export default class DisplaceMixer extends Effect {
     direction: {
       type: "float",
       default: 0,
+      uniform: "direction",
       min: 0,
       max: 360,
       ui: {
@@ -54,6 +58,7 @@ export default class DisplaceMixer extends Effect {
     wrap: {
       type: "int",
       default: 0,
+      uniform: "wrap",
       choices: {
         Clamp: 2,
         Mirror: 0,
@@ -67,6 +72,7 @@ export default class DisplaceMixer extends Effect {
     smoothing: {
       type: "float",
       default: 1,
+      uniform: "smoothing",
       min: 1,
       max: 100,
       ui: {
@@ -77,6 +83,7 @@ export default class DisplaceMixer extends Effect {
     aberration: {
       type: "float",
       default: 0,
+      uniform: "aberration",
       min: 0,
       max: 100,
       ui: {
