@@ -65,10 +65,11 @@ mood = "noisemaker.scripts.mood:main"
 noisemaker = "noisemaker.scripts.noisemaker:main"
 
 [tool.setuptools]
-packages = ["noisemaker", "noisemaker.scripts", "noisemaker.dsl", "share.dsl"]
+packages = ["noisemaker", "noisemaker.scripts", "noisemaker.dsl", "share", "share.dsl"]
 
 [tool.setuptools.package-data]
 noisemaker = ["fonts/**/*"]
+share = ["*.json"]
 "share.dsl" = ["*.dsl"]
 
 [tool.black]
