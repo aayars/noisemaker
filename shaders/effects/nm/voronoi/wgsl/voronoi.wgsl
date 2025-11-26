@@ -24,14 +24,14 @@ var<workgroup> shared_point_count : u32;
 
 struct VoronoiParams {
     dims : vec4<f32>,                    // width, height, channels, diagram_type
-    nth_metric_sdf_alpha : vec4<f32>,    // nth, dist_metric, sdf_sides, alpha
+    nth_metric_sdf_alpha : vec4<f32>,    // nth, distMetric, sdf_sides, alpha
     refract_inverse_xy : vec4<f32>,      // with_refract, inverse, xy_mode, xy_count (unused)
-    ridge_refract_time_speed : vec4<f32>, // ridges_hint, refract_y_from_offset, time, speed
+    ridge_refract_timeSpeed : vec4<f32>, // ridges_hint, refract_y_from_offset, time, speed
     freq_gen_distrib_drift : vec4<f32>,  // point_freq, point_generations, point_distrib, point_drift
     corners_downsample_pad : vec4<f32>,  // point_corners, downsample, pad0, pad1
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : VoronoiParams;
 
@@ -107,13 +107,13 @@ fn random_vec2(seed : vec3<f32>) -> vec2<f32> {
 }
 
 fn width_value() -> f32 {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let w_tex : f32 = f32(dims.x);
     return max(select(params.dims.x, w_tex, w_tex > 0.0), 1.0);
 }
 
 fn height_value() -> f32 {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let h_tex : f32 = f32(dims.y);
     return max(select(params.dims.y, h_tex, h_tex > 0.0), 1.0);
 }
@@ -147,19 +147,19 @@ fn inverse_flag() -> bool {
 }
 
 fn ridges_hint_flag() -> bool {
-    return bool_from(params.ridge_refract_time_speed.x);
+    return bool_from(params.ridge_refract_timeSpeed.x);
 }
 
 fn refract_y_from_offset_flag() -> bool {
-    return bool_from(params.ridge_refract_time_speed.y);
+    return bool_from(params.ridge_refract_timeSpeed.y);
 }
 
 fn current_time() -> f32 {
-    return params.ridge_refract_time_speed.z;
+    return params.ridge_refract_timeSpeed.z;
 }
 
 fn current_speed() -> f32 {
-    return params.ridge_refract_time_speed.w;
+    return params.ridge_refract_timeSpeed.w;
 }
 
 fn point_frequency() -> i32 {
@@ -577,7 +577,7 @@ fn refract_color(
     if (displacement == 0.0) {
         let xi : i32 = clamp(i32(pixel_coord.x), 0, i32(width) - 1);
         let yi : i32 = clamp(i32(pixel_coord.y), 0, i32(height) - 1);
-        return textureLoad(input_texture, vec2<i32>(xi, yi), 0);
+        return textureLoad(inputTex, vec2<i32>(xi, yi), 0);
     }
     let width_f : f32 = max(f32(width), 1.0);
     let height_f : f32 = max(f32(height), 1.0);
@@ -593,7 +593,7 @@ fn refract_color(
     }
     let wrapped_x : i32 = wrap_index(i32(floor(sample_x + 0.5)), i32(width));
     let wrapped_y : i32 = wrap_index(i32(floor(sample_y + 0.5)), i32(height));
-    return textureLoad(input_texture, vec2<i32>(wrapped_x, wrapped_y), 0);
+    return textureLoad(inputTex, vec2<i32>(wrapped_x, wrapped_y), 0);
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -601,7 +601,7 @@ fn main(
     @builtin(global_invocation_id) gid : vec3<u32>,
     @builtin(local_invocation_id) lid : vec3<u32>,
 ) {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = select(as_u32(params.dims.x), dims.x, dims.x > 0u);
     let height : u32 = select(as_u32(params.dims.y), dims.y, dims.y > 0u);
     let in_bounds : bool = gid.x < width && gid.y < height;
@@ -646,7 +646,7 @@ fn main(
                 let sample_point : vec2<f32> = point * inv_scale;
                 let sx : i32 = clamp(i32(round(sample_point.x)), 0, i32(width) - 1);
                 let sy : i32 = clamp(i32(round(sample_point.y)), 0, i32(height) - 1);
-                var color : vec4<f32> = clamp_color(textureLoad(input_texture, vec2<i32>(sx, sy), 0));
+                var color : vec4<f32> = clamp_color(textureLoad(inputTex, vec2<i32>(sx, sy), 0));
                 if (ridges && (diagram == 22 || diagram == 31 || diagram == 42)) {
                     color = abs(color * 2.0 - vec4<f32>(1.0, 1.0, 1.0, 1.0));
                 }
@@ -669,7 +669,7 @@ fn main(
     let point_count : u32 = shared_point_count;
     if (point_count == 0u) {
         let base_index : u32 = (gid.y * width + gid.x) * 4u;
-        let color : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
+        let color : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
         output_buffer[base_index + 0u] = color.x;
         output_buffer[base_index + 1u] = color.y;
         output_buffer[base_index + 2u] = color.z;
@@ -802,7 +802,7 @@ fn main(
 
     if (!lowpoly_fast_path && sorted_count == 0u) {
         let base_index : u32 = (gid.y * width + gid.x) * 4u;
-        let color : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
+        let color : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
         output_buffer[base_index + 0u] = color.x;
         output_buffer[base_index + 1u] = color.y;
         output_buffer[base_index + 2u] = color.z;
@@ -852,7 +852,7 @@ fn main(
         range_value = 1.0 - range_value;
     }
 
-    let input_color : vec4<f32> = clamp_color(textureLoad(input_texture, vec2<i32>(i32(gid.x), i32(gid.y)), 0));
+    let input_color : vec4<f32> = clamp_color(textureLoad(inputTex, vec2<i32>(i32(gid.x), i32(gid.y)), 0));
     var range_color : vec4<f32> = vec4<f32>(range_value, range_value, range_value, 1.0);
 
     if (diagram == 12) {

@@ -251,7 +251,6 @@ export default class Shapes extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "shapes",
       inputs: {
       },

@@ -3,7 +3,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 export default class Text extends Effect {
   name = "Text";
   namespace = "nd";
-  func = "text_nd";
+  func = "text";
 
   globals = {
     seed: {
@@ -37,7 +37,7 @@ export default class Text extends Effect {
     },
     font: {
       type: "string",
-      default: "sans-serif",
+      default: "sansSerif",
       uniform: "font",
       choices: {
         Cursive: "cursive",
@@ -160,7 +160,6 @@ export default class Text extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "text",
       inputs: {
         textTex: "inputTex"

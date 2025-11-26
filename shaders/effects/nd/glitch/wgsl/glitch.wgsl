@@ -1,278 +1,228 @@
-// Glitch - PCG PRNG based glitch/noise effects
-// Ported from GLSL to WGSL
+// Glitch processor shader.
+// Uses deterministic noise fields to drive scanline shears, snow bursts, and channel offsets.
+// Probability controls are remapped before application so glitch bursts remain inspectable during performances.
 
-@group(0) @binding(0) var samp : sampler;
-@group(0) @binding(1) var inputTex : texture_2d<f32>;
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var inputTex: texture_2d<f32>;
 
 struct Uniforms {
+    resolution: vec2<f32>,
     time: f32,
-    seed: i32,
-    aspectLens: i32,
-    xChonk: i32,
-    yChonk: i32,
+    seed: f32,
+    aspectLens: f32,
+    xChonk: f32,
+    yChonk: f32,
     glitchiness: f32,
-    scanlinesAmt: i32,
+    scanlinesAmt: f32,
     snowAmt: f32,
     vignetteAmt: f32,
     aberrationAmt: f32,
     distortion: f32,
-    kernel: i32,
+    kernel: f32,
     levels: f32,
+    _pad0: f32,
+    _pad1: f32,
 }
 
-@group(0) @binding(2) var<uniform> u : Uniforms;
+@group(0) @binding(2) var<uniform> u: Uniforms;
 
 const PI: f32 = 3.14159265359;
+const TAU: f32 = 6.28318530718;
 
-// PCG PRNG - Permuted Congruential Generator
-fn pcg(n: u32) -> u32 {
-    var h = n * 747796405u + 2891336453u;
-    h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
-    return (h >> 22u) ^ h;
-}
-
-fn pcg2d(p: vec2<u32>) -> vec2<u32> {
-    var v = p * 1664525u + 1013904223u;
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-    v = v ^ (v >> vec2<u32>(16u));
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-    v = v ^ (v >> vec2<u32>(16u));
-    return v;
-}
-
-fn pcg2df(p: vec2<f32>) -> vec2<f32> {
-    return vec2<f32>(pcg2d(vec2<u32>(bitcast<u32>(p.x), bitcast<u32>(p.y)))) / f32(0xffffffffu);
-}
-
-fn pcg3d(p: vec3<u32>) -> vec3<u32> {
-    var v = p * 1664525u + 1013904223u;
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
+// PCG PRNG - MIT License
+fn pcg(v_in: vec3<u32>) -> vec3<u32> {
+    var v = v_in * 1664525u + 1013904223u;
+    v.x = v.x + v.y * v.z;
+    v.y = v.y + v.z * v.x;
+    v.z = v.z + v.x * v.y;
     v = v ^ (v >> vec3<u32>(16u));
-    v.x += v.y * v.z;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
+    v.x = v.x + v.y * v.z;
+    v.y = v.y + v.z * v.x;
+    v.z = v.z + v.x * v.y;
     return v;
 }
 
-fn pcg3df(p: vec3<f32>) -> vec3<f32> {
-    return vec3<f32>(pcg3d(vec3<u32>(bitcast<u32>(p.x), bitcast<u32>(p.y), bitcast<u32>(p.z)))) / f32(0xffffffffu);
+fn prng(p: vec3<f32>) -> vec3<f32> {
+    return vec3<f32>(pcg(vec3<u32>(u32(p.x), u32(p.y), u32(p.z)))) / f32(0xffffffffu);
 }
 
-// Bicubic noise from PCG
-fn bicubic_noise(fragCoord: vec2<f32>, gridSize: vec2<f32>, seed: f32) -> vec2<f32> {
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let p = fragCoord / dims * gridSize;
-    let i = floor(p);
-    let f = p - i;
-
-    let w = f * f * (3.0 - 2.0 * f);
-
-    let n00 = pcg3df(vec3<f32>(i, seed)).xy * 2.0 - 1.0;
-    let n10 = pcg3df(vec3<f32>(i + vec2<f32>(1.0, 0.0), seed)).xy * 2.0 - 1.0;
-    let n01 = pcg3df(vec3<f32>(i + vec2<f32>(0.0, 1.0), seed)).xy * 2.0 - 1.0;
-    let n11 = pcg3df(vec3<f32>(i + vec2<f32>(1.0, 1.0), seed)).xy * 2.0 - 1.0;
-
-    return mix(mix(n00, n10, w.x), mix(n01, n11, w.x), w.y);
+fn f(st: vec2<f32>, seed: f32) -> f32 {
+    return prng(vec3<f32>(floor(st), seed)).x;
 }
 
-// Scanlines effect
-fn scanlines(color: vec4<f32>, fragCoord: vec2<f32>, amt: i32) -> vec4<f32> {
-    if (amt == 0) {
-        return color;
-    }
-
-    let scanY = i32(fragCoord.y) % (amt * 2);
-    if (scanY < amt) {
-        return color * 0.7;
-    }
-    return color;
+fn bicubic(p: vec2<f32>, seed: f32) -> f32 {
+    let x = p.x;
+    let y = p.y;
+    let x1 = floor(x);
+    let y1 = floor(y);
+    let x2 = x1 + 1.0;
+    let y2 = y1 + 1.0;
+    let f11 = f(vec2<f32>(x1, y1), seed);
+    let f12 = f(vec2<f32>(x1, y2), seed);
+    let f21 = f(vec2<f32>(x2, y1), seed);
+    let f22 = f(vec2<f32>(x2, y2), seed);
+    let f11x = (f(vec2<f32>(x1 + 1.0, y1), seed) - f(vec2<f32>(x1 - 1.0, y1), seed)) / 2.0;
+    let f12x = (f(vec2<f32>(x1 + 1.0, y2), seed) - f(vec2<f32>(x1 - 1.0, y2), seed)) / 2.0;
+    let f21x = (f(vec2<f32>(x2 + 1.0, y1), seed) - f(vec2<f32>(x2 - 1.0, y1), seed)) / 2.0;
+    let f22x = (f(vec2<f32>(x2 + 1.0, y2), seed) - f(vec2<f32>(x2 - 1.0, y2), seed)) / 2.0;
+    let f11y = (f(vec2<f32>(x1, y1 + 1.0), seed) - f(vec2<f32>(x1, y1 - 1.0), seed)) / 2.0;
+    let f12y = (f(vec2<f32>(x1, y2 + 1.0), seed) - f(vec2<f32>(x1, y2 - 1.0), seed)) / 2.0;
+    let f21y = (f(vec2<f32>(x2, y1 + 1.0), seed) - f(vec2<f32>(x2, y1 - 1.0), seed)) / 2.0;
+    let f22y = (f(vec2<f32>(x2, y2 + 1.0), seed) - f(vec2<f32>(x2, y2 - 1.0), seed)) / 2.0;
+    let f11xy = (f(vec2<f32>(x1 + 1.0, y1 + 1.0), seed) - f(vec2<f32>(x1 + 1.0, y1 - 1.0), seed) - f(vec2<f32>(x1 - 1.0, y1 + 1.0), seed) + f(vec2<f32>(x1 - 1.0, y1 - 1.0), seed)) / 4.0;
+    let f12xy = (f(vec2<f32>(x1 + 1.0, y2 + 1.0), seed) - f(vec2<f32>(x1 + 1.0, y2 - 1.0), seed) - f(vec2<f32>(x1 - 1.0, y2 + 1.0), seed) + f(vec2<f32>(x1 - 1.0, y2 - 1.0), seed)) / 4.0;
+    let f21xy = (f(vec2<f32>(x2 + 1.0, y1 + 1.0), seed) - f(vec2<f32>(x2 + 1.0, y1 - 1.0), seed) - f(vec2<f32>(x2 - 1.0, y1 + 1.0), seed) + f(vec2<f32>(x2 - 1.0, y1 - 1.0), seed)) / 4.0;
+    let f22xy = (f(vec2<f32>(x2 + 1.0, y2 + 1.0), seed) - f(vec2<f32>(x2 + 1.0, y2 - 1.0), seed) - f(vec2<f32>(x2 - 1.0, y2 + 1.0), seed) + f(vec2<f32>(x2 - 1.0, y2 - 1.0), seed)) / 4.0;
+    
+    let Q = mat4x4<f32>(
+        vec4<f32>(f11, f21, f11x, f21x),
+        vec4<f32>(f12, f22, f12x, f22x),
+        vec4<f32>(f11y, f21y, f11xy, f21xy),
+        vec4<f32>(f12y, f22y, f12xy, f22xy)
+    );
+    let S = mat4x4<f32>(
+        vec4<f32>(1.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, 1.0, 0.0),
+        vec4<f32>(-3.0, 3.0, -2.0, -1.0),
+        vec4<f32>(2.0, -2.0, 1.0, 1.0)
+    );
+    let T = mat4x4<f32>(
+        vec4<f32>(1.0, 0.0, -3.0, 2.0),
+        vec4<f32>(0.0, 0.0, 3.0, -2.0),
+        vec4<f32>(0.0, 1.0, -2.0, 1.0),
+        vec4<f32>(0.0, 0.0, -1.0, 1.0)
+    );
+    let A = T * Q * S;
+    let t = fract(p.x);
+    let uu = fract(p.y);
+    let tv = vec4<f32>(1.0, t, t * t, t * t * t);
+    let uv = vec4<f32>(1.0, uu, uu * uu, uu * uu * uu);
+    return dot(tv * A, uv);
 }
 
-// Snow/noise effect
-fn snow(color: vec4<f32>, fragCoord: vec2<f32>, time: f32, amt: f32) -> vec4<f32> {
-    if (amt <= 0.0) {
-        return color;
-    }
-
-    let noise = pcg3df(vec3<f32>(fragCoord, time)).x;
-    let snowColor = vec4<f32>(vec3<f32>(noise), 1.0);
-    return mix(color, snowColor, amt * 0.01);
+fn map(value: f32, inMin: f32, inMax: f32, outMin: f32, outMax: f32) -> f32 {
+    return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
 }
 
-// Vignette effect
-fn vignette(color: vec4<f32>, uv: vec2<f32>, amt: f32) -> vec4<f32> {
-    if (amt == 0.0) {
-        return color;
-    }
+fn periodicFunction(p: f32) -> f32 {
+    return map(sin(p * TAU), -1.0, 1.0, 0.0, 1.0);
+}
 
-    let center = uv - 0.5;
-    let dist = length(center);
-    let vig = 1.0 - smoothstep(0.3, 0.7, dist * abs(amt) * 0.02);
+fn scanlines(color: vec4<f32>, st: vec2<f32>, resolution: vec2<f32>, scanlinesAmt: f32, time: f32, seed: f32) -> vec4<f32> {
+    let centerDistance = length(vec2<f32>(0.5) - st) * PI * 0.5;
+    let noise = periodicFunction(bicubic(st * 4.0, seed) - time) * map(scanlinesAmt, 0.0, 100.0, 0.0, 0.5);
+    let hatch = (sin(mix(st.y, st.y + noise, pow(centerDistance, 8.0)) * resolution.y * 1.5) + 1.0) * 0.5;
+    var result = color;
+    result = vec4<f32>(mix(color.rgb, color.rgb * hatch, map(scanlinesAmt, 0.0, 100.0, 0.0, 0.5)), color.a);
+    return result;
+}
 
-    if (amt > 0.0) {
-        return color * vig;
+fn snow(color: vec4<f32>, fragCoord: vec2<f32>, snowAmt: f32, time: f32) -> vec4<f32> {
+    let amt = snowAmt / 100.0;
+    let noise = prng(vec3<f32>(fragCoord, time * 1000.0)).x;
+    
+    let maskNoise = prng(vec3<f32>(fragCoord + 10.0, time * 1000.0)).x;
+    let maskNoiseSparse = clamp(maskNoise - 0.93875, 0.0, 0.06125) * 16.0;
+    
+    var mask: f32;
+    if (amt < 0.5) {
+        mask = mix(0.0, maskNoiseSparse, amt * 2.0);
     } else {
-        return color * (1.0 - vig) + vec4<f32>(vec3<f32>(1.0 - vig), 0.0);
+        mask = mix(maskNoiseSparse, maskNoise * maskNoise, map(amt, 0.5, 1.0, 0.0, 1.0));
+        if (amt > 0.75) {
+            mask = mix(mask, 1.0, map(amt, 0.75, 1.0, 0.0, 1.0));
+        }
     }
+    
+    return vec4<f32>(mix(color.rgb, vec3<f32>(noise), mask), color.a);
 }
 
-// Chromatic aberration
-fn aberration(uv: vec2<f32>, amt: f32) -> vec4<f32> {
-    if (amt <= 0.0) {
-        return textureSample(inputTex, samp, uv);
-    }
-
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let offset = amt * 0.001;
-
-    let r = textureSample(inputTex, samp, uv + vec2<f32>(offset, 0.0)).r;
-    let g = textureSample(inputTex, samp, uv).g;
-    let b = textureSample(inputTex, samp, uv - vec2<f32>(offset, 0.0)).b;
-    let a = textureSample(inputTex, samp, uv).a;
-
-    return vec4<f32>(r, g, b, a);
+fn offsets(st: vec2<f32>) -> f32 {
+    return prng(vec3<f32>(floor(st), 0.0)).x;
 }
 
-// Barrel/pincushion distortion
-fn barrel_distort(uv: vec2<f32>, amt: f32, aspectLens: bool) -> vec2<f32> {
-    if (amt == 0.0) {
-        return uv;
+fn glitch(st_in: vec2<f32>, aspectRatio: f32, time: f32, xChonk: f32, yChonk: f32, glitchiness: f32, aspectLens: f32, distortion: f32, aberrationAmt: f32) -> vec4<f32> {
+    var st = st_in;
+    var freq = vec2<f32>(1.0);
+    freq.x = freq.x * map(xChonk, 1.0, 100.0, 50.0, 1.0);
+    freq.y = freq.y * map(yChonk, 1.0, 100.0, 50.0, 1.0);
+    
+    freq = freq * vec2<f32>(periodicFunction(prng(vec3<f32>(floor(st * freq), 0.0)).x - time));
+    
+    let g = map(glitchiness, 0.0, 100.0, 0.0, 1.0);
+    
+    // get drift value from somewhere far away
+    let xDrift = prng(vec3<f32>(floor(st * freq) + 10.0, 0.0)).x * g;
+    let yDrift = prng(vec3<f32>(floor(st * freq) - 10.0, 0.0)).x * g;
+    
+    let sparseness = map(glitchiness, 0.0, 100.0, 8.0, 2.0);
+    
+    // clamp for sparseness
+    let rand = prng(vec3<f32>(floor(st * freq), 0.0)).x;
+    let xOffset = clamp((periodicFunction(rand + xDrift - time) - periodicFunction(xDrift - time) * sparseness) * 4.0, 0.0, 1.0);
+    let yOffset = clamp((periodicFunction(rand + yDrift - time) - periodicFunction(yDrift - time) * sparseness) * 4.0, 0.0, 1.0);
+    
+    let refract = g * 0.125;
+    
+    st.x = (st.x + sin(xOffset * TAU) * refract) % 1.0;
+    st.y = (st.y + sin(yOffset * TAU) * refract) % 1.0;
+    
+    // aberration and lensing
+    var diff = vec2<f32>(0.5 - st.x, 0.5 - st.y);
+    if (aspectLens > 0.5) {
+        diff = vec2<f32>(0.5 * aspectRatio, 0.5) - vec2<f32>(st.x * aspectRatio, st.y);
     }
-
-    var centered = uv - 0.5;
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let aspect = dims.x / dims.y;
-
-    if (!aspectLens) {
-        centered.x *= aspect;
+    let centerDist = length(diff);
+    
+    var distort: f32 = 0.0;
+    var zoom: f32 = 1.0;
+    if (distortion < 0.0) {
+        distort = map(distortion, -100.0, 0.0, -0.5, 0.0);
+        zoom = map(distortion, -100.0, 0.0, 0.01, 0.0);
+    } else {
+        distort = map(distortion, 0.0, 100.0, 0.0, 0.5);
+        zoom = map(distortion, 0.0, 100.0, 0.0, -0.25);
     }
-
-    let r2 = dot(centered, centered);
-    let distortFactor = 1.0 + amt * 0.01 * r2;
-
-    var result = centered * distortFactor;
-
-    if (!aspectLens) {
-        result.x /= aspect;
-    }
-
-    return result + 0.5;
-}
-
-// Glitch displacement
-fn glitch_displace(uv: vec2<f32>, fragCoord: vec2<f32>, time: f32, seed: i32, gridSize: vec2<f32>, amt: f32) -> vec2<f32> {
-    if (amt <= 0.0) {
-        return uv;
-    }
-
-    let seedF = f32(seed) + floor(time * 10.0);
-    let noise = bicubic_noise(fragCoord, gridSize, seedF);
-
-    return uv + noise * amt * 0.001;
-}
-
-// Sharpen kernel
-fn sharpen(uv: vec2<f32>, strength: f32) -> vec4<f32> {
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let texel = 1.0 / dims;
-
-    let center = textureSample(inputTex, samp, uv);
-    let top = textureSample(inputTex, samp, uv + vec2<f32>(0.0, -texel.y));
-    let bottom = textureSample(inputTex, samp, uv + vec2<f32>(0.0, texel.y));
-    let left = textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, 0.0));
-    let right = textureSample(inputTex, samp, uv + vec2<f32>(texel.x, 0.0));
-
-    let sharpened = center * (1.0 + 4.0 * strength) - (top + bottom + left + right) * strength;
-    return clamp(sharpened, vec4<f32>(0.0), vec4<f32>(1.0));
-}
-
-// Blur kernel
-fn blur(uv: vec2<f32>, strength: f32) -> vec4<f32> {
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let texel = 1.0 / dims * strength;
-
-    var color = vec4<f32>(0.0);
-    color += textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, -texel.y));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(0.0, -texel.y));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(texel.x, -texel.y));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, 0.0));
-    color += textureSample(inputTex, samp, uv);
-    color += textureSample(inputTex, samp, uv + vec2<f32>(texel.x, 0.0));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, texel.y));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(0.0, texel.y));
-    color += textureSample(inputTex, samp, uv + vec2<f32>(texel.x, texel.y));
-
-    return color / 9.0;
-}
-
-// Edge detection kernel
-fn edge_detect(uv: vec2<f32>) -> vec4<f32> {
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    let texel = 1.0 / dims;
-
-    let tl = textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, -texel.y));
-    let t = textureSample(inputTex, samp, uv + vec2<f32>(0.0, -texel.y));
-    let tr = textureSample(inputTex, samp, uv + vec2<f32>(texel.x, -texel.y));
-    let l = textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, 0.0));
-    let c = textureSample(inputTex, samp, uv);
-    let r = textureSample(inputTex, samp, uv + vec2<f32>(texel.x, 0.0));
-    let bl = textureSample(inputTex, samp, uv + vec2<f32>(-texel.x, texel.y));
-    let b = textureSample(inputTex, samp, uv + vec2<f32>(0.0, texel.y));
-    let br = textureSample(inputTex, samp, uv + vec2<f32>(texel.x, texel.y));
-
-    let gx = -tl - 2.0 * l - bl + tr + 2.0 * r + br;
-    let gy = -tl - 2.0 * t - tr + bl + 2.0 * b + br;
-
-    return sqrt(gx * gx + gy * gy);
-}
-
-// Posterize/levels
-fn posterize(color: vec4<f32>, levels: f32) -> vec4<f32> {
-    if (levels <= 0.0) {
-        return color;
-    }
-
-    let numLevels = max(2.0, levels);
-    return floor(color * numLevels) / (numLevels - 1.0);
+    
+    let lensedCoords = fract((st - diff * zoom) - diff * centerDist * centerDist * distort);
+    
+    let aberrationOffset = map(aberrationAmt, 0.0, 100.0, 0.0, 0.05) * centerDist * PI * 0.5;
+    
+    let redOffset = mix(clamp(lensedCoords.x + aberrationOffset, 0.0, 1.0), lensedCoords.x, lensedCoords.x);
+    let red = textureSample(inputTex, samp, vec2<f32>(redOffset, lensedCoords.y));
+    
+    let green = textureSample(inputTex, samp, lensedCoords);
+    
+    let blueOffset = mix(lensedCoords.x, clamp(lensedCoords.x - aberrationOffset, 0.0, 1.0), lensedCoords.x);
+    let blue = textureSample(inputTex, samp, vec2<f32>(blueOffset, lensedCoords.y));
+    
+    return vec4<f32>(red.r, green.g, blue.b, green.a);
 }
 
 @fragment
 fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
-    let dims = vec2<f32>(textureDimensions(inputTex, 0));
-    var uv = fragCoord.xy / dims;
-
-    // Apply barrel distortion
-    uv = barrel_distort(uv, u.distortion, u.aspectLens != 0);
-
-    // Apply glitch displacement
-    let gridSize = vec2<f32>(f32(u.xChonk), f32(u.yChonk));
-    uv = glitch_displace(uv, fragCoord.xy, u.time, u.seed, gridSize, u.glitchiness);
-
-    // Sample with aberration
-    var color = aberration(uv, u.aberrationAmt);
-
-    // Apply kernel effects
-    if (u.kernel > 0) {
-        color = sharpen(uv, f32(u.kernel) * 0.1);
-    } else if (u.kernel < 0) {
-        color = blur(uv, f32(-u.kernel) * 0.5);
+    let resolution = u.resolution;
+    let aspectRatio = resolution.x / resolution.y;
+    
+    var uv = fragCoord.xy / resolution;
+    uv.y = 1.0 - uv.y;
+    
+    var color = glitch(uv, aspectRatio, u.time, u.xChonk, u.yChonk, u.glitchiness, u.aspectLens, u.distortion, u.aberrationAmt);
+    color = scanlines(color, uv, resolution, u.scanlinesAmt, u.time, u.seed);
+    color = snow(color, fragCoord.xy, u.snowAmt, u.time);
+    
+    // vignette
+    if (u.vignetteAmt < 0.0) {
+        color = vec4<f32>(
+            mix(color.rgb * (1.0 - pow(length(vec2<f32>(0.5) - uv) * 1.125, 2.0)), color.rgb, map(u.vignetteAmt, -100.0, 0.0, 0.0, 1.0)),
+            max(color.a, length(vec2<f32>(0.5) - uv) * map(u.vignetteAmt, -100.0, 0.0, 1.0, 0.0))
+        );
+    } else {
+        color = vec4<f32>(
+            mix(color.rgb, 1.0 - (1.0 - color.rgb * (1.0 - pow(length(vec2<f32>(0.5) - uv) * 1.125, 2.0))), map(u.vignetteAmt, 0.0, 100.0, 0.0, 1.0)),
+            max(color.a, length(vec2<f32>(0.5) - uv) * map(u.vignetteAmt, -100.0, 0.0, 1.0, 0.0))
+        );
     }
-
-    // Apply scanlines
-    color = scanlines(color, fragCoord.xy, u.scanlinesAmt);
-
-    // Apply snow
-    color = snow(color, fragCoord.xy, u.time, u.snowAmt);
-
-    // Apply vignette
-    color = vignette(color, uv, u.vignetteAmt);
-
-    // Apply posterize/levels
-    color = posterize(color, u.levels);
-
+    
     return color;
 }

@@ -134,54 +134,50 @@ export default class Worms extends Effect {
   passes = [
     {
       name: "agent",
-      type: "compute",
       program: "agent",
       drawBuffers: 3,
       inputs: {
-        stateTex1: "global_worms_state1",
-        stateTex2: "global_worms_state2",
-        stateTex3: "global_worms_state3",
+        stateTex1: "globalWormsState1",
+        stateTex2: "globalWormsState2",
+        stateTex3: "globalWormsState3",
         mixerTex: "inputTex"
       },
       outputs: {
-        outState1: "global_worms_state1",
-        outState2: "global_worms_state2",
-        outState3: "global_worms_state3"
+        outState1: "globalWormsState1",
+        outState2: "globalWormsState2",
+        outState3: "globalWormsState3"
       }
     },
     {
       name: "diffuse",
-      type: "compute",
       program: "diffuse",
       inputs: {
-        sourceTex: "global_worms_trail"
+        sourceTex: "globalWormsTrail"
       },
       outputs: {
-        fragColor: "global_worms_trail"
+        fragColor: "globalWormsTrail"
       }
     },
     {
       name: "deposit",
-      type: "render",
       program: "deposit",
       drawMode: "points",
       count: 262144,
       blend: true,
       inputs: {
-        stateTex1: "global_worms_state1",
-        stateTex2: "global_worms_state2"
+        stateTex1: "globalWormsState1",
+        stateTex2: "globalWormsState2"
       },
       outputs: {
-        fragColor: "global_worms_trail"
+        fragColor: "globalWormsTrail"
       }
     },
     {
       name: "blend",
-      type: "compute",
       program: "blend",
       inputs: {
         mixerTex: "inputTex",
-        trailTex: "global_worms_trail"
+        trailTex: "globalWormsTrail"
       },
       outputs: {
         fragColor: "outputColor"

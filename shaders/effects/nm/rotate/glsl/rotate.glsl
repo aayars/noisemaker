@@ -6,7 +6,7 @@ precision highp int;
 // Rotate effect: matches Noisemaker's rotate() by tiling the input into a square,
 // rotating in normalized space, and cropping back to the original dimensions.
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float angle;
 
 int wrap_index(int value, int size) {
@@ -27,7 +27,7 @@ out vec4 fragColor;
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    ivec2 input_size = textureSize(input_texture, 0);
+    ivec2 input_size = textureSize(inputTex, 0);
     uint width = uint(input_size.x);
     uint height = uint(input_size.y);
     if (width == 0u || height == 0u) {
@@ -89,7 +89,7 @@ void main() {
     );
 
     ivec2 coords = source;
-    vec4 texel = texelFetch(input_texture, coords, 0);
+    vec4 texel = texelFetch(inputTex, coords, 0);
 
     fragColor = texel;
 }

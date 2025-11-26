@@ -30,10 +30,10 @@ export default class Lowpoly extends Effect {
             control: "slider"
         }
     },
-    dist_metric: {
+    distMetric: {
         type: "enum",
         default: 1,
-        uniform: "dist_metric",
+        uniform: "distMetric",
         ui: {
             label: "Distance Metric"
         }
@@ -46,7 +46,6 @@ export default class Lowpoly extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "lowpoly",
       inputs: {
         inputTex: "inputTex"

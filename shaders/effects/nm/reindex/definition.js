@@ -38,10 +38,9 @@ export default class Reindex extends Effect {
   passes = [
     {
       name: "stats",
-      type: "compute",  // GPGPU: compute per-tile stats
-      program: "nm_reindex_stats",
+      program: "nmReindexStats",
       inputs: {
-        input_texture: "inputTex"
+        inputTex: "inputTex"
       },
       outputs: {
         color: "statsTiles"
@@ -49,10 +48,9 @@ export default class Reindex extends Effect {
     },
     {
       name: "reduce",
-      type: "compute",  // GPGPU: reduce to global stats
-      program: "nm_reindex_reduce",
+      program: "nmReindexReduce",
       inputs: {
-        stats_texture: "statsTiles"
+        statsTex: "statsTiles"
       },
       outputs: {
         color: "globalStats"
@@ -60,11 +58,10 @@ export default class Reindex extends Effect {
     },
     {
       name: "apply",
-      type: "render",
-      program: "nm_reindex_apply",
+      program: "nmReindexApply",
       inputs: {
-        input_texture: "inputTex",
-        stats_texture: "globalStats"
+        inputTex: "inputTex",
+        statsTex: "globalStats"
       },
       outputs: {
         color: "outputColor"

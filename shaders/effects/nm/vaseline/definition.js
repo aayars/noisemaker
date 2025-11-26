@@ -26,13 +26,12 @@ export default class Vaseline extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "vaseline",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

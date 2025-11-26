@@ -18,7 +18,6 @@ export default class Kaleid extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "kaleid",
       inputs: {
       "tex0": "inputTex"

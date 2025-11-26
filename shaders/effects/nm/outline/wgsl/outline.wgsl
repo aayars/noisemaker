@@ -7,7 +7,7 @@ const CHANNEL_COUNT : u32 = 4u;
 struct OutlineParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     invert_flag : f32,
     sobel_metric : f32,
     _pad0 : f32,
@@ -15,7 +15,7 @@ struct OutlineParams {
     speed : f32,
 };
 
-@group(0) @binding(0) var base_texture : texture_2d<f32>;
+@group(0) @binding(0) var baseTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : OutlineParams;
 @group(0) @binding(3) var edges_texture : texture_2d<f32>;
@@ -34,7 +34,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     if (gid.x >= width || gid.y >= height) { return; }
 
     let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base : vec4<f32> = textureLoad(base_texture, coord, 0);
+    let base : vec4<f32> = textureLoad(baseTex, coord, 0);
     let edges : vec4<f32> = textureLoad(edges_texture, coord, 0);
 
 

@@ -19,7 +19,6 @@ export default class Layer extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "layer",
       inputs: {
       "tex0": "inputTex",

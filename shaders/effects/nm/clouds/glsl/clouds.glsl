@@ -38,10 +38,10 @@ const float TRIPLE_GAUSS_KERNEL[13] = float[13](
 );
 
 
-uniform sampler2D input_texture;
-uniform vec4 size_time;
-uniform vec4 anim_down;
-uniform vec4 inv_offset;
+uniform sampler2D inputTex;
+uniform vec4 sizeTime;
+uniform vec4 animDown;
+uniform vec4 invOffset;
 
 float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
@@ -334,10 +334,10 @@ vec4 sample_texture_bilinear(vec2 uv, ivec2 tex_size) {
     int x1 = wrap_index(coord_floor.x + 1, tex_size.x);
     int y1 = wrap_index(coord_floor.y + 1, tex_size.y);
     
-    vec4 p00 = textureLoad(input_texture, vec2(x0, y0), 0);
-    vec4 p10 = textureLoad(input_texture, vec2(x1, y0), 0);
-    vec4 p01 = textureLoad(input_texture, vec2(x0, y1), 0);
-    vec4 p11 = textureLoad(input_texture, vec2(x1, y1), 0);
+    vec4 p00 = textureLoad(inputTex, vec2(x0, y0), 0);
+    vec4 p10 = textureLoad(inputTex, vec2(x1, y0), 0);
+    vec4 p01 = textureLoad(inputTex, vec2(x0, y1), 0);
+    vec4 p11 = textureLoad(inputTex, vec2(x1, y1), 0);
     
     vec4 p0 = mix(p00, p10, fract_part.x);
     vec4 p1 = mix(p01, p11, fract_part.x);
@@ -506,7 +506,7 @@ void upsample_main(uvec3 @builtin(global_invocation_id) global_id) {
     float shade_factor = smoothstep(0.0, 0.5, shade_mask * 0.75);
 
     vec4 texel = textureLoad(
-        input_texture,
+        inputTex,
         vec2(int(global_id.x), int(global_id.y)),
         0,
     );

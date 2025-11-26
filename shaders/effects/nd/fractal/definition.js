@@ -309,7 +309,6 @@ export default class Fractal extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "fractal",
       inputs: {
       },

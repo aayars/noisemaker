@@ -5,7 +5,7 @@
 const F32_MAX : f32 = 0x1.fffffep+127;
 const F32_MIN : f32 = -0x1.fffffep+127;
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<uniform> resolution : vec2<f32>;
 @group(0) @binding(2) var<storage, read_write> stats_buffer : array<f32>;
 
@@ -29,7 +29,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>,
     // Each thread processes its assigned pixel
     if (gid.x < width && gid.y < height) {
         let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-        let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+        let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
         
         // Process RGB channels (skip alpha)
         local_min = min(local_min, texel.x);

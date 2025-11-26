@@ -14,7 +14,7 @@ const CHANNEL_COUNT : u32 = 4u;
 struct BlurParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     amount : f32,
     time : f32,
     spline_order : f32,
@@ -26,7 +26,7 @@ struct BlurParams {
     _pad1 : f32,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : BlurParams;
 @group(0) @binding(3) var<storage, read_write> downsample_buffer : array<f32>;
@@ -153,7 +153,7 @@ fn downsample_main(@builtin(global_invocation_id) gid : vec3<u32>) {
             let sample_x : i32 = wrap_index(origin_x + kx, width);
             let sample_y : i32 = wrap_index(origin_y + ky, height);
 
-            accum = accum + textureLoad(input_texture, vec2<i32>(sample_x, sample_y), 0);
+            accum = accum + textureLoad(inputTex, vec2<i32>(sample_x, sample_y), 0);
             sample_count = sample_count + 1.0;
         }
     }

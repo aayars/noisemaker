@@ -10,7 +10,7 @@ struct CRTParams {
     motion : vec4<f32>,  // (time, speed, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : CRTParams;
 
@@ -484,7 +484,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let scan_value : f32 = sample_scanline_bilinear(x + base_offsets.x, y + base_offsets.y, width_f, height_f, scanline_base);
 
     // Step 3: Sample the input texture at the ORIGINAL, un-warped coordinates.
-    let base_color : vec3<f32> = textureLoad(input_texture, vec2<i32>(i32(x), i32(y)), 0).xyz;
+    let base_color : vec3<f32> = textureLoad(inputTex, vec2<i32>(i32(x), i32(y)), 0).xyz;
 
     // Step 4: Blend the original input color with the warped scanlines.
     var color : vec3<f32> = mix(
@@ -512,7 +512,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         red_x = blend_linear(red_x, x, gradient);
         let red_sample_x : f32 = blend_cosine(x, red_x, aber_mask);
         
-        let red_base_col : vec3<f32> = textureLoad(input_texture, vec2<i32>(i32(red_sample_x), i32(y)), 0).xyz;
+        let red_base_col : vec3<f32> = textureLoad(inputTex, vec2<i32>(i32(red_sample_x), i32(y)), 0).xyz;
         let red_offsets : vec2<f32> = compute_lens_offsets(
             vec2<f32>(red_sample_x, y),
             width_f,
@@ -533,7 +533,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         blue_x = blend_linear(x, blue_x, gradient);
         let blue_sample_x : f32 = blend_cosine(x, blue_x, aber_mask);
 
-        let blue_base_col : vec3<f32> = textureLoad(input_texture, vec2<i32>(i32(blue_sample_x), i32(y)), 0).xyz;
+        let blue_base_col : vec3<f32> = textureLoad(inputTex, vec2<i32>(i32(blue_sample_x), i32(y)), 0).xyz;
         let blue_offsets : vec2<f32> = compute_lens_offsets(
             vec2<f32>(blue_sample_x, y),
             width_f,

@@ -7,7 +7,7 @@ const FLOAT_EPSILON : f32 = 1e-5;
 struct RefractParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     displacement : f32,
     warp : f32,
     spline_order : f32,
@@ -19,11 +19,9 @@ struct RefractParams {
     _pad0 : f32,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : RefractParams;
-@group(0) @binding(3) var reference_x_texture : texture_2d<f32>;
-@group(0) @binding(4) var reference_y_texture : texture_2d<f32>;
 
 fn bool_from_float(value : f32) -> bool {
     return value > 0.5;
@@ -86,9 +84,9 @@ fn oklab_l_component(rgb : vec3<f32>) -> f32 {
     return 0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c;
 }
 
-fn value_map(texel : vec4<f32>, channel_count : u32, signed_range : bool) -> f32 {
+fn value_map(texel : vec4<f32>, channelCount : u32, signed_range : bool) -> f32 {
     var value : f32 = texel.x;
-    if (channel_count > 2u) {
+    if (channelCount > 2u) {
         let rgb : vec3<f32> = vec3<f32>(
             clamp_01(texel.x),
             clamp_01(texel.y),
@@ -258,7 +256,7 @@ fn store_texel(base_index : u32, texel : vec4<f32>) {
     output_buffer[base_index + 3u] = texel.w;
 }
 
-fn safe_channel_count(value : f32) -> u32 {
+fn safe_channelCount(value : f32) -> u32 {
     let rounded : f32 = round(max(value, 0.0));
     return max(u32(max(rounded, 1.0)), 1u);
 }
@@ -273,7 +271,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let width_f : f32 = max(params.width, 1.0);
     let height_f : f32 = max(params.height, 1.0);
-    let channel_count : u32 = safe_channel_count(params.channel_count);
+    let channelCount : u32 = safe_channelCount(params.channelCount);
 
     let displacement : f32 = max(params.displacement, 0.0);
     let range_scale : f32 = max(params.range, 0.0);
@@ -282,7 +280,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     if (base_scale_x <= FLOAT_EPSILON && base_scale_y <= FLOAT_EPSILON) {
         let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-        let source : vec4<f32> = textureLoad(input_texture, coord, 0);
+        let source : vec4<f32> = textureLoad(inputTex, coord, 0);
         let output_index : u32 = (gid.y * width + gid.x) * 4u;
         store_texel(output_index, source);
         return;
@@ -303,15 +301,15 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         let width_i : i32 = i32(width);
         let height_i : i32 = i32(height);
 
-        let center : vec4<f32> = textureLoad(input_texture, coord_i, 0);
-        let right : vec4<f32> = textureLoad(input_texture, vec2<i32>(wrap_coord(coord_i.x + 1, width_i), coord_i.y), 0);
-        let down : vec4<f32> = textureLoad(input_texture, vec2<i32>(coord_i.x, wrap_coord(coord_i.y + 1, height_i)), 0);
+        let center : vec4<f32> = textureLoad(inputTex, coord_i, 0);
+        let right : vec4<f32> = textureLoad(inputTex, vec2<i32>(wrap_coord(coord_i.x + 1, width_i), coord_i.y), 0);
+        let down : vec4<f32> = textureLoad(inputTex, vec2<i32>(coord_i.x, wrap_coord(coord_i.y + 1, height_i)), 0);
 
         let deriv_x_texel : vec4<f32> = center - right;
         let deriv_y_texel : vec4<f32> = center - down;
 
-        ref_value_x = value_map(deriv_x_texel, channel_count, false);
-        ref_value_y = value_map(deriv_y_texel, channel_count, false);
+        ref_value_x = value_map(deriv_x_texel, channelCount, false);
+        ref_value_y = value_map(deriv_y_texel, channelCount, false);
     } else if (warp_scalar > FLOAT_EPSILON) {
         let freq_vec : vec2<f32> = freq_for_shape(warp_scalar, width_f, height_f);
         let size_vec : vec2<f32> = vec2<f32>(width_f, height_f);
@@ -321,7 +319,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         ref_value_y = warp_y * 2.0 - 1.0;
     } else {
         let coord_i : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-        let texel_raw : vec4<f32> = textureLoad(input_texture, coord_i, 0);
+        let texel_raw : vec4<f32> = textureLoad(inputTex, coord_i, 0);
 
         var ref_x : vec4<f32> = texel_raw;
         var ref_y : vec4<f32> = texel_raw;
@@ -331,8 +329,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         ref_x = clamp(cos(angle_x) * 0.5 + 0.5, vec4<f32>(0.0), vec4<f32>(1.0));
         ref_y = clamp(sin(angle_y) * 0.5 + 0.5, vec4<f32>(0.0), vec4<f32>(1.0));
 
-        ref_value_x = value_map(ref_x, channel_count, true);
-        ref_value_y = value_map(ref_y, channel_count, true);
+        ref_value_x = value_map(ref_x, channelCount, true);
+        ref_value_y = value_map(ref_y, channelCount, true);
     }
 
     var scale_x : f32 = base_scale_x;
@@ -370,10 +368,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let fx : f32 = clamp(sample_x - f32(x0), 0.0, 1.0);
     let fy : f32 = clamp(sample_y - f32(y0), 0.0, 1.0);
 
-    let tex00 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y0), 0);
-    let tex10 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y0), 0);
-    let tex01 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y1), 0);
-    let tex11 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y1), 0);
+    let tex00 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y0), 0);
+    let tex10 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y0), 0);
+    let tex01 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y1), 0);
+    let tex11 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y1), 0);
 
     let mix_x0 : vec4<f32> = mix(tex00, tex10, vec4<f32>(fx));
     let mix_x1 : vec4<f32> = mix(tex01, tex11, vec4<f32>(fx));

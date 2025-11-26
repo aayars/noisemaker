@@ -3,12 +3,12 @@
 
 struct ReindexParams {
     width_height_channels_displacement : vec4<f32>,
-    time_speed_padding : vec4<f32>,
+    timeSpeed_padding : vec4<f32>,
 };
 
 const CHANNEL_COUNT : u32 = 4u;
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : ReindexParams;
 
@@ -110,12 +110,12 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     // Load and compute reference value for this pixel
     let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let texel : vec4<f32> = textureLoad(input_texture, coord, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coord, 0);
     let reference_value : f32 = value_map_component(texel);
     
     // Use precomputed min/max from params (computed by effect.js)
-    let min_value : f32 = params.time_speed_minmax.z;
-    let max_value : f32 = params.time_speed_minmax.w;
+    let min_value : f32 = params.timeSpeed_minmax.z;
+    let max_value : f32 = params.timeSpeed_minmax.w;
     let range : f32 = max_value - min_value;
     
     var normalized : f32 = reference_value;
@@ -127,7 +127,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let sample_x : i32 = wrap_index(offset_value, width_i);
     let sample_y : i32 = wrap_index(offset_value, height_i);
 
-    let sampled : vec4<f32> = textureLoad(input_texture, vec2<i32>(sample_x, sample_y), 0);
+    let sampled : vec4<f32> = textureLoad(inputTex, vec2<i32>(sample_x, sample_y), 0);
 
     let pixel_index : u32 = gid.y * width + gid.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;

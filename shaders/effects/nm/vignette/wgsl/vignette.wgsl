@@ -3,7 +3,7 @@
 struct VignetteParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     brightness : f32,
     alpha : f32,
     time : f32,
@@ -13,7 +13,7 @@ struct VignetteParams {
 
 const CHANNEL_COUNT : u32 = 4u;
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : VignetteParams;
 
@@ -61,7 +61,7 @@ fn normalize_color(color : vec4<f32>) -> vec4<f32> {
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = dims.x;
     let height : u32 = dims.y;
     
@@ -70,7 +70,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
     
     // Normalize per-pixel (simpler than global min/max which would require multi-pass)
     let normalized : vec4<f32> = normalize_color(texel);

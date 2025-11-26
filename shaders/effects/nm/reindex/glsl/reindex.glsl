@@ -9,9 +9,9 @@ precision highp int;
 
 const uint CHANNEL_COUNT = 4u;
 
-uniform sampler2D input_texture;
-uniform vec4 width_height_channels_displacement;
-uniform vec4 time_speed_padding;
+uniform sampler2D inputTex;
+uniform vec4 widthHeightChannelsDisplacement;
+uniform vec4 timeSpeedPadding;
 
 uint as_u32(float value) {
     return uint(max(value, 0.0));
@@ -110,12 +110,12 @@ void main() {
 
     // Load and compute reference value for this pixel
     vec2 coord = vec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texture(input_texture, (vec2(coord) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 texel = texture(inputTex, (vec2(coord) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
     float reference_value = value_map_component(texel);
     
     // Use precomputed min/max from params (computed by effect.js)
-    float min_value = time_speed_minmax.z;
-    float max_value = time_speed_minmax.w;
+    float min_value = timeSpeed_minmax.z;
+    float max_value = timeSpeed_minmax.w;
     float range = max_value - min_value;
     
     float normalized = reference_value;
@@ -127,7 +127,7 @@ void main() {
     int sample_x = wrap_index(offset_value, width_i);
     int sample_y = wrap_index(offset_value, height_i);
 
-    vec4 sampled = textureLoad(input_texture, vec2(sample_x, sample_y), 0);
+    vec4 sampled = textureLoad(inputTex, vec2(sample_x, sample_y), 0);
 
     fragColor = sampled;
 }

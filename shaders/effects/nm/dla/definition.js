@@ -22,10 +22,10 @@ export default class Dla extends Effect {
             control: "slider"
         }
     },
-    seed_density: {
+    seedDensity: {
         type: "float",
         default: 0.005,
-        uniform: "seed_density",
+        uniform: "seedDensity",
         min: 0.001,
         max: 0.1,
         step: 0.001,
@@ -75,54 +75,50 @@ export default class Dla extends Effect {
   // Agent state texture: 256x256 agents = 65536 walkers
   // Each pixel stores: xy = position, z = seed, w = stuck flag
   textures = {
-    global_grid_state: { width: "100%", height: "100%", format: "rgba16f" },
-    global_agent_state: { width: 256, height: 256, format: "rgba16f" }
+    globalGridState: { width: "100%", height: "100%", format: "rgba16f" },
+    globalAgentState: { width: 256, height: 256, format: "rgba16f" }
   };
 
   passes = [
     {
-      name: "decay_grid",
-      type: "compute",  // GPGPU: grid state update
-      program: "init_from_prev",
+      name: "decayGrid",
+      program: "initFromPrev",
       inputs: {
-        gridTex: "global_grid_state"
+        gridTex: "globalGridState"
       },
       outputs: {
-        dlaOutColor: "global_grid_state"
+        dlaOutColor: "globalGridState"
       }
     },
     {
-      name: "simulate_agents",
-      type: "compute",  // GPGPU: agent simulation
-      program: "agent_walk",
+      name: "simulateAgents",
+      program: "agentWalk",
       inputs: {
-        agentTex: "global_agent_state",
-        gridTex: "global_grid_state"
+        agentTex: "globalAgentState",
+        gridTex: "globalGridState"
       },
       outputs: {
-        dlaOutColor: "global_agent_state"
+        dlaOutColor: "globalAgentState"
       }
     },
     {
-      name: "deposit_agents",
-      type: "render",
-      program: "save_cluster",
+      name: "depositAgents",
+      program: "saveCluster",
       drawMode: "points",
       count: 65536,  // 256x256 agents
-      blend: ["ONE", "ONE"],
+      blend: ["one", "one"],
       inputs: {
-        agentTex: "global_agent_state"
+        agentTex: "globalAgentState"
       },
       outputs: {
-        dlaOutColor: "global_grid_state"
+        dlaOutColor: "globalGridState"
       }
     },
     {
-      name: "final_blend",
-      type: "render",
-      program: "final_blend",
+      name: "finalBlend",
+      program: "finalBlend",
       inputs: {
-        gridTex: "global_grid_state",
+        gridTex: "globalGridState",
         inputTex: "inputTex"
       },
       outputs: {

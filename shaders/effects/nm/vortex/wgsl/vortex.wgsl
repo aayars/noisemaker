@@ -8,10 +8,10 @@ const CHANNEL_COUNT : u32 = 4u;
 
 struct VortexParams {
     size_displacement : vec4<f32>,  // width, height, channels, displacement
-    time_speed : vec4<f32>,         // time, speed, _pad0, _pad1
+    timeSpeed : vec4<f32>,         // time, speed, _pad0, _pad1
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : VortexParams;
 
@@ -221,7 +221,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let fade : f32 = fade_value(coord_i, dims);
     let gradient : vec2<f32> = gradient_at(coord_i, dims) * fade;
 
-    let random_factor : f32 = simplex_random(params.time_speed.x, params.time_speed.y);
+    let random_factor : f32 = simplex_random(params.timeSpeed.x, params.timeSpeed.y);
     let warp_amount : f32 = random_factor * 100.0 * params.size_displacement.w;
 
     let scale_x : f32 = warp_amount * width_f * 2.0;
@@ -257,10 +257,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let fx : f32 = clamp(wrapped_x - f32(x0), 0.0, 1.0);
     let fy : f32 = clamp(wrapped_y - f32(y0), 0.0, 1.0);
 
-    let tex00 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y0), 0);
-    let tex10 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y0), 0);
-    let tex01 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y1), 0);
-    let tex11 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y1), 0);
+    let tex00 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y0), 0);
+    let tex10 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y0), 0);
+    let tex01 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y1), 0);
+    let tex11 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y1), 0);
 
     let mix_x0 : vec4<f32> = mix(tex00, tex10, vec4<f32>(fx));
     let mix_x1 : vec4<f32> = mix(tex01, tex11, vec4<f32>(fx));

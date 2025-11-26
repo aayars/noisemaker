@@ -10,10 +10,10 @@ export default class Palette extends Effect {
   func = "palette";
 
   globals = {
-    palette_index: {
+    paletteIndex: {
         type: "int",
         default: 1,
-        uniform: "palette_index",
+        uniform: "paletteIndex",
         min: 0,
         max: 37,
         step: 1,
@@ -36,19 +36,15 @@ export default class Palette extends Effect {
     }
 };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "render",
       program: "palette",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

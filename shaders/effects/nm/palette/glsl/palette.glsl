@@ -3,7 +3,7 @@ precision highp float;
 
 uniform sampler2D inputTex;
 uniform float time;
-uniform int palette_index;
+uniform int paletteIndex;
 uniform float alpha;
 
 out vec4 fragColor;
@@ -285,12 +285,12 @@ void main() {
     vec2 uv = gl_FragCoord.xy / vec2(texSize);
     vec4 texel = texture(inputTex, uv);
 
-    if (palette_index == 0) {
+    if (paletteIndex == 0) {
         fragColor = texel;
         return;
     }
 
-    int clamped_index = clamp(palette_index - 1, 0, PALETTE_COUNT - 1);
+    int clamped_index = clamp(paletteIndex - 1, 0, PALETTE_COUNT - 1);
     PaletteEntry palette = PALETTES[clamped_index];
 
     vec3 base_rgb = clamp(texel.rgb, 0.0, 1.0);

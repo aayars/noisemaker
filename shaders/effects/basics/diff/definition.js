@@ -19,7 +19,6 @@ export default class Diff extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "diff",
       inputs: {
       "tex0": "inputTex",

@@ -17,7 +17,7 @@ const uint INTERPOLATION_COSINE = 2u;
 const uint INTERPOLATION_BICUBIC = 3u;
 const uint BASE_SEED = 0x1234u;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float width;
 uniform float height;
 uniform float channels;
@@ -233,7 +233,7 @@ void main() {
     }
 
     ivec2 coords = ivec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texelFetch(input_texture, coords, 0);
+    vec4 texel = texelFetch(inputTex, coords, 0);
 
     float blend_alpha = clamp(alpha, 0.0, 1.0);
     if (blend_alpha <= 0.0) {

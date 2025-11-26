@@ -99,7 +99,7 @@ const KERNEL_CONV2D_SOBEL_Y_WEIGHTS : array<f32, 9> = array<f32, 9>(
 );
 
 struct ConvolveParams {
-    size : vec4<f32>,      // width, height, channel_count, kernel id
+    size : vec4<f32>,      // width, height, channelCount, kernel id
     control : vec4<f32>,   // normalize flag, alpha, time, speed (unused)
 };
 
@@ -108,7 +108,7 @@ struct StatsBuffer {
     max_value : atomic<u32>,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : ConvolveParams;
 @group(0) @binding(3) var<storage, read_write> stats_buffer : StatsBuffer;
@@ -117,7 +117,7 @@ fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
 }
 
-fn clamp_channel_count(raw_count : u32) -> u32 {
+fn clamp_channelCount(raw_count : u32) -> u32 {
     if (raw_count == 0u) {
         return 0u;
     }
@@ -300,8 +300,8 @@ fn convolve_main(@builtin(global_invocation_id) gid : vec3<u32>) {
         return;
     }
 
-    let channel_count : u32 = clamp_channel_count(as_u32(params.size.z));
-    if (channel_count == 0u) {
+    let channelCount : u32 = clamp_channelCount(as_u32(params.size.z));
+    if (channelCount == 0u) {
         return;
     }
 
@@ -325,18 +325,18 @@ fn convolve_main(@builtin(global_invocation_id) gid : vec3<u32>) {
             let offset_y : i32 = ky - dims.y / 2;
             let sample_x : i32 = wrap_index(xi + offset_x, width_i);
             let sample_y : i32 = wrap_index(yi + offset_y, height_i);
-            let sample : vec4<f32> = textureLoad(input_texture, vec2<i32>(sample_x, sample_y), 0);
+            let sample : vec4<f32> = textureLoad(inputTex, vec2<i32>(sample_x, sample_y), 0);
             let weight : f32 = kernel_weight(kernel_id, ky, kx) / denom;
             accum = accum + sample * weight;
         }
     }
 
-    let original : vec4<f32> = textureLoad(input_texture, vec2<i32>(xi, yi), 0);
+    let original : vec4<f32> = textureLoad(inputTex, vec2<i32>(xi, yi), 0);
     var processed : vec4<f32> = original;
     var pixel_min : f32 = FLOAT_MAX;
     var pixel_max : f32 = FLOAT_MIN;
 
-    for (var c : u32 = 0u; c < channel_count; c = c + 1u) {
+    for (var c : u32 = 0u; c < channelCount; c = c + 1u) {
         let component : f32 = get_component(accum, c);
         set_component(&processed, c, component);
         pixel_min = min(pixel_min, component);
@@ -365,8 +365,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         return;
     }
 
-    let channel_count : u32 = clamp_channel_count(as_u32(params.size.z));
-    if (channel_count == 0u) {
+    let channelCount : u32 = clamp_channelCount(as_u32(params.size.z));
+    if (channelCount == 0u) {
         return;
     }
 
@@ -395,7 +395,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     var processed : vec4<f32> = read_pixel(base_index);
 
     if (do_normalize && max_value > min_value) {
-        for (var c : u32 = 0u; c < channel_count; c = c + 1u) {
+        for (var c : u32 = 0u; c < channelCount; c = c + 1u) {
             let value : f32 = get_component(processed, c);
             let normalized : f32 = (value - min_value) * inv_range;
             set_component(&processed, c, normalized);
@@ -403,7 +403,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     if (kernel_id == KERNEL_CONV2D_EDGES) {
-        for (var c_edge : u32 = 0u; c_edge < channel_count; c_edge = c_edge + 1u) {
+        for (var c_edge : u32 = 0u; c_edge < channelCount; c_edge = c_edge + 1u) {
             let value_edge : f32 = get_component(processed, c_edge);
             let adjusted : f32 = abs(value_edge - 0.5) * 2.0;
             set_component(&processed, c_edge, adjusted);
@@ -411,7 +411,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let original : vec4<f32> = textureLoad(input_texture, coord, 0);
+    let original : vec4<f32> = textureLoad(inputTex, coord, 0);
     var result : vec4<f32> = lerp_vec4(original, processed, alpha);
     result.w = original.w;
 

@@ -17,7 +17,6 @@ export default class Ridge extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "ridge",
       inputs: {
         inputTex: "inputTex"

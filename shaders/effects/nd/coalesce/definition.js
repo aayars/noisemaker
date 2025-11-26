@@ -6,6 +6,13 @@ export default class Coalesce extends Effect {
   func = "coalesce";
 
   globals = {
+    tex: {
+      type: "surface",
+      default: "inputTex",
+      ui: {
+        label: "source surface B"
+      }
+    },
     seed: {
       type: "int",
       default: 1,
@@ -114,7 +121,6 @@ export default class Coalesce extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "coalesce",
       inputs: {
               tex0: "inputTex",

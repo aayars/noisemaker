@@ -155,7 +155,6 @@ export default class Warp extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "warp",
       inputs: {
         inputTex: "inputTex"

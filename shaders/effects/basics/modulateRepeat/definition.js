@@ -53,7 +53,6 @@ export default class ModRepeat extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modRepeat",
       inputs: {
       "tex0": "inputTex",

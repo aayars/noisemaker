@@ -32,7 +32,6 @@ export default class Col extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "col",
       inputs: {
       "tex0": "inputTex"

@@ -3,7 +3,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 export default class Refract extends Effect {
   name = "Refract";
   namespace = "nd";
-  func = "refract_nd";
+  func = "refract";
 
   globals = {
     seed: {
@@ -111,7 +111,6 @@ export default class Refract extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "refract",
       inputs: {
         inputTex: "inputTex"

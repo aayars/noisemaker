@@ -9,7 +9,7 @@ precision highp int;
 // averages the contributing source pixels so the result matches the reference
 // proportional downsample + expand tile CPU implementation.
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform int octaves;
 uniform int iterations;
 uniform bool ridges;
@@ -38,7 +38,7 @@ vec4 ridge_transform(vec4 color) {
 vec4 load_source_pixel(ivec2 coord, ivec2 dims) {
 	int safe_x = clamp_coord(coord.x, dims.x);
 	int safe_y = clamp_coord(coord.y, dims.y);
-	return texelFetch(input_texture, ivec2(safe_x, safe_y), 0);
+	return texelFetch(inputTex, ivec2(safe_x, safe_y), 0);
 }
 
 vec4 load_reference_pixel(ivec2 coord, ivec2 dims, bool use_ridges) {
@@ -95,7 +95,7 @@ float clamp01(float value) {
 }
 
 void main() {
-	ivec2 dims = textureSize(input_texture, 0);
+	ivec2 dims = textureSize(inputTex, 0);
 	if (dims.x <= 0 || dims.y <= 0) {
 		fragColor = vec4(0.0);
 		return;

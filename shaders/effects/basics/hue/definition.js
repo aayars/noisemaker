@@ -18,7 +18,6 @@ export default class Hue extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "hue",
       inputs: {
       "tex0": "inputTex"

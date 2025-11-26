@@ -15,10 +15,10 @@ struct RippleParams {
     animation : vec4<f32>,       // (speed, unused, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : RippleParams;
-@group(0) @binding(3) var reference_texture : texture_2d<f32>;
+@group(0) @binding(3) var referenceTexture : texture_2d<f32>;
 
 fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
@@ -312,7 +312,7 @@ fn reference_value(coord : vec2<u32>, width : f32, height : f32, freq_param : f3
         return clamp_01(sample_value_field(sample_pos, freq_int, spline_order));
     }
 
-    let texel : vec4<f32> = textureLoad(reference_texture, vec2<i32>(i32(coord.x), i32(coord.y)), 0);
+    let texel : vec4<f32> = textureLoad(referenceTexture, vec2<i32>(i32(coord.x), i32(coord.y)), 0);
     return value_map_component(texel);
 }
 
@@ -377,10 +377,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Python: x0_y1 = tf.gather_nd(tensor, tf.stack([y1_offsets, x0_offsets], 2))
     // Python: x1_y1 = tf.gather_nd(tensor, tf.stack([y1_offsets, x1_offsets], 2))
     // TensorFlow uses [y, x] (row, column) ordering
-    let x0_y0 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0_offsets, y0_offsets), 0);
-    let x1_y0 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1_offsets, y0_offsets), 0);
-    let x0_y1 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0_offsets, y1_offsets), 0);
-    let x1_y1 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1_offsets, y1_offsets), 0);
+    let x0_y0 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0_offsets, y0_offsets), 0);
+    let x1_y0 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1_offsets, y0_offsets), 0);
+    let x0_y1 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0_offsets, y1_offsets), 0);
+    let x1_y1 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1_offsets, y1_offsets), 0);
 
     // Python: x_fract = tf.reshape(reference_x - tf.floor(reference_x), [height, width, 1])
     // Python: y_fract = tf.reshape(reference_y - tf.floor(reference_y), [height, width, 1])

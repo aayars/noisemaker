@@ -4,11 +4,11 @@
 struct PaletteParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     alpha : f32,
     time : f32,
     speed : f32,
-    palette_index : f32,
+    paletteIndex : f32,
     _pad0 : f32,
 };
 
@@ -253,7 +253,7 @@ const PALETTES : array<PaletteEntry, PALETTE_COUNT> = array<PaletteEntry, PALETT
 
 const CHANNEL_COUNT : u32 = 4u;
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : PaletteParams;
 
@@ -266,7 +266,7 @@ fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
 }
 
-fn sanitized_channel_count(value : f32) -> u32 {
+fn sanitized_channelCount(value : f32) -> u32 {
     let rounded : i32 = i32(round(value));
     if (rounded <= 1) {
         return 1u;
@@ -313,7 +313,7 @@ fn write_pixel(base_index : u32, color : vec4<f32>) {
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = dims.x;
     let height : u32 = dims.y;
     
@@ -322,23 +322,23 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     }
 
     let coords : vec2<i32> = vec2<i32>(i32(global_id.x), i32(global_id.y));
-    let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
 
-    let palette_index : u32 = as_u32(params.palette_index);
-    let channel_count : u32 = sanitized_channel_count(params.channel_count);
+    let paletteIndex : u32 = as_u32(params.paletteIndex);
+    let channelCount : u32 = sanitized_channelCount(params.channelCount);
     
     let pixel_index : u32 = global_id.y * width + global_id.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;
 
     // If no palette selected or not RGB, pass through
-    if (palette_index == 0u || channel_count < 3u) {
+    if (paletteIndex == 0u || channelCount < 3u) {
         write_pixel(base_index, texel);
         return;
     }
 
     // Clamp palette index to valid range (1-38 maps to array index 0-37)
     let max_index : u32 = PALETTE_COUNT - 1u;
-    let clamped_index : u32 = min(palette_index - 1u, max_index);
+    let clamped_index : u32 = min(paletteIndex - 1u, max_index);
     let palette : PaletteEntry = PALETTES[clamped_index];
 
     let base_rgb : vec3<f32> = clamp(texel.xyz, vec3<f32>(0.0), vec3<f32>(1.0));

@@ -3,7 +3,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 export default class Palette extends Effect {
   name = "Palette";
   namespace = "nd";
-  func = "palette_nd";
+  func = "palette";
 
   globals = {
     paletteType: {
@@ -247,7 +247,6 @@ export default class Palette extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "palette",
       inputs: {
         inputTex: "inputTex"

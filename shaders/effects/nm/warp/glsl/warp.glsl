@@ -11,7 +11,7 @@ uniform float speed;
 uniform float displacement;
 uniform float frequency;
 uniform float octaves;
-uniform float spline_order;
+uniform float splineOrder;
 
 in vec2 v_texCoord;
 out vec4 fragColor;

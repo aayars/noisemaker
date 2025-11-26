@@ -1,11 +1,11 @@
 // Scratches Pass 2 (Combine): blend scratch mask with the input frame.
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
-@group(0) @binding(1) var mask_texture : texture_2d<f32>;
-@group(0) @binding(2) var<uniform> enabled : bool;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
+@group(0) @binding(1) var maskTexture : texture_2d<f32>;
+@group(0) @binding(2) var<uniform> enabled : i32;
 
 @fragment
 fn main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     if (dims.x == 0u || dims.y == 0u) {
         return vec4<f32>(0.0);
     }
@@ -15,13 +15,13 @@ fn main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0);
     }
 
-    let base_color : vec4<f32> = textureLoad(input_texture, coord, 0);
-    if (!enabled) {
-        return base_color;
+    let baseColor : vec4<f32> = textureLoad(inputTex, coord, 0);
+    if (enabled == 0) {
+        return baseColor;
     }
 
-    let mask_color : vec4<f32> = textureLoad(mask_texture, coord, 0);
-    let scratch_mask : f32 = mask_color.r;
-    let scratch_rgb : vec3<f32> = max(base_color.rgb, vec3<f32>(scratch_mask * 4.0));
-    return vec4<f32>(clamp(scratch_rgb, vec3<f32>(0.0), vec3<f32>(1.0)), base_color.a);
+    let maskColor : vec4<f32> = textureLoad(maskTexture, coord, 0);
+    let scratchMask : f32 = maskColor.r;
+    let scratchRgb : vec3<f32> = max(baseColor.rgb, vec3<f32>(scratchMask * 4.0));
+    return vec4<f32>(clamp(scratchRgb, vec3<f32>(0.0), vec3<f32>(1.0)), baseColor.a);
 }

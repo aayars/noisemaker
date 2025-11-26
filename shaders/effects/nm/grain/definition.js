@@ -30,7 +30,6 @@ export default class Grain extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "grain",
       inputs: {
         inputTex: "inputTex"

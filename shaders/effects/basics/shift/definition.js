@@ -39,7 +39,6 @@ export default class Shift extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "shift",
       inputs: {
       "tex0": "inputTex"

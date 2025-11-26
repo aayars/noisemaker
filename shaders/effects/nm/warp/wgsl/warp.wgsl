@@ -7,10 +7,10 @@ const TAU : f32 = 6.28318530717958647692;
 struct WarpParams {
     dims_freq : vec4<f32>,             // (width, height, channels, freq)
     octave_disp_spline_map : vec4<f32>,  // (octaves, displacement, spline_order, warp_map_flag)
-    signed_time_speed_pad : vec4<f32>,   // (signed_range, time, speed, padding)
+    signed_timeSpeed_pad : vec4<f32>,   // (signed_range, time, speed, padding)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : WarpParams;
 
@@ -75,8 +75,8 @@ fn oklab_l_component(rgb : vec3<f32>) -> f32 {
     return clamp_01(0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c);
 }
 
-fn value_map_from_texel(texel : vec4<f32>, channel_count : u32) -> f32 {
-    if (channel_count <= 2u) {
+fn value_map_from_texel(texel : vec4<f32>, channelCount : u32) -> f32 {
+    if (channelCount <= 2u) {
         return clamp_01(texel.x);
     }
     return oklab_l_component(vec3<f32>(texel.x, texel.y, texel.z));
@@ -250,15 +250,15 @@ fn compute_warp_reference(
     time : f32,
     speed : f32,
     warp_map_enabled : bool,
-    channel_count : u32
+    channelCount : u32
 ) -> vec2<f32> {
     if (warp_map_enabled) {
         let texel : vec4<f32> = textureLoad(
-            input_texture,
+            inputTex,
             vec2<i32>(i32(coord.x), i32(coord.y)),
             0
         );
-        let map_value : f32 = value_map_from_texel(texel, channel_count);
+        let map_value : f32 = value_map_from_texel(texel, channelCount);
         let angle : f32 = map_value * TAU;
         let ref_x : f32 = clamp_01(cos(angle) * 0.5 + 0.5);
         let ref_y : f32 = clamp_01(sin(angle) * 0.5 + 0.5);
@@ -339,7 +339,7 @@ fn cubic_interpolate(
 fn sample_nearest(coord : vec2<f32>, width : i32, height : i32) -> vec4<f32> {
     let x : i32 = wrap_coord(i32(round(coord.x)), width);
     let y : i32 = wrap_coord(i32(round(coord.y)), height);
-    return textureLoad(input_texture, vec2<i32>(x, y), 0);
+    return textureLoad(inputTex, vec2<i32>(x, y), 0);
 }
 
 fn sample_bilinear(coord : vec2<f32>, width : i32, height : i32, order : i32) -> vec4<f32> {
@@ -367,10 +367,10 @@ fn sample_bilinear(coord : vec2<f32>, width : i32, height : i32, order : i32) ->
     let tx : f32 = apply_spline(fx, order);
     let ty : f32 = apply_spline(fy, order);
 
-    let tex00 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y0), 0);
-    let tex10 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y0), 0);
-    let tex01 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y1), 0);
-    let tex11 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y1), 0);
+    let tex00 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y0), 0);
+    let tex10 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y0), 0);
+    let tex01 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y1), 0);
+    let tex11 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y1), 0);
 
     let mix_x0 : vec4<f32> = mix(tex00, tex10, vec4<f32>(tx));
     let mix_x1 : vec4<f32> = mix(tex01, tex11, vec4<f32>(tx));
@@ -395,7 +395,7 @@ fn sample_bicubic(coord : vec2<f32>, width : i32, height : i32) -> vec4<f32> {
             }
             let sx : i32 = wrap_coord(base_x + n, width);
             let sy : i32 = wrap_coord(base_y + m, height);
-            row[n + 1] = textureLoad(input_texture, vec2<i32>(sx, sy), 0);
+            row[n + 1] = textureLoad(inputTex, vec2<i32>(sx, sy), 0);
             n = n + 1;
         }
         columns[m + 1] = cubic_interpolate(
@@ -441,7 +441,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let width_f : f32 = max(params.dims_freq.x, 1.0);
     let height_f : f32 = max(params.dims_freq.y, 1.0);
-    let channel_count : u32 = max(as_u32(params.dims_freq.z), 1u);
+    let channelCount : u32 = max(as_u32(params.dims_freq.z), 1u);
     let freq_param : f32 = params.dims_freq.w;
 
     let octave_count : i32 = max(i32(round(params.octave_disp_spline_map.x)), 0);
@@ -449,9 +449,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let spline_order : i32 = i32(round(params.octave_disp_spline_map.z));
     let warp_map_enabled : bool = params.octave_disp_spline_map.w > 0.5;
 
-    let signed_range : bool = params.signed_time_speed_pad.x > 0.5;
-    let time : f32 = params.signed_time_speed_pad.y;
-    let speed : f32 = params.signed_time_speed_pad.z;
+    let signed_range : bool = params.signed_timeSpeed_pad.x > 0.5;
+    let time : f32 = params.signed_timeSpeed_pad.y;
+    let speed : f32 = params.signed_timeSpeed_pad.z;
 
     let freq_shape : vec2<f32> = freq_for_shape(freq_param, width_f, height_f);
 
@@ -484,7 +484,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 time,
                 speed,
                 warp_map_enabled,
-                channel_count
+                channelCount
             );
             let displacement_scale : f32 = displacement_base / multiplier;
             let offsets : vec2<f32> = displacement_offset(
@@ -508,10 +508,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let sampled : vec4<f32> = sample_with_order(sample_coord, width, height, spline_order);
 
     let pixel_index : u32 = gid.y * width + gid.x;
-    let base_index : u32 = pixel_index * channel_count;
+    let base_index : u32 = pixel_index * channelCount;
     var channel : u32 = 0u;
     loop {
-        if (channel >= channel_count) {
+        if (channel >= channelCount) {
             break;
         }
         let component : f32 = sampled[min(channel, 3u)];

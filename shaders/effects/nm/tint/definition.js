@@ -27,13 +27,12 @@ export default class Tint extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "tint",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

@@ -154,7 +154,6 @@ export default class Effects extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "effects",
       inputs: {
         inputTex: "inputTex"

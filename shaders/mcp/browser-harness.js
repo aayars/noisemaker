@@ -84,6 +84,7 @@ export class BrowserHarness {
             if (text.includes('Error') || text.includes('error') || text.includes('warning') || 
                 text.includes('Storage') || text.includes('getOutput') ||
                 text.includes('[bindTextures]') || text.includes('DSL') ||
+                text.includes('[WebGPU') || text.includes('GPGPU') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }
@@ -274,15 +275,18 @@ export class BrowserHarness {
      * Renders with default values, then with modified values, and checks if output differs
      * @param {string} effectId - Effect to test
      * @param {object} options
+     * @param {boolean} [options.skipCompile] - Skip initial compilation (effect already loaded)
      * @returns {Promise<{status: 'ok'|'error'|'skipped', tested_uniforms: string[], details: string}>}
      */
     async testUniformResponsiveness(effectId, options = {}) {
         const backend = options.backend || 'webgl2';
         
-        // Compile the effect first
-        const compileResult = await this.compileEffect(effectId, { backend });
-        if (compileResult.status === 'error') {
-            return { status: 'error', tested_uniforms: [], details: compileResult.message };
+        // Only compile if not already loaded
+        if (!options.skipCompile) {
+            const compileResult = await this.compileEffect(effectId, { backend });
+            if (compileResult.status === 'error') {
+                return { status: 'error', tested_uniforms: [], details: compileResult.message };
+            }
         }
         
         // Get globals
@@ -337,19 +341,24 @@ export class BrowserHarness {
             const defaultVal = spec.default ?? spec.min;
             const testVal = defaultVal === spec.min ? spec.max : spec.min;
             
-            // Apply the uniform change via page evaluation
+            // Apply the uniform change directly - no recompilation needed
             await this.page.evaluate(({ uniformName, testVal }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
-                if (pipeline && pipeline.globalUniforms) {
-                    pipeline.globalUniforms[uniformName] = testVal;
+                if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
+                
+                // Set on all passes that have this uniform
+                for (const pass of pipeline.graph.passes) {
+                    if (pass.uniforms && uniformName in pass.uniforms) {
+                        pass.uniforms[uniformName] = testVal;
+                    }
                 }
             }, { uniformName, testVal });
             
-            // Render again
+            // Render with the new uniform value - just a couple warmup frames
             const testRender = await this.renderEffectFrame(effectId, {
                 skipCompile: true,
                 backend,
-                warmupFrames: 5
+                warmupFrames: 2
             });
             
             if (testRender.status === 'ok') {
@@ -369,11 +378,15 @@ export class BrowserHarness {
                 }
             }
             
-            // Reset uniform to default
+            // Reset uniform to default on all passes
             await this.page.evaluate(({ uniformName, defaultVal }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
-                if (pipeline && pipeline.globalUniforms) {
-                    pipeline.globalUniforms[uniformName] = defaultVal;
+                if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
+                
+                for (const pass of pipeline.graph.passes) {
+                    if (pass.uniforms && uniformName in pass.uniforms) {
+                        pass.uniforms[uniformName] = defaultVal;
+                    }
                 }
             }, { uniformName, defaultVal });
         }

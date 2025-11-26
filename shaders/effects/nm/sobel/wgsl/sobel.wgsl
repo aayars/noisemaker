@@ -4,7 +4,7 @@
 struct SobelParams {
     width : f32,
     height : f32,
-    dist_metric : f32,
+    distMetric : f32,
     alpha : f32,
     time : f32,
     _pad0 : f32,
@@ -81,7 +81,7 @@ fn fs_main(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {
     // Sobel Y kernel: [-1 -2 -1; 0 0 0; 1 2 1]
     let gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
     
-    let metric = i32(params.dist_metric);
+    let metric = i32(params.distMetric);
     
     var result : vec4<f32>;
     result.r = distance_metric(gx.r, gy.r, metric);

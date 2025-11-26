@@ -20,7 +20,6 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var samp: sampler;
 
 const PI: f32 = 3.14159265359;
 const TAU: f32 = 6.28318530718;

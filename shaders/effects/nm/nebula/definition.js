@@ -17,7 +17,6 @@ export default class Nebula extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "nebula",
       inputs: {
         inputTex: "inputTex"

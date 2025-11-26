@@ -46,7 +46,6 @@ export default class Bloom extends Effect {
   passes = [
     {
       name: "downsample",
-      type: "render",  // Fragment shader for GPGPU
       program: "downsample",
       inputs: {
         inputTex: "inputTex"
@@ -57,7 +56,6 @@ export default class Bloom extends Effect {
     },
     {
       name: "upsample",
-      type: "render",  // Fragment shader for GPGPU
       program: "upsample",
       inputs: {
         inputTex: "inputTex",

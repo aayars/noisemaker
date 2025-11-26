@@ -538,7 +538,11 @@
             }
 
             if (pipeline) {
-                pipeline.render(time / 1000);
+                try {
+                    pipeline.render(time / 1000);
+                } catch (err) {
+                    console.error('Render loop error:', err);
+                }
                 window.__noisemakerFrameCount++;
             }
 
@@ -906,7 +910,7 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
 
             for (const dir of effectDirs) {
                 try {
-                    const effectNames = await fetchEffectList(dir.path);
+                    const effectNames = getEffectsFromManifest(globalManifest, dir.namespace);
                     
                     for (const effectName of effectNames) {
                         try {
@@ -1018,29 +1022,30 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
             return effects;
         }
 
-        // Fetch list of effects in a directory
-        async function fetchEffectList(basePath) {
-            const lists = {
-                '../../shaders/effects/basics': [
-                    'add', 'alpha', 'blend', 'blue', 'brightness', 'color', 'contrast', 'diff', 'gradient', 'green', 'hue', 'invert', 'kaleid', 'layer', 'luma', 'mask', 'modulate', 'modulateHue', 'modulateKaleid', 'modulatePixelate', 'modulateRepeat', 'modulateRotate', 'modulateScale', 'mult', 'noise', 'osc', 'pixelate', 'posterize', 'prev', 'red', 'repeat', 'rot', 'saturate', 'scale', 'scroll', 'shape', 'shift', 'solid', 'src', 'sub', 'sum', 'thresh', 'translate', 'voronoi'
-                ],
-                '../../shaders/effects/nd': [
-                    'atmosphere', 'background', 'bit-effects', 'cell-noise', 'cell-refract', 'cellular-automata', 'cellular-automata-mn', 'coalesce', 'color-lab', 'composite', 'demo-synth', 'depth-of-field', 'displace-mixer', 'effects', 'feedback-mixer', 'feedback-post', 'feedback-synth', 'final', 'fractal', 'glitch', 'kaleido', 'lens-distortion', 'media-input', 'media-mixer', 'media-post', 'noise', 'noise-3d', 'palette', 'pattern', 'physarum', 'reaction-diffusion', 'refract', 'shape-mixer', 'shapes', 'shapes-3d', 'splat', 'text', 'tunnel', 'warp'
-                ],
-                '../../shaders/effects/nm': [
-                    'aberration', 'adjust_brightness', 'adjust_contrast', 'adjust_hue', 'adjust_saturation', 'bloom', 'blur', 'clouds', 'color_map', 'conv_feedback', 'convolve', 'crt', 'degauss', 'density_map', 'derivative', 'dla', 'erosion_worms', 'false_color', 'fibers', 'frame', 'fxaa', 'glowing_edges', 'glyph_map', 'grain', 'grime', 'jpeg_decimate', 'kaleido', 'lens_distortion', 'lens_warp', 'light_leak', 'lowpoly', 'nebula', 'normal_map', 'normalize', 'on_screen_display', 'outline', 'palette', 'pixel_sort', 'posterize', 'refract', 'reindex', 'reverb', 'ridge', 'ripple', 'rotate', 'scanline_error', 'scratches', 'shadow', 'simple_frame', 'sine', 'sketch', 'snow', 'sobel', 'spatter', 'spooky_ticker', 'stray_hair', 'texture', 'tint', 'value_refract', 'vaseline', 'vhs', 'vignette', 'voronoi', 'vortex', 'warp', 'wobble', 'wormhole', 'worms'
-                ]
-            };
-
-            return lists[basePath] || [];
+        // Extract effect names for a namespace from manifest keys
+        function getEffectsFromManifest(manifest, namespace) {
+            const prefix = `${namespace}/`;
+            return Object.keys(manifest)
+                .filter(key => key.startsWith(prefix))
+                .map(key => key.slice(prefix.length))
+                .sort();
         }
 
         // Initialize starter ops
         function initStarterOps(effects) {
-            const starterNames = effects
+            const starterNames = [];
+            effects
                 .filter(e => isStarterEffect(e))
-                .map(e => e.instance.func || e.name)
-                .filter(name => name);
+                .forEach(e => {
+                    const func = e.instance.func || e.name;
+                    if (func) {
+                        starterNames.push(func);
+                        // Also register namespaced version to handle nm.voronoi vs basics.voronoi
+                        if (e.namespace) {
+                            starterNames.push(`${e.namespace}.${func}`);
+                        }
+                    }
+                });
 
             if (starterNames.length > 0) {
                 registerStarterOps(starterNames);
@@ -1417,9 +1422,10 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
             currentEffect = effect;
             createParameterControls(currentEffect);
             showStatus(`selected ${namespace}/${name}`, 'success');
-            // Force pipeline recreation when switching effects to ensure clean state
-            pipeline = null;
-            window.__noisemakerRenderingPipeline = null;
+            
+            // Properly dispose of the old pipeline before creating a new one
+            await disposePipeline({ loseContext: false, resetCanvas: false });
+            
             await rebuildPipeline();
         }
 

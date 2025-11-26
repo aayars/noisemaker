@@ -16,7 +16,7 @@ struct SketchParams {
     controls : vec4<f32>,  // time, speed, unused, unused
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : SketchParams;
 
@@ -24,7 +24,7 @@ fn clamp01(value : f32) -> f32 {
     return clamp(value, 0.0, 1.0);
 }
 
-fn sanitized_channel_count(raw_channels : f32) -> u32 {
+fn sanitized_channelCount(raw_channels : f32) -> u32 {
     let rounded : i32 = i32(round(raw_channels));
     if (rounded <= 1) {
         return 1u;
@@ -77,9 +77,9 @@ fn oklab_luminance(rgb : vec3<f32>) -> f32 {
     return clamp01(0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c);
 }
 
-fn value_luminance(coord : vec2<i32>, channel_count : u32) -> f32 {
-    let texel : vec4<f32> = textureLoad(input_texture, coord, 0);
-    if (channel_count <= 2u) {
+fn value_luminance(coord : vec2<i32>, channelCount : u32) -> f32 {
+    let texel : vec4<f32> = textureLoad(inputTex, coord, 0);
+    if (channelCount <= 2u) {
         return clamp01(texel.x);
     }
     return oklab_luminance(texel.xyz);
@@ -118,12 +118,12 @@ const DERIVATIVE_KERNEL_Y : array<f32, 9> = array<f32, 9>(
 
 fn contrasted_value(
     coord : vec2<i32>,
-    channel_count : u32,
+    channelCount : u32,
     min_value : f32,
     max_value : f32,
     normalized_mean : f32
 ) -> f32 {
-    let luminance : f32 = value_luminance(coord, channel_count);
+    let luminance : f32 = value_luminance(coord, channelCount);
     let normalized : f32 = normalize_value(luminance, min_value, max_value);
     let contrasted : f32 = adjust_contrast(normalized, normalized_mean, 2.0);
     return clamp01(contrasted);
@@ -133,7 +133,7 @@ fn derivative_response(
     coord : vec2<i32>,
     width : i32,
     height : i32,
-    channel_count : u32,
+    channelCount : u32,
     min_value : f32,
     max_value : f32,
     normalized_mean : f32,
@@ -147,7 +147,7 @@ fn derivative_response(
             wrap_coord(offset.x, width),
             wrap_coord(offset.y, height)
         );
-        var value : f32 = contrasted_value(wrapped, channel_count, min_value, max_value, normalized_mean);
+        var value : f32 = contrasted_value(wrapped, channelCount, min_value, max_value, normalized_mean);
         if (invert_source) {
             value = 1.0 - value;
         }
@@ -230,7 +230,7 @@ fn write_pixel(base_index : u32, value : vec4<f32>) {
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    let dimensions : vec2<u32> = textureDimensions(input_texture, 0);
+    let dimensions : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = dimensions.x;
     let height : u32 = dimensions.y;
     
@@ -239,7 +239,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         return;
     }
 
-    let channel_count : u32 = sanitized_channel_count(params.size.z);
+    let channelCount : u32 = sanitized_channelCount(params.size.z);
     let width_i : i32 = i32(width);
     let height_i : i32 = i32(height);
     let width_f : f32 = f32(width);
@@ -267,13 +267,13 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
     let pixel_index : u32 = gid.y * width + gid.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;
-    let source_color : vec4<f32> = textureLoad(input_texture, coord, 0);
+    let source_color : vec4<f32> = textureLoad(inputTex, coord, 0);
 
     let grad_value : f32 = derivative_response(
         coord,
         width_i,
         height_i,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean,
@@ -283,7 +283,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         coord,
         width_i,
         height_i,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean,
@@ -297,7 +297,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let contrasted : f32 = contrasted_value(
         coord,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean

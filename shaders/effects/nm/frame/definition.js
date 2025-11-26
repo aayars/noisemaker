@@ -17,7 +17,6 @@ export default class Frame extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "frame",
       inputs: {
         inputTex: "inputTex"

@@ -39,7 +39,6 @@ export default class Scale extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "scale",
       inputs: {
       "tex0": "inputTex"

@@ -11,7 +11,7 @@ const uint CHANNEL_COUNT = 4u;
 const float RIDGE_SCALE = 2.0;
 const float RIDGE_OFFSET = 1.0;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float width;
 uniform float height;
 uniform float channels;
@@ -35,7 +35,7 @@ void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
     // Derive dimensions from the bound input texture to avoid relying on uniforms
-    uvec2 dims = uvec2(textureSize(input_texture, 0));
+    uvec2 dims = uvec2(textureSize(inputTex, 0));
     uint width = dims.x;
     uint height = dims.y;
     if (global_id.x >= width || global_id.y >= height) {
@@ -43,7 +43,7 @@ void main() {
     }
 
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 texel = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
     
     // Apply ridge transform
     vec4 ridged = ridge_transform(texel);

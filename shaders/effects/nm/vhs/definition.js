@@ -26,13 +26,12 @@ export default class Vhs extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "vhs",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

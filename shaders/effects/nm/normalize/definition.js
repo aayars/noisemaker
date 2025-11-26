@@ -28,7 +28,6 @@ export default class Normalize extends Effect {
   passes = [
     {
       name: "reduce",
-      type: "compute",  // GPGPU: pyramid reduction, per-block min/max
       program: "reduce",
       inputs: {
         inputTex: "inputTex"
@@ -38,9 +37,8 @@ export default class Normalize extends Effect {
       }
     },
     {
-      name: "reduce_minmax",
-      type: "compute",  // GPGPU: second reduction of min/max values
-      program: "reduce_minmax",
+      name: "reduceMinmax",
+      program: "reduceMinmax",
       inputs: {
         inputTex: "reduce1"
       },
@@ -49,9 +47,8 @@ export default class Normalize extends Effect {
       }
     },
     {
-      name: "stats_final",
-      type: "compute",  // GPGPU: final reduction to 1x1
-      program: "stats_final",
+      name: "statsFinal",
+      program: "statsFinal",
       inputs: {
         inputTex: "reduce2"
       },
@@ -61,7 +58,6 @@ export default class Normalize extends Effect {
     },
     {
       name: "apply",
-      type: "render",
       program: "apply",
       inputs: {
         inputTex: "inputTex",

@@ -56,10 +56,17 @@ export function expand(compilationResult) {
             // Generate a unique ID for this effect instance
             const nodeId = `node_${step.temp}`;
 
+            // Helper to check if a texture name indicates a global/double-buffered texture
+            // Textures starting with 'global' in effect definitions need ping-pong buffering
+            const isGlobalTexture = (texName) => texName.startsWith('global');
+
             // Collect texture specs from effect definition
+            // Textures starting with 'global' get the global_ prefix for double-buffering
             if (effectDef.textures) {
                 for (const [texName, spec] of Object.entries(effectDef.textures)) {
-                    const virtualTexId = `${nodeId}_${texName}`;
+                    const virtualTexId = isGlobalTexture(texName) 
+                        ? `global_${nodeId}_${texName}`  // Use global_ prefix for double-buffering
+                        : `${nodeId}_${texName}`;
                     textureSpecs[virtualTexId] = { ...spec };
                 }
             }
@@ -85,7 +92,7 @@ export function expand(compilationResult) {
                 const pass = {
                     id: passId,
                     program: passDef.program,
-                    type: passDef.type || 'render',
+                    entryPoint: passDef.entryPoint,  // For multi-entry-point compute shaders
                     drawMode: passDef.drawMode,
                     count: passDef.count,
                     blend: passDef.blend,
@@ -156,12 +163,15 @@ export function expand(compilationResult) {
                             pass.inputs[uniformName] = currentInput || texRef;
                         } else if (texRef === 'noise') {
                             pass.inputs[uniformName] = 'global_noise';
-                        } else if (texRef === 'feedback') {
-                            // Handle feedback texture
+                        } else if (texRef === 'feedback' || texRef === 'selfTex') {
+                            // Handle feedback texture (selfTex is an alias for feedback)
                             // If we are writing to a global surface, read from it
                             // For now, assume we are writing to o0 if not specified
                             // TODO: This should be smarter and look at the plan.out
                             pass.inputs[uniformName] = 'global_o0';
+                        } else if (texRef === 'imageTex') {
+                            // External media input - fall back to pipeline input when not provided
+                            pass.inputs[uniformName] = currentInput || 'global_o0';
                         } else if (step.args && Object.prototype.hasOwnProperty.call(step.args, texRef)) {
                             // Reference to an argument (e.g. blend(tex: ...))
                             const arg = step.args[texRef];
@@ -202,6 +212,9 @@ export function expand(compilationResult) {
                         } else if (texRef.startsWith('global_')) {
                             // Explicit global reference
                             pass.inputs[uniformName] = texRef;
+                        } else if (isGlobalTexture(texRef)) {
+                            // Effect texture starting with 'global' - use global_ prefix for double-buffering
+                            pass.inputs[uniformName] = `global_${nodeId}_${texRef}`;
                         } else {
                             // Internal texture or explicit reference
                             pass.inputs[uniformName] = `${nodeId}_${texRef}`;
@@ -228,6 +241,9 @@ export function expand(compilationResult) {
                             textureMap.set(virtualTex, virtualTex); // Register
                         } else if (texRef.startsWith('global_')) {
                             virtualTex = texRef;
+                        } else if (isGlobalTexture(texRef)) {
+                            // Effect texture starting with 'global' - use global_ prefix for double-buffering
+                            virtualTex = `global_${nodeId}_${texRef}`;
                         } else {
                             virtualTex = `${nodeId}_${texRef}`;
                         }

@@ -16,7 +16,7 @@ const float TAU = 6.28318530717958647692;
 const float SQRT_TWO = 1.4142135623730951;
 const uint CHANNEL_COUNT = 4u;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;      // x: width, y: height, z: channels, w: unused
 uniform vec4 controls;  // x: time, y: speed, z/w: unused
 
@@ -24,7 +24,7 @@ float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
 }
 
-uint sanitized_channel_count(float raw_channels) {
+uint sanitized_channelCount(float raw_channels) {
     int rounded = int(round(raw_channels));
     if (rounded <= 1) {
         return 1u;
@@ -77,9 +77,9 @@ float oklab_luminance(vec3 rgb) {
     return clamp01(0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c);
 }
 
-float value_luminance(ivec2 coord, uint channel_count) {
-    vec4 texel = texelFetch(input_texture, coord, 0);
-    if (channel_count <= 2u) {
+float value_luminance(ivec2 coord, uint channelCount) {
+    vec4 texel = texelFetch(inputTex, coord, 0);
+    if (channelCount <= 2u) {
         return clamp01(texel.x);
     }
     return oklab_luminance(texel.xyz);
@@ -118,12 +118,12 @@ const float DERIVATIVE_KERNEL_Y[9] = float[9](
 
 float contrasted_value(
     ivec2 coord,
-    uint channel_count,
+    uint channelCount,
     float min_value,
     float max_value,
     float normalized_mean
 ) {
-    float luminance = value_luminance(coord, channel_count);
+    float luminance = value_luminance(coord, channelCount);
     float normalized = normalize_value(luminance, min_value, max_value);
     float contrasted = adjust_contrast(normalized, normalized_mean, 2.0);
     return clamp01(contrasted);
@@ -133,7 +133,7 @@ float derivative_response(
     ivec2 coord,
     int width,
     int height,
-    uint channel_count,
+    uint channelCount,
     float min_value,
     float max_value,
     float normalized_mean,
@@ -147,7 +147,7 @@ float derivative_response(
             wrap_coord(offset.x, width),
             wrap_coord(offset.y, height)
         );
-        float value = contrasted_value(wrapped, channel_count, min_value, max_value, normalized_mean);
+        float value = contrasted_value(wrapped, channelCount, min_value, max_value, normalized_mean);
         if (invert_source) {
             value = 1.0 - value;
         }
@@ -222,7 +222,7 @@ float crosshatch_value(
 out vec4 fragColor;
 
 void main() {
-    ivec2 dimensions = textureSize(input_texture, 0);
+    ivec2 dimensions = textureSize(inputTex, 0);
     int width = max(dimensions.x, 1);
     int height = max(dimensions.y, 1);
 
@@ -231,7 +231,7 @@ void main() {
         return;
     }
 
-    uint channel_count = sanitized_channel_count(size.z);
+    uint channelCount = sanitized_channelCount(size.z);
     float width_f = float(width);
     float height_f = float(height);
 
@@ -250,13 +250,13 @@ void main() {
     const float vignette_min = 0.0;
     const float cross_min = 0.0;
 
-    vec4 source_color = texelFetch(input_texture, coord, 0);
+    vec4 source_color = texelFetch(inputTex, coord, 0);
 
     float grad_value = derivative_response(
         coord,
         width,
         height,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean,
@@ -266,7 +266,7 @@ void main() {
         coord,
         width,
         height,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean,
@@ -280,7 +280,7 @@ void main() {
 
     float contrasted = contrasted_value(
         coord,
-        channel_count,
+        channelCount,
         luminance_min,
         luminance_max,
         normalized_mean

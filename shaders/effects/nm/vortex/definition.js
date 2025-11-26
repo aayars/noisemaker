@@ -38,13 +38,12 @@ export default class Vortex extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "vortex",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

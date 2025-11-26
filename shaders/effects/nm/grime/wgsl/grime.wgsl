@@ -5,10 +5,10 @@ const CHANNEL_COUNT : u32 = 4u;
 
 struct GrimeParams {
     size : vec4<f32>,        // width, height, channels, unused
-    time_speed : vec4<f32>,  // time, speed, strength, debug_mode
+    timeSpeed : vec4<f32>,  // time, speed, strength, debug_mode
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : GrimeParams;
 
@@ -255,7 +255,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base_color : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let base_color : vec4<f32> = textureLoad(inputTex, coords, 0);
 
     let dims : vec2<f32> = vec2<f32>(
         max(params.size.x, 1.0),
@@ -264,10 +264,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let pixel_size : vec2<f32> = vec2<f32>(1.0 / dims.x, 1.0 / dims.y);
     let uv : vec2<f32> = (vec2<f32>(f32(gid.x), f32(gid.y)) + 0.5) * pixel_size;
 
-    let time_value : f32 = params.time_speed.x;
-    let speed_value : f32 = params.time_speed.y;
-    let strength : f32 = max(params.time_speed.z, 0.0);
-    let debug_mode : f32 = params.time_speed.w;
+    let time_value : f32 = params.timeSpeed.x;
+    let speed_value : f32 = params.timeSpeed.y;
+    let strength : f32 = max(params.timeSpeed.z, 0.0);
+    let debug_mode : f32 = params.timeSpeed.w;
 
     let freq_mask : vec2<f32> = freq_for_shape(5.0, dims.x, dims.y);
     let mask_refracted : f32 = refracted_scalar_field(

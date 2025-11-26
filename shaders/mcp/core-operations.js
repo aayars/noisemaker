@@ -133,18 +133,19 @@ export async function compileEffect(page, effectId, options = {}) {
  * @param {Uint8Array|Float32Array} data - RGBA pixel data
  * @param {number} width - Image width
  * @param {number} height - Image height
- * @returns {{mean_rgb: [number,number,number], std_rgb: [number,number,number], luma_variance: number, unique_sampled_colors: number, is_all_zero: boolean, is_monochrome: boolean}}
+ * @returns {{mean_rgb: [number,number,number], mean_alpha: number, std_rgb: [number,number,number], luma_variance: number, unique_sampled_colors: number, is_all_zero: boolean, is_all_transparent: boolean, is_essentially_blank: boolean, is_monochrome: boolean}}
  */
 export function computeImageMetrics(data, width, height) {
     const pixelCount = width * height;
     const stride = Math.max(1, Math.floor(pixelCount / 1000)); // Sample ~1000 pixels
     
-    let sumR = 0, sumG = 0, sumB = 0;
+    let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
     let sumR2 = 0, sumG2 = 0, sumB2 = 0;
     let sumLuma = 0, sumLuma2 = 0;
     const sampledColors = new Set();
     let sampleCount = 0;
     let isAllZero = true;
+    let isAllTransparent = true;
     
     // Determine if data is normalized (0-1) or byte (0-255)
     const isFloat = data instanceof Float32Array;
@@ -154,14 +155,20 @@ export function computeImageMetrics(data, width, height) {
         const r = data[i] * scale;
         const g = data[i + 1] * scale;
         const b = data[i + 2] * scale;
+        const a = data[i + 3] * scale;
         
         if (r !== 0 || g !== 0 || b !== 0) {
             isAllZero = false;
         }
         
+        if (a > 0) {
+            isAllTransparent = false;
+        }
+        
         sumR += r;
         sumG += g;
         sumB += b;
+        sumA += a;
         sumR2 += r * r;
         sumG2 += g * g;
         sumB2 += b * b;
@@ -179,6 +186,7 @@ export function computeImageMetrics(data, width, height) {
     const meanR = sumR / sampleCount;
     const meanG = sumG / sampleCount;
     const meanB = sumB / sampleCount;
+    const meanA = sumA / sampleCount;
     const meanLuma = sumLuma / sampleCount;
     
     const stdR = Math.sqrt(sumR2 / sampleCount - meanR * meanR);
@@ -188,12 +196,27 @@ export function computeImageMetrics(data, width, height) {
     
     const isMonochrome = sampledColors.size <= 1;
     
+    // "Essentially blank" = mean RGB is very close to zero AND very few unique colors
+    // Threshold: mean RGB < 0.01 (each channel) AND unique colors <= 10
+    const normalizedMeanR = meanR / 255;
+    const normalizedMeanG = meanG / 255;
+    const normalizedMeanB = meanB / 255;
+    const isEssentiallyBlank = (
+        normalizedMeanR < 0.01 && 
+        normalizedMeanG < 0.01 && 
+        normalizedMeanB < 0.01 && 
+        sampledColors.size <= 10
+    );
+    
     return {
-        mean_rgb: [meanR / 255, meanG / 255, meanB / 255],
+        mean_rgb: [normalizedMeanR, normalizedMeanG, normalizedMeanB],
+        mean_alpha: meanA / 255,
         std_rgb: [stdR / 255, stdG / 255, stdB / 255],
         luma_variance: lumaVariance / (255 * 255),
         unique_sampled_colors: sampledColors.size,
         is_all_zero: isAllZero,
+        is_all_transparent: isAllTransparent,
+        is_essentially_blank: isEssentiallyBlank,
         is_monochrome: isMonochrome
     };
 }
@@ -231,6 +254,12 @@ export async function renderEffectFrame(page, effectId, options = {}) {
     // Wait for the page's natural render loop to run warmup frames
     // Use a longer timeout since we're waiting for actual frame renders
     const FRAME_WAIT_TIMEOUT = 5000;  // 5 seconds should be plenty for 10 frames
+    
+    // Clear any stale baseline before starting
+    await page.evaluate(() => {
+        delete window.__noisemakerTestBaselineFrame;
+    });
+    
     try {
         await page.waitForFunction(({ warmupFrames }) => {
             const pipeline = window.__noisemakerRenderingPipeline;
@@ -352,21 +381,24 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         const pixelCount = width * height;
         const stride = Math.max(1, Math.floor(pixelCount / 1000));
         
-        let sumR = 0, sumG = 0, sumB = 0;
+        let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
         let sumR2 = 0, sumG2 = 0, sumB2 = 0;
         let sumLuma = 0, sumLuma2 = 0;
         const sampledColors = new Set();
         let sampleCount = 0;
         let isAllZero = true;
+        let isAllTransparent = true;
         
         for (let i = 0; i < data.length; i += stride * 4) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
+            const a = data[i + 3];
             
             if (r !== 0 || g !== 0 || b !== 0) isAllZero = false;
+            if (a > 0) isAllTransparent = false;
             
-            sumR += r; sumG += g; sumB += b;
+            sumR += r; sumG += g; sumB += b; sumA += a;
             sumR2 += r * r; sumG2 += g * g; sumB2 += b * b;
             
             const luma = 0.299 * r + 0.587 * g + 0.114 * b;
@@ -381,10 +413,25 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         const meanR = sumR / sampleCount;
         const meanG = sumG / sampleCount;
         const meanB = sumB / sampleCount;
+        const meanA = sumA / sampleCount;
         const meanLuma = sumLuma / sampleCount;
         
+        // Normalized values (0-1)
+        const normalizedMeanR = meanR / 255;
+        const normalizedMeanG = meanG / 255;
+        const normalizedMeanB = meanB / 255;
+        
+        // "Essentially blank" = mean RGB is very close to zero AND very few unique colors
+        const isEssentiallyBlank = (
+            normalizedMeanR < 0.01 && 
+            normalizedMeanG < 0.01 && 
+            normalizedMeanB < 0.01 && 
+            sampledColors.size <= 10
+        );
+        
         const metrics = {
-            mean_rgb: [meanR / 255, meanG / 255, meanB / 255],
+            mean_rgb: [normalizedMeanR, normalizedMeanG, normalizedMeanB],
+            mean_alpha: meanA / 255,
             std_rgb: [
                 Math.sqrt(sumR2 / sampleCount - meanR * meanR) / 255,
                 Math.sqrt(sumG2 / sampleCount - meanG * meanG) / 255,
@@ -393,6 +440,8 @@ export async function renderEffectFrame(page, effectId, options = {}) {
             luma_variance: (sumLuma2 / sampleCount - meanLuma * meanLuma) / (255 * 255),
             unique_sampled_colors: sampledColors.size,
             is_all_zero: isAllZero,
+            is_all_transparent: isAllTransparent,
+            is_essentially_blank: isEssentiallyBlank,
             is_monochrome: sampledColors.size <= 1
         };
         
@@ -661,12 +710,117 @@ const COMPUTE_PASS_EXEMPT_EFFECTS = new Set([
 const INTERNAL_UNIFORMS = new Set(['channels', 'time']);
 
 /**
+ * Check if a name is valid camelCase.
+ * 
+ * Valid camelCase:
+ * - Starts with lowercase letter
+ * - No underscores (snake_case) or hyphens (kebab-case)
+ * - No consecutive uppercase letters at the start (StudlyCaps/PascalCase)
+ * - May contain digits
+ * 
+ * Reserved names that are always valid (system names):
+ * - inputTex, outputColor, fragColor, outState1-3, stateTex1-3, sourceTex, mixerTex, trailTex
+ * - global_* prefixed internal textures (these use underscore by convention)
+ * 
+ * @param {string} name - The name to check
+ * @param {boolean} allowGlobalPrefix - Whether to allow global_ prefix (for internal textures)
+ * @returns {{valid: boolean, reason?: string}}
+ */
+function checkCamelCase(name, allowGlobalPrefix = false) {
+    // Handle global_ prefixed internal textures - the part after global_ should be checked
+    if (allowGlobalPrefix && name.startsWith('global_')) {
+        const suffix = name.slice(7); // Remove 'global_'
+        // The suffix can have underscores for compound names like 'worms_state1'
+        // Just check it's not empty and starts with lowercase
+        if (suffix.length === 0) {
+            return { valid: false, reason: 'empty suffix after global_' };
+        }
+        if (!/^[a-z]/.test(suffix)) {
+            return { valid: false, reason: 'suffix must start with lowercase' };
+        }
+        return { valid: true };
+    }
+    
+    // Empty or whitespace-only
+    if (!name || !name.trim()) {
+        return { valid: false, reason: 'empty name' };
+    }
+    
+    // Must start with lowercase letter
+    if (!/^[a-z]/.test(name)) {
+        return { valid: false, reason: 'must start with lowercase letter (not StudlyCaps/PascalCase)' };
+    }
+    
+    // No underscores (snake_case)
+    if (name.includes('_')) {
+        return { valid: false, reason: 'contains underscore (snake_case)' };
+    }
+    
+    // No hyphens (kebab-case)
+    if (name.includes('-')) {
+        return { valid: false, reason: 'contains hyphen (kebab-case)' };
+    }
+    
+    return { valid: true };
+}
+
+/**
+ * Check if a texture/surface name is valid.
+ * 
+ * Valid texture names:
+ * - camelCase names (start with lowercase, no underscores/hyphens)
+ * - global_ prefixed internal textures (e.g., global_worms_state1)
+ * - _ prefixed internal textures (e.g., _bloomDownsample) 
+ * - Reserved system names: inputTex, outputColor, fragColor
+ * 
+ * @param {string} name - The texture name to check
+ * @returns {{valid: boolean, reason?: string}}
+ */
+function checkTextureName(name) {
+    // Reserved system names - always valid
+    const reservedNames = new Set([
+        'inputTex', 'outputColor', 'fragColor',
+        'outState1', 'outState2', 'outState3',
+        'stateTex1', 'stateTex2', 'stateTex3',
+        'sourceTex', 'mixerTex', 'trailTex'
+    ]);
+    if (reservedNames.has(name)) {
+        return { valid: true };
+    }
+    
+    // global_ prefixed internal textures - check suffix starts with lowercase
+    if (name.startsWith('global_')) {
+        const suffix = name.slice(7);
+        if (suffix.length === 0) {
+            return { valid: false, reason: 'empty suffix after global_' };
+        }
+        if (!/^[a-z]/.test(suffix)) {
+            return { valid: false, reason: 'global_ suffix must start with lowercase' };
+        }
+        return { valid: true };  // Allow underscores within global_ names
+    }
+    
+    // _ prefixed internal textures (e.g., _bloomDownsample) - check rest is camelCase
+    if (name.startsWith('_')) {
+        const suffix = name.slice(1);
+        if (suffix.length === 0) {
+            return { valid: false, reason: 'empty suffix after _' };
+        }
+        // Internal textures starting with _ should have camelCase suffix
+        return checkCamelCase(suffix);
+    }
+    
+    // Regular texture name - must be camelCase
+    return checkCamelCase(name);
+}
+
+/**
  * Check effect structure for unused files and compute pass requirements
  * 
  * @param {string} effectId - Effect identifier (e.g., "nm/worms")
  * @param {object} options
  * @param {'webgl2'|'webgpu'} [options.backend='webgpu'] - Backend to check (affects which shader dir to scan)
- * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[], computePassExempt: boolean, computePassExemptReason?: string, leakedInternalUniforms: string[]}>}
+ * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[], computePassExempt: boolean, computePassExemptReason?: string, leakedInternalUniforms: string[], namingIssues: Array<{type: string, name: string, reason: string}>}>}
  */
 export async function checkEffectStructure(effectId, options = {}) {
     const backend = options.backend || 'webgpu';
@@ -687,7 +841,11 @@ export async function checkEffectStructure(effectId, options = {}) {
         computePassExemptReason: null,
         leakedInternalUniforms: [],
         hasInlineShaders: false,
-        inlineShaderLocations: []
+        inlineShaderLocations: [],
+        // Split shader validation (GLSL only)
+        splitShaderIssues: [],
+        // Naming convention issues (camelCase validation)
+        namingIssues: []
     };
     
     try {
@@ -791,6 +949,170 @@ export async function checkEffectStructure(effectId, options = {}) {
             }
         }
         
+        // =====================================================================
+        // NAMING CONVENTION VALIDATION (camelCase)
+        // =====================================================================
+        
+        // Note: Class names (the `name` property) use StudlyCaps/PascalCase - that's correct.
+        // The canonical DSL name is the `func` property, which must be camelCase.
+        // Disk directory names and shader file names must also be camelCase.
+        
+        // 1. Check that disk directory name is valid camelCase
+        const diskCheck = checkCamelCase(effectName);
+        if (!diskCheck.valid) {
+            result.namingIssues.push({
+                type: 'diskName',
+                name: effectName,
+                reason: diskCheck.reason
+            });
+        }
+        
+        // 2. Check func property (the canonical DSL name) - must be camelCase
+        const funcMatch = definitionSource.match(/^\s*func\s*=\s*["']([^"']+)["']/m);
+        if (funcMatch) {
+            const funcName = funcMatch[1];
+            const funcCheck = checkCamelCase(funcName);
+            if (!funcCheck.valid) {
+                result.namingIssues.push({
+                    type: 'func',
+                    name: funcName,
+                    reason: funcCheck.reason
+                });
+            }
+            
+            // 3. Check that disk name matches func name (the canonical DSL name)
+            if (funcCheck.valid && diskCheck.valid && effectName !== funcName) {
+                result.namingIssues.push({
+                    type: 'diskNameMismatch',
+                    name: effectName,
+                    expected: funcName,
+                    reason: `disk name "${effectName}" does not match func "${funcName}"`
+                });
+            }
+        }
+        
+        // 3. Check uniform names in globals section
+        const uniformMatches = globalsSection.matchAll(/uniform:\s*["']([^"']+)["']/g);
+        for (const match of uniformMatches) {
+            const uniformName = match[1];
+            const uniformCheck = checkCamelCase(uniformName);
+            if (!uniformCheck.valid) {
+                result.namingIssues.push({
+                    type: 'uniform',
+                    name: uniformName,
+                    reason: uniformCheck.reason
+                });
+            }
+        }
+        
+        // 4. Check global property names (keys in globals object)
+        const globalKeyMatches = globalsSection.matchAll(/^\s{4}(\w+):\s*\{/gm);
+        for (const match of globalKeyMatches) {
+            const globalKey = match[1];
+            const keyCheck = checkCamelCase(globalKey);
+            if (!keyCheck.valid) {
+                result.namingIssues.push({
+                    type: 'globalKey',
+                    name: globalKey,
+                    reason: keyCheck.reason
+                });
+            }
+        }
+        
+        // 6. Check texture/surface names in passes (inputs and outputs)
+        // Extract all texture references from passes section
+        const texturePatterns = [
+            // Input textures: inputName: "textureName"
+            /(\w+):\s*["']([^"']+)["']/g,
+        ];
+        
+        // Parse inputs and outputs objects from passes
+        const inputsMatches = passesSection.matchAll(/inputs:\s*\{([^}]+)\}/g);
+        for (const inputsMatch of inputsMatches) {
+            const inputsContent = inputsMatch[1];
+            const textureRefs = inputsContent.matchAll(/(\w+):\s*["']([^"']+)["']/g);
+            for (const ref of textureRefs) {
+                const inputKey = ref[1];
+                const textureName = ref[2];
+                
+                // Check the input key (e.g., stateTex1, mixerTex)
+                const keyCheck = checkCamelCase(inputKey);
+                if (!keyCheck.valid) {
+                    result.namingIssues.push({
+                        type: 'passInputKey',
+                        name: inputKey,
+                        reason: keyCheck.reason
+                    });
+                }
+                
+                // Check the texture name (allows global_, _ prefixes, and reserved names)
+                const texCheck = checkTextureName(textureName);
+                if (!texCheck.valid) {
+                    result.namingIssues.push({
+                        type: 'textureName',
+                        name: textureName,
+                        reason: texCheck.reason
+                    });
+                }
+            }
+        }
+        
+        const outputsMatches = passesSection.matchAll(/outputs:\s*\{([^}]+)\}/g);
+        for (const outputsMatch of outputsMatches) {
+            const outputsContent = outputsMatch[1];
+            const textureRefs = outputsContent.matchAll(/(\w+):\s*["']([^"']+)["']/g);
+            for (const ref of textureRefs) {
+                const outputKey = ref[1];
+                const textureName = ref[2];
+                
+                // Check the output key (e.g., fragColor, outState1)
+                const keyCheck = checkCamelCase(outputKey);
+                if (!keyCheck.valid) {
+                    result.namingIssues.push({
+                        type: 'passOutputKey',
+                        name: outputKey,
+                        reason: keyCheck.reason
+                    });
+                }
+                
+                // Check the texture name (allows global_, _ prefixes, and reserved names)
+                const texCheck = checkTextureName(textureName);
+                if (!texCheck.valid) {
+                    result.namingIssues.push({
+                        type: 'textureName',
+                        name: textureName,
+                        reason: texCheck.reason
+                    });
+                }
+            }
+        }
+        
+        // 7. Check pass names
+        const passNameMatches = passesSection.matchAll(/name:\s*["']([^"']+)["']/g);
+        for (const match of passNameMatches) {
+            const passName = match[1];
+            const passCheck = checkCamelCase(passName);
+            if (!passCheck.valid) {
+                result.namingIssues.push({
+                    type: 'passName',
+                    name: passName,
+                    reason: passCheck.reason
+                });
+            }
+        }
+        
+        // 8. Check program names (shader file references)
+        for (const programName of referencedPrograms) {
+            const progCheck = checkCamelCase(programName);
+            if (!progCheck.valid) {
+                result.namingIssues.push({
+                    type: 'programName',
+                    name: programName,
+                    reason: progCheck.reason
+                });
+            }
+        }
+        
         // List shader files in the appropriate directory
         const shaderDirPath = path.join(effectDir, shaderDir);
         let shaderFiles = [];
@@ -808,6 +1130,59 @@ export async function checkEffectStructure(effectId, options = {}) {
         for (const file of shaderFiles) {
             if (!referencedPrograms.has(file)) {
                 result.unusedFiles.push(file + shaderExt);
+            }
+        }
+        
+        // Validate split shader consistency (GLSL only)
+        // When using custom vertex shaders (not the default full-screen triangle),
+        // GLSL files must be split into .vert and .frag extensions
+        if (backend === 'webgl2') {
+            const glslPath = path.join(effectDir, 'glsl');
+            try {
+                const allGlslFiles = fs.readdirSync(glslPath);
+                const vertFiles = allGlslFiles.filter(f => f.endsWith('.vert')).map(f => f.replace('.vert', ''));
+                const fragFiles = allGlslFiles.filter(f => f.endsWith('.frag')).map(f => f.replace('.frag', ''));
+                const combinedFiles = allGlslFiles.filter(f => f.endsWith('.glsl')).map(f => f.replace('.glsl', ''));
+                
+                for (const base of vertFiles) {
+                    // Check: .vert file must have matching .frag file
+                    if (!fragFiles.includes(base)) {
+                        result.splitShaderIssues.push({
+                            type: 'orphan_vert',
+                            file: `${base}.vert`,
+                            message: `Orphan vertex shader: ${base}.vert has no matching ${base}.frag`
+                        });
+                    }
+                    // Check: .vert file must not have a matching .glsl file (would be ambiguous)
+                    if (combinedFiles.includes(base)) {
+                        result.splitShaderIssues.push({
+                            type: 'ambiguous',
+                            file: base,
+                            message: `Ambiguous shader: both ${base}.vert and ${base}.glsl exist`
+                        });
+                    }
+                    // Check: split shader must be referenced in the definition
+                    if (!referencedPrograms.has(base)) {
+                        result.splitShaderIssues.push({
+                            type: 'unused_split',
+                            file: `${base}.vert/.frag`,
+                            message: `Split shader pair ${base}.vert/${base}.frag not referenced in passes`
+                        });
+                    }
+                }
+                
+                for (const base of fragFiles) {
+                    // Check: .frag file must have matching .vert file
+                    if (!vertFiles.includes(base)) {
+                        result.splitShaderIssues.push({
+                            type: 'orphan_frag',
+                            file: `${base}.frag`,
+                            message: `Orphan fragment shader: ${base}.frag has no matching ${base}.vert`
+                        });
+                    }
+                }
+            } catch (err) {
+                // GLSL directory doesn't exist - not a split shader issue
             }
         }
         

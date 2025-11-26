@@ -25,7 +25,6 @@ export default class B extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "b",
       inputs: {
       "tex0": "inputTex"

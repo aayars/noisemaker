@@ -26,12 +26,12 @@ const int BLUR_KERNEL_RADIUS = 2;
 const BLUR_KERNEL : array<f32, 25> = array<f32, 25>(
 
 
-uniform sampler2D input_texture;
-uniform vec4 size_padding;
-uniform vec4 density_time;
-uniform vec4 speed_padding;
+uniform sampler2D inputTex;
+uniform vec4 sizePadding;
+uniform vec4 densityTime;
+uniform vec4 speedPadding;
 // Previous frame accumulation (temporal coherence)
-uniform sampler2D prev_texture;
+uniform sampler2D prevTexture;
 // Persistent agents (walkers)
 
 int wrap_int(int v, int s) {
@@ -76,7 +76,7 @@ uint sanitize_dimension(float value, uint maximum, uint fallback) {
     return dimension;
 }
 
-uint sanitize_channel_count(float value) {
+uint sanitize_channelCount(float value) {
     int clamped = int(round(value));
     if (clamped < 1) {
         return 1u;
@@ -207,7 +207,7 @@ float normalized_value(float value, float minimum, float inv_range) {
 
 void main(@builtin(global_invocation_id) global_id : vec3) {
     // Use actual input texture dimensions; avoid large local arrays
-    uvec2 dims = uvec2(textureSize(input_texture, 0));
+    uvec2 dims = uvec2(textureSize(inputTex, 0));
     uint width = dims.x;
     uint height = dims.y;
     if (width == 0u || height == 0u) { return; }
@@ -218,7 +218,7 @@ void main(@builtin(global_invocation_id) global_id : vec3) {
     if (arrayLength(output_buffer) < total_values) { return; }
 
     float alpha = clamp01(density_time.z);
-    float seed_density = max(density_time.x, 0.0);
+    float seedDensity = max(density_time.x, 0.0);
 
     // Parallelize prev_texture copy: each thread handles one pixel
     if (global_id.x < width && global_id.y < height) {
@@ -245,7 +245,7 @@ void main(@builtin(global_invocation_id) global_id : vec3) {
     // If empty, initialize a few seeds
     if (occupied == 0u) {
         float min_dim = float(min(width, height));
-        uint seeds = max(1u, uint(floor(min_dim * seed_density * 0.25)));
+        uint seeds = max(1u, uint(floor(min_dim * seedDensity * 0.25)));
         float s = 0.37;
         for (uint i = 0u; i < seeds; i = i + 1u) {
             uint rx = uint(floor(rand01(&s) * float(width)));
@@ -374,7 +374,7 @@ void main(@builtin(global_invocation_id) global_id : vec3) {
         uint pixel_idx = global_id.y * width + global_id.x;
         uint base = pixel_idx * 4u;
         
-        vec4 input_color = textureLoad(input_texture, vec2(int(global_id.x), int(global_id.y)), 0);
+        vec4 input_color = textureLoad(inputTex, vec2(int(global_id.x), int(global_id.y)), 0);
         vec4 trail_color = vec4(
         );
         

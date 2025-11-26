@@ -17,7 +17,6 @@ export default class Fxaa extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "fxaa",
       inputs: {
         inputTex: "inputTex"

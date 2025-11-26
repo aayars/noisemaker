@@ -3,7 +3,7 @@ precision highp float;
 
 uniform sampler2D inputTex;
 uniform float amount;
-uniform float spline_order;
+uniform float splineOrder;
 
 out vec4 fragColor;
 

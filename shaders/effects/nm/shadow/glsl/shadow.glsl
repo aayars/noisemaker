@@ -20,10 +20,10 @@ const SHARPEN_KERNEL : array<f32, 9> = array<f32, 9>(
 const float SHARPEN_BLEND = 0.5;
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
 uniform vec4 anim;
-uniform sampler2D reference_texture;
+uniform sampler2D referenceTexture;
 
 uint as_u32(float value) {
     return uint(max(round(value), 0.0));
@@ -33,7 +33,7 @@ float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
 }
 
-uint sanitized_channel_count(float channel_value) {
+uint sanitized_channelCount(float channel_value) {
     int rounded = int(round(channel_value));
     if (rounded <= 1) {
         return 1u;
@@ -159,18 +159,18 @@ vec3 hsv_to_rgb(vec3 hsv) {
     }
 }
 
-float value_map_component(vec4 texel, uint channel_count) {
-    if (channel_count <= 2u) {
+float value_map_component(vec4 texel, uint channelCount) {
+    if (channelCount <= 2u) {
         return texel.x;
     }
     return oklab_l_component(vec3(texel.x, texel.y, texel.z));
 }
 
-float sample_reference_raw(int x, int y, int width, int height, uint channel_count) {
+float sample_reference_raw(int x, int y, int width, int height, uint channelCount) {
     int xi = wrap_coord(x, width);
     int yi = wrap_coord(y, height);
-    vec4 texel = textureLoad(reference_texture, vec2(xi, yi), 0);
-    return value_map_component(texel, channel_count);
+    vec4 texel = textureLoad(referenceTexture, vec2(xi, yi), 0);
+    return value_map_component(texel, channelCount);
 }
 
 void sample_reference_normalized(fn compute_sobel(  float normalize_value(float value, float min_value, float inv_range) {
@@ -206,13 +206,13 @@ void main() {
 
     int width_i = int(width);
     int height_i = int(height);
-    uint channel_count = sanitized_channel_count(size.z);
+    uint channelCount = sanitized_channelCount(size.z);
 
     float ref_min = F32_MAX;
     float ref_max = F32_MIN;
     for (uint y = 0u; y < height; y = y + 1u) {
         for (uint x = 0u; x < width; x = x + 1u) {
-            float raw_value = sample_reference_raw(int(x), int(y), width_i, height_i, channel_count);
+            float raw_value = sample_reference_raw(int(x), int(y), width_i, height_i, channelCount);
             ref_min = min(ref_min, raw_value);
             ref_max = max(ref_max, raw_value);
         }
@@ -227,7 +227,7 @@ void main() {
     float shade_max = F32_MIN;
     for (uint y = 0u; y < height; y = y + 1u) {
         for (uint x = 0u; x < width; x = x + 1u) {
-            float shade_raw = compute_sobel(int(x), int(y), width_i, height_i, channel_count, ref_min, inv_ref_range);
+            float shade_raw = compute_sobel(int(x), int(y), width_i, height_i, channelCount, ref_min, inv_ref_range);
             shade_min = min(shade_min, shade_raw);
             shade_max = max(shade_max, shade_raw);
         }
@@ -247,7 +247,7 @@ void main() {
                 int(y),
                 width_i,
                 height_i,
-                channel_count,
+                channelCount,
                 ref_min,
                 inv_ref_range,
                 shade_min,
@@ -268,10 +268,10 @@ void main() {
     for (uint y = 0u; y < height; y = y + 1u) {
         for (uint x = 0u; x < width; x = x + 1u) {
             vec2 coords = vec2(int(x), int(y));
-            vec4 src_color = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+            vec4 src_color = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
             float base_alpha = clamp01(src_color.w);
 
-            float shade_raw = compute_sobel(coords.x, coords.y, width_i, height_i, channel_count, ref_min, inv_ref_range);
+            float shade_raw = compute_sobel(coords.x, coords.y, width_i, height_i, channelCount, ref_min, inv_ref_range);
             float shade_norm = normalize_value(shade_raw, shade_min, inv_shade_range);
 
             float sharpen_raw = compute_sharpen(
@@ -279,7 +279,7 @@ void main() {
                 coords.y,
                 width_i,
                 height_i,
-                channel_count,
+                channelCount,
                 ref_min,
                 inv_ref_range,
                 shade_min,
@@ -292,7 +292,7 @@ void main() {
 
             uint pixel_index = y * width + x;
 
-            if (channel_count == 1u) {
+            if (channelCount == 1u) {
                 float shade_value = shade_component(src_color.x, final_shade, highlight);
                 float mixed = mix_f32(src_color.x, shade_value, alpha);
                 float final_value = clamp01(mixed);
@@ -300,7 +300,7 @@ void main() {
                 continue;
             }
 
-            if (channel_count == 2u) {
+            if (channelCount == 2u) {
                 float shade_value = shade_component(src_color.x, final_shade, highlight);
                 float mixed = mix_f32(src_color.x, shade_value, alpha);
                 float final_value = clamp01(mixed);

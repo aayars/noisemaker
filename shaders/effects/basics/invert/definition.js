@@ -18,7 +18,6 @@ export default class Inv extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "inv",
       inputs: {
       "tex0": "inputTex"

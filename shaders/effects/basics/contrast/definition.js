@@ -18,7 +18,6 @@ export default class Cont extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "cont",
       inputs: {
       "tex0": "inputTex"

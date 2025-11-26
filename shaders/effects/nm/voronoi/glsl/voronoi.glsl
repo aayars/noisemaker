@@ -9,10 +9,10 @@ uniform sampler2D inputTex;
 uniform float time;
 uniform float speed;
 uniform float alpha;
-uniform float point_freq;
-uniform float point_distrib;
+uniform float pointFreq;
+uniform float pointDistrib;
 uniform float nth;
-uniform float dist_metric;
+uniform float distMetric;
 
 in vec2 v_texCoord;
 out vec4 fragColor;
@@ -33,7 +33,7 @@ vec2 hash22(vec2 p) {
 }
 
 // Distance metrics
-float distMetric(vec2 a, vec2 b, int metric) {
+float distanceMetric(vec2 a, vec2 b, int metric) {
     vec2 d = a - b;
     if (metric == 1) {
         // Manhattan
@@ -59,8 +59,8 @@ void main() {
     vec2 dims = vec2(textureSize(inputTex, 0));
     vec4 src = texture(inputTex, v_texCoord);
     
-    int freq = max(int(point_freq), 2);
-    int metric = int(dist_metric);
+    int freq = max(int(pointFreq), 2);
+    int metric = int(distMetric);
     int nthPoint = max(int(nth), 1);
     float t = time;
     
@@ -76,7 +76,7 @@ void main() {
         for (int dx = -1; dx <= 1; dx++) {
             vec2 cell = baseCell + vec2(float(dx), float(dy));
             vec2 point = getCellPoint(cell, t);
-            float d = distMetric(coord, point, metric);
+            float d = distanceMetric(coord, point, metric);
             distances[count] = d;
             count++;
         }

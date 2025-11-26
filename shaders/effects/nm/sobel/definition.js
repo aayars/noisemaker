@@ -10,10 +10,10 @@ export default class Sobel extends Effect {
   func = "sobel";
 
   globals = {
-    dist_metric: {
+    distMetric: {
         type: "enum",
         default: 1,
-        uniform: "dist_metric",
+        uniform: "distMetric",
         ui: {
             label: "Distance Metric"
         }
@@ -35,7 +35,6 @@ export default class Sobel extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "sobel",
       inputs: {
         inputTex: "inputTex"

@@ -5,14 +5,14 @@ const PI : f32 = 3.14159265358979323846;
 const TAU : f32 = 6.28318530717958647692;
 
 struct KaleidoParams {
-    dims : vec4<f32>,   // width, height, channel_count, sides
+    dims : vec4<f32>,   // width, height, channelCount, sides
     misc : vec4<f32>,   // sdf_sides, blend_edges, time, speed (time/speed unused but kept for parity)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : KaleidoParams;
-@group(0) @binding(3) var radius_texture : texture_2d<f32>;
+@group(0) @binding(3) var radiusTexture : texture_2d<f32>;
 
 fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
@@ -86,7 +86,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coord_i : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    var radius_sample : f32 = clamp01(textureLoad(radius_texture, coord_i, 0).x);
+    var radius_sample : f32 = clamp01(textureLoad(radiusTexture, coord_i, 0).x);
 
     let angle_step : f32 = TAU / max(sides, 1.0);
     var angle : f32 = atan2(normalized_y, normalized_x) + PI * 0.5;
@@ -104,7 +104,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let wrapped_x : i32 = wrap_index(i32(round(sample_x)), i32(width_u));
     let wrapped_y : i32 = wrap_index(i32(round(sample_y)), i32(height_u));
-    let color : vec4<f32> = textureLoad(input_texture, vec2<i32>(wrapped_x, wrapped_y), 0);
+    let color : vec4<f32> = textureLoad(inputTex, vec2<i32>(wrapped_x, wrapped_y), 0);
 
     let base_index : u32 = (gid.y * width_u + gid.x) * 4u;
     store_color(base_index, color);

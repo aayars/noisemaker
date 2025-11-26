@@ -15,10 +15,10 @@ const HUE_JITTER_SEED_B : u32 = 0x00b7u;
 
 struct NebulaParams {
     size : vec4<f32>,       // (width, height, channels, time)
-    time_speed : vec4<f32>, // (speed, unused, unused, unused)
+    timeSpeed : vec4<f32>, // (speed, unused, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : NebulaParams;
 
@@ -188,10 +188,10 @@ fn hsv_to_rgb(hsv : vec3<f32>) -> vec3<f32> {
     return clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-fn tint_overlay(overlay_value : f32, channel_count : u32) -> vec4<f32> {
+fn tint_overlay(overlay_value : f32, channelCount : u32) -> vec4<f32> {
     let clamped : f32 = clamp(overlay_value, 0.0, 1.0);
 
-    if (channel_count < 3u) {
+    if (channelCount < 3u) {
         return vec4<f32>(clamped, clamped, clamped, clamped);
     }
 
@@ -206,21 +206,21 @@ fn tint_overlay(overlay_value : f32, channel_count : u32) -> vec4<f32> {
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    let dims_tex : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims_tex : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = select(as_u32(params.size.x), dims_tex.x, dims_tex.x > 0u);
     let height : u32 = select(as_u32(params.size.y), dims_tex.y, dims_tex.y > 0u);
     if (gid.x >= width || gid.y >= height) {
         return;
     }
 
-    let channel_count : u32 = max(as_u32(params.size.z), 1u);
+    let channelCount : u32 = max(as_u32(params.size.z), 1u);
     let dims_f : vec2<f32> = vec2<f32>(max(f32(width), 1.0), max(f32(height), 1.0));
     let dims_i : vec2<i32> = vec2<i32>(i32(width), i32(height));
     let pixel : vec2<f32> = vec2<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5);
     let uv : vec2<f32> = pixel / dims_f;
 
     let time_value : f32 = params.size.w;
-    let speed_value : f32 = params.time_speed.x;
+    let speed_value : f32 = params.timeSpeed.x;
 
     let primary_freq_x : i32 = seeded_int(PRIMARY_FREQ_SEED, 3, 4);
     let secondary_freq_x : i32 = seeded_int(SECONDARY_FREQ_SEED, 2, 4);
@@ -255,19 +255,19 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let overlay : f32 = (primary_noise - secondary_noise) * 0.125;
     let overlay_positive : f32 = max(overlay, 0.0);
 
-    let base_texel : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
-    let tinted : vec4<f32> = tint_overlay(overlay_positive, channel_count);
+    let base_texel : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
+    let tinted : vec4<f32> = tint_overlay(overlay_positive, channelCount);
 
     let attenuation : f32 = 1.0 - overlay;
     let attenuated_rgb : vec3<f32> = base_texel.xyz * attenuation;
     var final_rgb : vec3<f32> = attenuated_rgb + tinted.xyz;
     var final_alpha : f32 = base_texel.w;
 
-    if (channel_count >= 4u) {
+    if (channelCount >= 4u) {
         final_alpha = base_texel.w * attenuation + tinted.w;
     }
 
-    if (channel_count >= 3u) {
+    if (channelCount >= 3u) {
         final_rgb = clamp(final_rgb, vec3<f32>(0.0), vec3<f32>(1.0));
     } else {
         let gray : f32 = clamp(attenuated_rgb.x + overlay_positive, 0.0, 1.0);

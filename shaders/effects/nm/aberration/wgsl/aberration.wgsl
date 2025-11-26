@@ -10,7 +10,7 @@ struct AberrationParams {
     anim : vec4<f32>,      // (time, speed, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : AberrationParams;
 
@@ -241,7 +241,7 @@ fn adjust_hue(rgb : vec3<f32>, amount : f32) -> vec3<f32> {
 }
 
 fn sample_shifted(coords : vec2<i32>, hue_shift : f32) -> vec4<f32> {
-    let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
     let adjusted_rgb : vec3<f32> = adjust_hue(texel.xyz, hue_shift);
     return vec4<f32>(adjusted_rgb, texel.w);
 }
@@ -261,10 +261,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let base_index : u32 = pixel_index * 4u;
 
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let center_sample : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let center_sample : vec4<f32> = textureLoad(inputTex, coords, 0);
 
-    let channel_count : u32 = as_u32(params.size.z);
-    if (channel_count < 3u) {
+    let channelCount : u32 = as_u32(params.size.z);
+    if (channelCount < 3u) {
         output_buffer[base_index + 0u] = center_sample.x;
         output_buffer[base_index + 1u] = center_sample.y;
         output_buffer[base_index + 2u] = center_sample.z;

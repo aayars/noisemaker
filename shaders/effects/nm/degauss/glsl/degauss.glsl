@@ -10,7 +10,7 @@ precision highp int;
 
 const float TAU = 6.28318530717958647692;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec2 resolution;
 uniform float time;
 uniform float displacement;
@@ -276,10 +276,10 @@ vec4 sample_bilinear(vec2 pos, float width, float height) {
     float fx = clamp(wrapped_x - float(x0), 0.0, 1.0);
     float fy = clamp(wrapped_y - float(y0), 0.0, 1.0);
 
-    vec4 tex00 = texelFetch(input_texture, ivec2(x0, y0), 0);
-    vec4 tex10 = texelFetch(input_texture, ivec2(x1, y0), 0);
-    vec4 tex01 = texelFetch(input_texture, ivec2(x0, y1), 0);
-    vec4 tex11 = texelFetch(input_texture, ivec2(x1, y1), 0);
+    vec4 tex00 = texelFetch(inputTex, ivec2(x0, y0), 0);
+    vec4 tex10 = texelFetch(inputTex, ivec2(x1, y0), 0);
+    vec4 tex01 = texelFetch(inputTex, ivec2(x0, y1), 0);
+    vec4 tex11 = texelFetch(inputTex, ivec2(x1, y1), 0);
 
     vec4 mix_x0 = mix(tex00, tex10, vec4(fx));
     vec4 mix_x1 = mix(tex01, tex11, vec4(fx));
@@ -322,7 +322,7 @@ void main() {
     }
 
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 original = texelFetch(input_texture, ivec2(coords), 0);
+    vec4 original = texelFetch(inputTex, ivec2(coords), 0);
 
     if (displacement == 0.0) {
         fragColor = original;

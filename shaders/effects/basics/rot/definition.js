@@ -25,7 +25,6 @@ export default class Rot extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "rot",
       inputs: {
       "tex0": "inputTex"

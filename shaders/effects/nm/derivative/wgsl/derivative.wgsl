@@ -37,11 +37,11 @@ const DERIVATIVE_KERNEL_Y : array<f32, 9> = array<f32, 9>(
 );
 
 struct DerivativeParams {
-    size : vec4<f32>,      // width, height, channels, dist_metric
+    size : vec4<f32>,      // width, height, channels, distMetric
     options : vec4<f32>,   // with_normalize, alpha, time, speed
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : DerivativeParams;
 
@@ -118,10 +118,10 @@ fn distance_metric(delta_x : f32, delta_y : f32, metric : u32) -> f32 {
 fn fetch_texel(x : i32, y : i32, width : i32, height : i32) -> vec4<f32> {
     let wrapped_x : i32 = wrap_coord(x, width);
     let wrapped_y : i32 = wrap_coord(y, height);
-    return textureLoad(input_texture, vec2<i32>(wrapped_x, wrapped_y), 0);
+    return textureLoad(inputTex, vec2<i32>(wrapped_x, wrapped_y), 0);
 }
 
-fn channel_count_from_params() -> u32 {
+fn channelCount_from_params() -> u32 {
     let channels : u32 = as_u32(params.size.z);
     if (channels == 0u) {
         return CHANNEL_COUNT; // default to full RGBA if unspecified
@@ -163,10 +163,10 @@ fn write_pixel(base_index : u32, color : vec4<f32>) {
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     var width : u32 = select(as_u32(params.size.x), dims.x, dims.x > 0u);
     var height : u32 = select(as_u32(params.size.y), dims.y, dims.y > 0u);
-    let channel_count : u32 = channel_count_from_params();
+    let channelCount : u32 = channelCount_from_params();
     if (gid.x >= width || gid.y >= height) {
         return;
     }
@@ -187,7 +187,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let base_index : u32 = pixel_index * CHANNEL_COUNT;
 
     var distances : vec4<f32> = vec4<f32>(0.0);
-    for (var c : u32 = 0u; c < channel_count; c = c + 1u) {
+    for (var c : u32 = 0u; c < channelCount; c = c + 1u) {
         let dist : f32 = distance_metric(
             get_component(gradients.dx, c),
             get_component(gradients.dy, c),
@@ -205,7 +205,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Alpha blend with source if requested
     if (alpha < 1.0) {
         var blended : vec4<f32> = distances;
-        for (var c : u32 = 0u; c < min(channel_count, 4u); c = c + 1u) {
+        for (var c : u32 = 0u; c < min(channelCount, 4u); c = c + 1u) {
             let orig : f32 = get_component(source_texel, c);
             let der : f32 = get_component(distances, c);
             let val : f32 = mix(orig, der, alpha);

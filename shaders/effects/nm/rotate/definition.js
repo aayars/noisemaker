@@ -30,7 +30,6 @@ export default class Rotate extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "rotate",
       inputs: {
         inputTex: "inputTex"

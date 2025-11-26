@@ -52,10 +52,9 @@ export default class Scratches extends Effect {
   passes = [
     {
       name: "mask",
-      type: "compute",  // GPGPU: generate scratch mask
-      program: "scratches_mask",
+      program: "scratchesMask",
       inputs: {
-        input_texture: "inputTex"
+        inputTex: "inputTex"
       },
       outputs: {
         color: "scratchMask"
@@ -63,11 +62,10 @@ export default class Scratches extends Effect {
     },
     {
       name: "combine",
-      type: "render",
       program: "scratches",
       inputs: {
-        input_texture: "inputTex",
-        mask_texture: "scratchMask"
+        inputTex: "inputTex",
+        maskTexture: "scratchMask"
       },
       outputs: {
         color: "outputColor"

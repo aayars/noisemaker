@@ -14,12 +14,12 @@ const uint INTERPOLATION_LINEAR = 1u;
 const uint INTERPOLATION_COSINE = 2u;
 const uint INTERPOLATION_BICUBIC = 3u;
 
-uniform sampler2D input_texture;
-uniform sampler2D reference_texture;
+uniform sampler2D inputTex;
+uniform sampler2D referenceTexture;
 uniform float freq;
 uniform float displacement;
 uniform float kink;
-uniform float spline_order;
+uniform float splineOrder;
 uniform float speed;
 uniform float time;
 
@@ -124,7 +124,7 @@ float lattice_value(ivec2 coord, ivec2 freq) {
     return hash_21(ivec2(wrapped_x, wrapped_y));
 }
 
-float sample_value_field(vec2 sample_pos, ivec2 freq, uint spline_order) {
+float sample_value_field(vec2 sample_pos, ivec2 freq, uint splineOrder) {
     int freq_x = max(freq.x, 1);
     int freq_y = max(freq.y, 1);
     vec2 base_floor = floor(sample_pos);
@@ -134,7 +134,7 @@ float sample_value_field(vec2 sample_pos, ivec2 freq, uint spline_order) {
     int x0 = wrap_index(base_coord.x, freq_x);
     int y0 = wrap_index(base_coord.y, freq_y);
 
-    if (spline_order == INTERPOLATION_CONSTANT) {
+    if (splineOrder == INTERPOLATION_CONSTANT) {
         return lattice_value(ivec2(x0, y0), freq);
     }
 
@@ -146,13 +146,13 @@ float sample_value_field(vec2 sample_pos, ivec2 freq, uint spline_order) {
     float v01 = lattice_value(ivec2(x0, y1), freq);
     float v11 = lattice_value(ivec2(x1, y1), freq);
 
-    if (spline_order == INTERPOLATION_LINEAR) {
+    if (splineOrder == INTERPOLATION_LINEAR) {
         float xa = mix(v00, v10, frac.x);
         float xb = mix(v01, v11, frac.x);
         return mix(xa, xb, frac.y);
     }
 
-    if (spline_order == INTERPOLATION_COSINE) {
+    if (splineOrder == INTERPOLATION_COSINE) {
         float xa = cosine_mix(v00, v10, frac.x);
         float xb = cosine_mix(v01, v11, frac.x);
         return cosine_mix(xa, xb, frac.y);
@@ -172,7 +172,7 @@ float sample_value_field(vec2 sample_pos, ivec2 freq, uint spline_order) {
     return cubic_mix(rows[0], rows[1], rows[2], rows[3], frac.y);
 }
 
-uint sanitize_spline_order(float raw_value) {
+uint sanitize_splineOrder(float raw_value) {
     int rounded = int(round(raw_value));
     if (rounded <= 0) {
         return INTERPOLATION_CONSTANT;
@@ -290,7 +290,7 @@ float simplex_random(float time_value, float speed_value) {
     return clamp(noise_value * 0.5 + 0.5, 0.0, 1.0);
 }
 
-float reference_value(ivec2 coord, ivec2 dims, float freq_param, uint spline_order_value) {
+float reference_value(ivec2 coord, ivec2 dims, float freq_param, uint splineOrder_value) {
     if (freq_param > 0.0) {
         vec2 freq_vec = freq_for_shape(freq_param, float(dims.x), float(dims.y));
         ivec2 freq_int = ivec2(
@@ -305,22 +305,22 @@ float reference_value(ivec2 coord, ivec2 dims, float freq_param, uint spline_ord
             uv.y / scale.y * float(freq_int.y)
         );
 
-        return clamp_01(sample_value_field(sample_pos, freq_int, spline_order_value));
+        return clamp_01(sample_value_field(sample_pos, freq_int, splineOrder_value));
     }
 
-    ivec2 ref_dims = textureSize(reference_texture, 0);
+    ivec2 ref_dims = textureSize(referenceTexture, 0);
     if (ref_dims.x <= 0 || ref_dims.y <= 0) {
         return 0.0;
     }
 
     int safe_x = wrap_coord(coord.x, ref_dims.x);
     int safe_y = wrap_coord(coord.y, ref_dims.y);
-    vec4 texel = texelFetch(reference_texture, ivec2(safe_x, safe_y), 0);
+    vec4 texel = texelFetch(referenceTexture, ivec2(safe_x, safe_y), 0);
     return value_map_component(texel);
 }
 
 void main() {
-    ivec2 dims = textureSize(input_texture, 0);
+    ivec2 dims = textureSize(inputTex, 0);
     if (dims.x <= 0 || dims.y <= 0) {
         fragColor = vec4(0.0);
         return;
@@ -332,7 +332,7 @@ void main() {
         return;
     }
 
-    uint spline_value = sanitize_spline_order(spline_order);
+    uint spline_value = sanitize_splineOrder(splineOrder);
     float freq_param = freq;
 
     float ref_value = reference_value(gid, dims, freq_param, spline_value);
@@ -357,10 +357,10 @@ void main() {
     int x1 = wrap_coord(x0 + 1, dims.x);
     int y1 = wrap_coord(y0 + 1, dims.y);
 
-    vec4 x0y0 = texelFetch(input_texture, ivec2(x0, y0), 0);
-    vec4 x1y0 = texelFetch(input_texture, ivec2(x1, y0), 0);
-    vec4 x0y1 = texelFetch(input_texture, ivec2(x0, y1), 0);
-    vec4 x1y1 = texelFetch(input_texture, ivec2(x1, y1), 0);
+    vec4 x0y0 = texelFetch(inputTex, ivec2(x0, y0), 0);
+    vec4 x1y0 = texelFetch(inputTex, ivec2(x1, y0), 0);
+    vec4 x0y1 = texelFetch(inputTex, ivec2(x0, y1), 0);
+    vec4 x1y1 = texelFetch(inputTex, ivec2(x1, y1), 0);
 
     float frac_x = reference_x - base_x;
     float frac_y = reference_y - base_y;

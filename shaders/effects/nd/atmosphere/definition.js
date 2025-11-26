@@ -145,7 +145,6 @@ export default class Atmosphere extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "atmosphere",
       inputs: {
         noiseTex: "noise"

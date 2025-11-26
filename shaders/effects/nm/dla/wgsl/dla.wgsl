@@ -28,11 +28,11 @@ const BLUR_KERNEL : array<f32, 25> = array<f32, 25>(
 
 struct DlaParams {
     size_padding : vec4<f32>,      // (width, height, channels, padding)
-    density_time : vec4<f32>,      // (seed_density, density, alpha, time)
+    density_time : vec4<f32>,      // (seedDensity, density, alpha, time)
     speed_padding : vec4<f32>,     // (speed, unused, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : DlaParams;
 // Previous frame accumulation (temporal coherence)
@@ -83,7 +83,7 @@ fn sanitize_dimension(value : f32, maximum : u32, fallback : u32) -> u32 {
     return dimension;
 }
 
-fn sanitize_channel_count(value : f32) -> u32 {
+fn sanitize_channelCount(value : f32) -> u32 {
     let clamped : i32 = i32(round(value));
     if (clamped < 1) {
         return 1u;
@@ -238,7 +238,7 @@ fn normalized_value(value : f32, minimum : f32, inv_range : f32) -> f32 {
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Use actual input texture dimensions; avoid large local arrays
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = dims.x;
     let height : u32 = dims.y;
     if (width == 0u || height == 0u) { return; }
@@ -249,7 +249,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     if (arrayLength(&output_buffer) < total_values) { return; }
 
     let alpha : f32 = clamp01(params.density_time.z);
-    let seed_density : f32 = max(params.density_time.x, 0.0);
+    let seedDensity : f32 = max(params.density_time.x, 0.0);
 
     // Parallelize prev_texture copy: each thread handles one pixel
     if (gid.x < width && gid.y < height) {
@@ -280,7 +280,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // If empty, initialize a few seeds
     if (occupied == 0u) {
         let min_dim : f32 = f32(min(width, height));
-        let seeds : u32 = max(1u, u32(floor(min_dim * seed_density * 0.25)));
+        let seeds : u32 = max(1u, u32(floor(min_dim * seedDensity * 0.25)));
         var s : f32 = 0.37; // deterministic seed
         for (var i : u32 = 0u; i < seeds; i = i + 1u) {
             let rx : u32 = u32(floor(rand01(&s) * f32(width)));
@@ -417,7 +417,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         let pixel_idx : u32 = gid.y * width + gid.x;
         let base : u32 = pixel_idx * 4u;
         
-        let input_color : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
+        let input_color : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(gid.x), i32(gid.y)), 0);
         let trail_color : vec4<f32> = vec4<f32>(
             output_buffer[base + 0u],
             output_buffer[base + 1u],

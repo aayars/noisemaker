@@ -2,7 +2,7 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
 uniform vec4 options;
 
@@ -48,7 +48,7 @@ int wrap_coord(int coord, int limit) {
 vec4 fetch_texel(int x, int y, int width, int height) {
     int wrapped_x = wrap_coord(x, width);
     int wrapped_y = wrap_coord(y, height);
-    return texelFetch(input_texture, ivec2(wrapped_x, wrapped_y), 0);
+    return texelFetch(inputTex, ivec2(wrapped_x, wrapped_y), 0);
 }
 
 float get_component(vec4 value, uint index) {
@@ -125,7 +125,7 @@ GradientPair compute_gradients(ivec2 coords, int width, int height) {
 }
 
 void main() {
-    ivec2 dims = textureSize(input_texture, 0);
+    ivec2 dims = textureSize(inputTex, 0);
     uint width = as_u32(size.x);
     uint height = as_u32(size.y);
     
@@ -141,9 +141,9 @@ void main() {
     int width_i = int(width);
     int height_i = int(height);
     
-    uint channel_count = as_u32(size.z);
-    if (channel_count == 0u) channel_count = 4u;
-    channel_count = min(channel_count, 4u);
+    uint channelCount = as_u32(size.z);
+    if (channelCount == 0u) channelCount = 4u;
+    channelCount = min(channelCount, 4u);
     
     uint metric = uint(floor(size.w + 0.5));
     bool do_normalize = options.x > 0.5;
@@ -155,7 +155,7 @@ void main() {
     GradientPair gradients = compute_gradients(ivec2(xi, yi), width_i, height_i);
 
     vec4 distances = vec4(0.0);
-    for (uint c = 0u; c < channel_count; c++) {
+    for (uint c = 0u; c < channelCount; c++) {
         float dist = distance_metric(
             get_component(gradients.dx, c),
             get_component(gradients.dy, c),
@@ -172,7 +172,7 @@ void main() {
     
     if (alpha < 1.0) {
         vec4 blended = distances;
-        for (uint c = 0u; c < channel_count; c++) {
+        for (uint c = 0u; c < channelCount; c++) {
             float orig = get_component(source_texel, c);
             float der = get_component(distances, c);
             float val = mix(orig, der, alpha);

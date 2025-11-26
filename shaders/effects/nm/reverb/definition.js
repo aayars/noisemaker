@@ -48,13 +48,12 @@ export default class Reverb extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "reverb",
       inputs: {
-        input_texture: "inputTex"
+        inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

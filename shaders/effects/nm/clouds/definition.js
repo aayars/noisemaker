@@ -52,16 +52,14 @@ export default class Clouds extends Effect {
   passes = [
     {
       name: "downsample",
-      type: "render",
-      program: "clouds_downsample",
+      program: "cloudsDownsample",
       outputs: {
         fragColor: "downsampleTex"
       }
     },
     {
       name: "reduce",
-      type: "compute",  // GPGPU: min/max reduction
-      program: "clouds_reduce",
+      program: "cloudsReduce",
       inputs: {
         downsampleTex: "downsampleTex"
       },
@@ -71,8 +69,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "stats",
-      type: "compute",  // GPGPU: final reduction to 1x1
-      program: "clouds_stats",
+      program: "cloudsStats",
       inputs: {
         reduceTex: "reduce1Tex"
       },
@@ -82,8 +79,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "shade",
-      type: "compute",  // GPGPU: normalized mask computation
-      program: "clouds_shade",
+      program: "cloudsShade",
       inputs: {
         downsampleTex: "downsampleTex",
         statsTex: "statsTex"
@@ -94,8 +90,7 @@ export default class Clouds extends Effect {
     },
     {
       name: "upsample",
-      type: "render",
-      program: "clouds_upsample",
+      program: "cloudsUpsample",
       inputs: {
         shadedTex: "shadedTex",
         inputTex: "inputTex"

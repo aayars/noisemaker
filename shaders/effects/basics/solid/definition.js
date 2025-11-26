@@ -8,21 +8,21 @@ export default class Solid extends Effect {
   globals = {
     "r": {
         "type": "float",
-        "default": 0,
+        "default": 0.5,
         "min": 0,
         "max": 1,
         "uniform": "r"
     },
     "g": {
         "type": "float",
-        "default": 0,
+        "default": 0.5,
         "min": 0,
         "max": 1,
         "uniform": "g"
     },
     "b": {
         "type": "float",
-        "default": 0,
+        "default": 0.5,
         "min": 0,
         "max": 1,
         "uniform": "b"
@@ -32,7 +32,6 @@ export default class Solid extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "solid",
       inputs: {},
       outputs: {

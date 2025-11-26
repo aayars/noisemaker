@@ -18,7 +18,6 @@ export default class Sum extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "sum",
       inputs: {
       "tex0": "inputTex"

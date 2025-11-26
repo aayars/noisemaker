@@ -32,7 +32,6 @@ export default class ModRotate extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modRotate",
       inputs: {
       "tex0": "inputTex",

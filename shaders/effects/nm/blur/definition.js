@@ -22,10 +22,10 @@ export default class Blur extends Effect {
             control: "slider"
         }
     },
-    spline_order: {
+    splineOrder: {
         type: "float",
         default: 3,
-        uniform: "spline_order",
+        uniform: "splineOrder",
         min: 0,
         max: 3,
         step: 1,
@@ -36,20 +36,38 @@ export default class Blur extends Effect {
     }
 };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  // Two-pass blur: downsample to coarse buffer, then upsample with interpolation
   passes = [
     {
-      name: "main",
-      type: "compute",
+      name: "downsample",
       program: "blur",
+      entryPoint: "downsample_main",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        downsample_buffer: "_blurDownsample"
+      }
+    },
+    {
+      name: "upsample",
+      program: "blur",
+      entryPoint: "upsample_main",
+      inputs: {
+        downsample_buffer: "_blurDownsample"
+      },
+      outputs: {
+        output_buffer: "outputColor"
       }
     }
   ];
+
+  // Internal texture for downsample buffer
+  textures = {
+    _blurDownsample: {
+      width: 64,
+      height: 64,
+      format: "rgba16float"
+    }
+  };
 }

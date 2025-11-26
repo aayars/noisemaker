@@ -19,7 +19,6 @@ export default class Src extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "src",
       inputs: {
       "tex0": "tex"

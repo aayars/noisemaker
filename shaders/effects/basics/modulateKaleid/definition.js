@@ -32,7 +32,6 @@ export default class ModKaleid extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modKaleid",
       inputs: {
       "tex0": "inputTex",

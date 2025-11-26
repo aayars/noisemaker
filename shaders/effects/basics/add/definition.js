@@ -25,7 +25,6 @@ export default class Add extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "add",
       inputs: {
       "tex0": "inputTex",

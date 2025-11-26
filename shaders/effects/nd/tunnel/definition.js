@@ -117,7 +117,6 @@ export default class Tunnel extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "tunnel",
       inputs: {
         inputTex: "inputTex"

@@ -9,10 +9,10 @@ precision highp int;
 const float PI = 3.14159265358979323846;
 const float TAU = 6.28318530717958647692;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 dims;
 uniform vec4 misc;
-uniform sampler2D radius_texture;
+uniform sampler2D radiusTexture;
 
 out vec4 fragColor;
 
@@ -82,7 +82,7 @@ void main() {
     }
 
     ivec2 coord_i = ivec2(int(global_id.x), int(global_id.y));
-    float radius_sample = clamp01(texelFetch(radius_texture, coord_i, 0).x);
+    float radius_sample = clamp01(texelFetch(radiusTexture, coord_i, 0).x);
 
     float angle_step = TAU / max(sides, 1.0);
     float angle = atan(normalized_y, normalized_x) + PI * 0.5;
@@ -100,7 +100,7 @@ void main() {
 
     int wrapped_x = wrap_index(int(round(sample_x)), int(width_u));
     int wrapped_y = wrap_index(int(round(sample_y)), int(height_u));
-    vec4 color = texelFetch(input_texture, ivec2(wrapped_x, wrapped_y), 0);
+    vec4 color = texelFetch(inputTex, ivec2(wrapped_x, wrapped_y), 0);
 
     fragColor = color;
 }

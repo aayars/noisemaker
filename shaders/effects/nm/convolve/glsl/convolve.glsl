@@ -57,7 +57,7 @@ const KERNEL_CONV2D_SOBEL_Y_WEIGHTS : array<f32, 9> = array<f32, 9>(
 
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
 uniform vec4 control;
 
@@ -65,7 +65,7 @@ uint as_u32(float value) {
     return uint(max(round(value), 0.0));
 }
 
-uint clamp_channel_count(uint raw_count) {
+uint clamp_channelCount(uint raw_count) {
     if (raw_count == 0u) {
         return 0u;
     }
@@ -237,8 +237,8 @@ void convolve_main(uvec3 @builtin(global_invocation_id) global_id) {
         return;
     }
 
-    uint channel_count = clamp_channel_count(as_u32(size.z));
-    if (channel_count == 0u) {
+    uint channelCount = clamp_channelCount(as_u32(size.z));
+    if (channelCount == 0u) {
         return;
     }
 
@@ -262,18 +262,18 @@ void convolve_main(uvec3 @builtin(global_invocation_id) global_id) {
             int offset_y = ky - dims.y / 2;
             int sample_x = wrap_index(xi + offset_x, width_i);
             int sample_y = wrap_index(yi + offset_y, height_i);
-            vec4 sample = textureLoad(input_texture, vec2(sample_x, sample_y), 0);
+            vec4 sample = textureLoad(inputTex, vec2(sample_x, sample_y), 0);
             float weight = kernel_weight(kernel_id, ky, kx) / denom;
             accum = accum + sample * weight;
         }
     }
 
-    vec4 original = textureLoad(input_texture, vec2(xi, yi), 0);
+    vec4 original = textureLoad(inputTex, vec2(xi, yi), 0);
     vec4 processed = original;
     float pixel_min = FLOAT_MAX;
     float pixel_max = FLOAT_MIN;
 
-    for (uint c = 0u; c < channel_count; c = c + 1u) {
+    for (uint c = 0u; c < channelCount; c = c + 1u) {
         float component = get_component(accum, c);
         set_component(processed, c, component);
         pixel_min = min(pixel_min, component);
@@ -304,8 +304,8 @@ void main() {
         return;
     }
 
-    uint channel_count = clamp_channel_count(as_u32(size.z));
-    if (channel_count == 0u) {
+    uint channelCount = clamp_channelCount(as_u32(size.z));
+    if (channelCount == 0u) {
         return;
     }
 
@@ -332,7 +332,7 @@ void main() {
     vec4 processed = read_pixel(base_index);
 
     if (do_normalize && max_value > min_value) {
-        for (uint c = 0u; c < channel_count; c = c + 1u) {
+        for (uint c = 0u; c < channelCount; c = c + 1u) {
             float value = get_component(processed, c);
             float normalized = (value - min_value) * inv_range;
             set_component(processed, c, normalized);
@@ -340,7 +340,7 @@ void main() {
     }
 
     if (kernel_id == KERNEL_CONV2D_EDGES) {
-        for (uint c_edge = 0u; c_edge < channel_count; c_edge = c_edge + 1u) {
+        for (uint c_edge = 0u; c_edge < channelCount; c_edge = c_edge + 1u) {
             float value_edge = get_component(processed, c_edge);
             float adjusted = abs(value_edge - 0.5) * 2.0;
             set_component(processed, c_edge, adjusted);
@@ -348,7 +348,7 @@ void main() {
     }
 
     vec2 coord = vec2(int(global_id.x), int(global_id.y));
-    vec4 original = texture(input_texture, (vec2(coord) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 original = texture(inputTex, (vec2(coord) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
     vec4 result = lerp_vec4(original, processed, alpha);
     result.w = original.w;
 

@@ -379,8 +379,8 @@ fn shape(st_in: vec2f, sides: i32, blend: f32) -> f32 {
     return cos(floor(0.5 + a / r) * r - a) * length(st) * blend;
 }
 
-fn posterize(color: vec3f, lev_in: f32) -> vec3f {
-    var lev = lev_in;
+fn posterize(color: vec3f, levIn: f32) -> vec3f {
+    var lev = levIn;
     if (lev == 0.0) { return color; }
     else if (lev == 1.0) { lev = 2.0; }
     let c = clamp(color, vec3f(0.0), vec3f(0.99));

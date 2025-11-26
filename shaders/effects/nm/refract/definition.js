@@ -34,12 +34,12 @@ export default class Refract extends Effect {
         control: "slider"
       }
     },
-    spline_order: {
+    splineOrder: {
       type: "int",
       default: 3,
-      uniform: "spline_order",
+      uniform: "splineOrder",
       min: 0,
-      max: 5,
+      max: 3,
       step: 1,
       ui: {
         label: "Spline Order",
@@ -47,15 +47,12 @@ export default class Refract extends Effect {
       }
     },
     derivative: {
-      type: "int",
-      default: 1,
+      type: "boolean",
+      default: true,
       uniform: "derivative",
-      min: 0,
-      max: 3,
-      step: 1,
       ui: {
         label: "Derivative",
-        control: "slider"
+        control: "checkbox"
       }
     },
     range: {
@@ -87,10 +84,9 @@ export default class Refract extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "refract",
       inputs: {
-        input_texture: "inputTex"
+        inputTex: "inputTex"
       },
       outputs: {
         color: "outputColor"

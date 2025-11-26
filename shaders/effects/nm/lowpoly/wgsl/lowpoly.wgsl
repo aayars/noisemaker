@@ -7,15 +7,15 @@ const NORMAL_Z_SCALE : f32 = 1.6;
 
 struct LowpolyParams {
     dims : vec4<f32>,                     // width, height, channel count, unused
-    distrib_freq_time_speed : vec4<f32>,  // distrib, freq, time, speed
-    dist_metric_pad : vec4<f32>,          // dist_metric, pad
+    distrib_freq_timeSpeed : vec4<f32>,  // distrib, freq, time, speed
+    distMetric_pad : vec4<f32>,          // distMetric, pad
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : LowpolyParams;
 @group(0) @binding(3) var voronoi_color_texture : texture_2d<f32>;
-@group(0) @binding(4) var voronoi_range_texture : texture_2d<f32>;
+@group(0) @binding(4) var voronoiRangeTexture : texture_2d<f32>;
 
 fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
@@ -32,7 +32,7 @@ fn clamp_coord(value : i32, limit : i32) -> i32 {
 }
 
 fn sample_range(coord : vec2<i32>) -> f32 {
-    return textureLoad(voronoi_range_texture, coord, 0).x;
+    return textureLoad(voronoiRangeTexture, coord, 0).x;
 }
 
 fn luminance(color : vec3<f32>) -> f32 {
@@ -72,9 +72,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base_sample : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let base_sample : vec4<f32> = textureLoad(inputTex, coords, 0);
     let voronoi_color_sample : vec4<f32> = textureLoad(voronoi_color_texture, coords, 0);
-    let voronoi_range_sample : vec4<f32> = textureLoad(voronoi_range_texture, coords, 0);
+    let voronoi_range_sample : vec4<f32> = textureLoad(voronoiRangeTexture, coords, 0);
 
     let range_value : f32 = clamp(voronoi_range_sample.x, 0.0, 1.0);
     let distance_rgb : vec3<f32> = vec3<f32>(range_value, range_value, range_value);

@@ -19,7 +19,6 @@ export default class Mask extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "mask",
       inputs: {
       "tex0": "inputTex",

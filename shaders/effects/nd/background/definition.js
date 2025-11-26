@@ -54,7 +54,6 @@ export default class Background extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "background",
       outputs: {
         fragColor: "outputColor"

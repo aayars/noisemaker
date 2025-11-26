@@ -343,7 +343,6 @@ export default class Noise extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "noise",
       inputs: {
       },

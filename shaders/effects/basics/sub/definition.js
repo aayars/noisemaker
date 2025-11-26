@@ -25,7 +25,6 @@ export default class Sub extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "sub",
       inputs: {
       "tex0": "inputTex",

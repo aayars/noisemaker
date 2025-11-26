@@ -25,7 +25,6 @@ export default class ModHue extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modHue",
       inputs: {
       "tex0": "inputTex",

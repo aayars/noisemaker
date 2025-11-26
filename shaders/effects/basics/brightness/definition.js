@@ -18,7 +18,6 @@ export default class Bright extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "bright",
       inputs: {
       "tex0": "inputTex"

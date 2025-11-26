@@ -2,13 +2,13 @@
 
 struct ReindexParams {
     width_height_channels_displacement : vec4<f32>,
-    time_speed_padding : vec4<f32>,
+    timeSpeed_padding : vec4<f32>,
 };
 
 const F32_MAX : f32 = 0x1.fffffep+127;
 const F32_MIN : f32 = -0x1.fffffep+127;
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : ReindexParams;
 @group(0) @binding(3) var<storage, read_write> stats_buffer : array<f32>;

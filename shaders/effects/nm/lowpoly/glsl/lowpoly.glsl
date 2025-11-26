@@ -5,12 +5,12 @@ precision highp int;
 const uint CHANNEL_COUNT = 4u;
 const float NORMAL_Z_SCALE = 1.6;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 dims;
-uniform vec4 distrib_freq_time_speed;
-uniform vec4 dist_metric_pad;
-uniform sampler2D voronoi_color_texture;
-uniform sampler2D voronoi_range_texture;
+uniform vec4 distribFreqTimeSpeed;
+uniform vec4 distMetricPad;
+uniform sampler2D voronoiColorTexture;
+uniform sampler2D voronoiRangeTexture;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -29,7 +29,7 @@ int clamp_coord(int value, int limit) {
 }
 
 float sample_range(ivec2 coord) {
-    return texelFetch(voronoi_range_texture, coord, 0).x;
+    return texelFetch(voronoiRangeTexture, coord, 0).x;
 }
 
 float luminance(vec3 color) {
@@ -65,7 +65,7 @@ void main() {
 
     uint width_u = as_u32(dims.x);
     uint height_u = as_u32(dims.y);
-    ivec2 inputDims = textureSize(input_texture, 0);
+    ivec2 inputDims = textureSize(inputTex, 0);
     if (width_u == 0u) {
         width_u = uint(max(inputDims.x, 1));
     }
@@ -77,9 +77,9 @@ void main() {
     }
 
     ivec2 coords = ivec2(int(global_id.x), int(global_id.y));
-    vec4 base_sample = texelFetch(input_texture, coords, 0);
-    vec4 voronoi_color_sample = texelFetch(voronoi_color_texture, coords, 0);
-    vec4 voronoi_range_sample = texelFetch(voronoi_range_texture, coords, 0);
+    vec4 base_sample = texelFetch(inputTex, coords, 0);
+    vec4 voronoi_color_sample = texelFetch(voronoiColorTexture, coords, 0);
+    vec4 voronoi_range_sample = texelFetch(voronoiRangeTexture, coords, 0);
 
     float range_value = clamp(voronoi_range_sample.x, 0.0, 1.0);
     vec3 distance_rgb = vec3(range_value, range_value, range_value);

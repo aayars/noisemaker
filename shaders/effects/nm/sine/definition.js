@@ -39,7 +39,6 @@ export default class Sine extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "sine",
       inputs: {
         inputTex: "inputTex"

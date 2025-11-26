@@ -38,13 +38,12 @@ export default class Vignette extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "vignette",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

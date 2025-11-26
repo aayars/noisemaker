@@ -165,7 +165,6 @@ export default class Splat extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "splat",
       inputs: {
         inputTex: "inputTex"

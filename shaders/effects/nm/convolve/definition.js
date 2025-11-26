@@ -22,10 +22,10 @@ export default class Convolve extends Effect {
             control: "slider"
         }
     },
-    with_normalize: {
+    withNormalize: {
         type: "float",
         default: 1.0,
-        uniform: "with_normalize",
+        uniform: "withNormalize",
         min: 0,
         max: 1,
         step: 1,
@@ -54,45 +54,41 @@ export default class Convolve extends Effect {
   passes = [
     {
       name: "convolve",
-      type: "compute",  // GPGPU: convolution
-      program: "convolve_render",
+      program: "convolveRender",
       inputs: {
-        input_texture: "inputTex"
+        inputTex: "inputTex"
       },
       outputs: {
         fragColor: "convolved"
       }
     },
     {
-      name: "reduce_1",
-      type: "compute",  // GPGPU: min/max reduction pass 1
-      program: "reduce_1",
+      name: "reduce1",
+      program: "reduce1",
       inputs: {
-        input_texture: "convolved"
+        inputTex: "convolved"
       },
       outputs: {
-        fragColor: "minmax_1"
+        fragColor: "minmax1"
       }
     },
     {
-      name: "reduce_2",
-      type: "compute",  // GPGPU: min/max reduction pass 2
-      program: "reduce_2",
+      name: "reduce2",
+      program: "reduce2",
       inputs: {
-        input_texture: "minmax_1"
+        inputTex: "minmax1"
       },
       outputs: {
-        fragColor: "minmax_global"
+        fragColor: "minmaxGlobal"
       }
     },
     {
       name: "normalize",
-      type: "render",
-      program: "normalize_render",
+      program: "normalizeRender",
       inputs: {
-        convolved_texture: "convolved",
-        minmax_texture: "minmax_global",
-        input_texture: "inputTex"
+        convolvedTexture: "convolved",
+        minmaxTexture: "minmaxGlobal",
+        inputTex: "inputTex"
       },
       outputs: {
         fragColor: "outputColor"

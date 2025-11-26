@@ -39,7 +39,6 @@ export default class Scroll extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "scroll",
       inputs: {
       "tex0": "inputTex"

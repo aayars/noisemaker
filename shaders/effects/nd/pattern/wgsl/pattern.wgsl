@@ -45,9 +45,9 @@ fn prng(p: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(pcg(bitcast<vec3<u32>>(floor(p)))) / f32(0xffffffffu);
 }
 
-fn rotate2D(st_in: vec2<f32>, rot_in: f32, aspectRatio: f32) -> vec2<f32> {
+fn rotate2D(st_in: vec2<f32>, rotIn: f32, aspectRatio: f32) -> vec2<f32> {
     var st = st_in;
-    let rot = map(rot_in, 0.0, 360.0, 0.0, 2.0);
+    let rot = map(rotIn, 0.0, 360.0, 0.0, 2.0);
     let angle = rot * PI;
     st -= vec2<f32>(aspectRatio * 0.5, 0.5);
     let c = cos(angle);

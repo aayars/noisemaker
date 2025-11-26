@@ -4,7 +4,7 @@
 const CHANNEL_COUNT : u32 = 4u;
 
 struct CombineParams {
-    size : vec4<f32>, // (width, height, channel_count, unused)
+    size : vec4<f32>, // (width, height, channelCount, unused)
 };
 
 @group(0) @binding(0) var smear_texture : texture_2d<f32>;

@@ -25,7 +25,6 @@ export default class Lum extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "lum",
       inputs: {
       "tex0": "inputTex"

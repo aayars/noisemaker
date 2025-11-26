@@ -24,13 +24,12 @@ export default class Spatter extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "spatter",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

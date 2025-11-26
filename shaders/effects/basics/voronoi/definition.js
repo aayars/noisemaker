@@ -3,7 +3,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 export default class Voronoi extends Effect {
   name = "Voronoi";
   namespace = "basics";
-  func = "voronoi_basics";
+  func = "voronoi";
 
   globals = {
     "scale": {
@@ -32,7 +32,6 @@ export default class Voronoi extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "voronoi",
       inputs: {},
       outputs: {

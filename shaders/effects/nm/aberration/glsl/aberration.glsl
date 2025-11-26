@@ -11,7 +11,7 @@ const float PI = 3.14159265358979323846;
 const float TAU = 6.28318530717958647692;
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float displacement;
 uniform float speed;
 uniform float time;
@@ -244,7 +244,7 @@ vec3 adjust_hue(vec3 rgb, float amount) {
 }
 
 vec4 sample_shifted(ivec2 coords, float hue_shift) {
-    vec4 texel = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 texel = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
     vec3 adjusted_rgb = adjust_hue(texel.xyz, hue_shift);
     return vec4(adjusted_rgb, texel.w);
 }
@@ -269,10 +269,10 @@ void main() {
 
 
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 center_sample = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 center_sample = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
 
-    uint channel_count = as_u32(size.z);
-    if (channel_count < 3u) {
+    uint channelCount = as_u32(size.z);
+    if (channelCount < 3u) {
         fragColor = vec4(center_sample.x, center_sample.y, center_sample.z, center_sample.w);
         return;
     }

@@ -26,13 +26,12 @@ export default class Wobble extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "wobble",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

@@ -17,7 +17,7 @@ struct SnowParams {
     _pad1 : f32,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : SnowParams;
 
@@ -90,7 +90,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let alpha : f32 = clamp(params.alpha, 0.0, 1.0);
     let base_index : u32 = (gid.y * width + gid.x) * CHANNEL_COUNT;
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
 
     if (alpha <= 0.0) {
         write_pixel(base_index, texel.xyz, texel.w);

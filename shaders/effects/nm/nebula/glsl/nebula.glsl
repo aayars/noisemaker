@@ -13,9 +13,9 @@ const uint ROTATION_SEED = 0x0031u;
 const uint HUE_JITTER_SEED_A = 0x00a5u;
 const uint HUE_JITTER_SEED_B = 0x00b7u;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
-uniform vec4 time_speed;
+uniform vec4 timeSpeed;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -185,10 +185,10 @@ vec3 hsv_to_rgb(vec3 hsv) {
     return clamp(vec3(r, g, b), vec3(0.0), vec3(1.0));
 }
 
-vec4 tint_overlay(float overlay_value, uint channel_count) {
+vec4 tint_overlay(float overlay_value, uint channelCount) {
     float clamped = clamp(overlay_value, 0.0, 1.0);
 
-    if (channel_count < 3u) {
+    if (channelCount < 3u) {
         return vec4(clamped, clamped, clamped, clamped);
     }
 
@@ -203,7 +203,7 @@ vec4 tint_overlay(float overlay_value, uint channel_count) {
 
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
-    ivec2 dims_tex = textureSize(input_texture, 0);
+    ivec2 dims_tex = textureSize(inputTex, 0);
     uint width = as_u32(size.x);
     uint height = as_u32(size.y);
     if (width == 0u) {
@@ -217,14 +217,14 @@ void main() {
         return;
     }
 
-    uint channel_count = max(as_u32(size.z), 1u);
+    uint channelCount = max(as_u32(size.z), 1u);
     vec2 dims_f = vec2(max(float(width), 1.0), max(float(height), 1.0));
     ivec2 dims_i = ivec2(int(width), int(height));
     vec2 pixel = vec2(float(global_id.x) + 0.5, float(global_id.y) + 0.5);
     vec2 uv = pixel / dims_f;
 
     float time_value = size.w;
-    float speed_value = time_speed.x;
+    float speed_value = timeSpeed.x;
 
     int primary_freq_x = seeded_int(PRIMARY_FREQ_SEED, 3, 4);
     int secondary_freq_x = seeded_int(SECONDARY_FREQ_SEED, 2, 4);
@@ -257,9 +257,9 @@ void main() {
     );
     float overlay = (primary_noise - secondary_noise) * 0.125;
     float overlay_positive = max(overlay, 0.0);
-    vec4 overlay_color = tint_overlay(overlay_positive, channel_count);
+    vec4 overlay_color = tint_overlay(overlay_positive, channelCount);
 
-    vec4 base_sample = texelFetch(input_texture, ivec2(global_id.xy), 0);
+    vec4 base_sample = texelFetch(inputTex, ivec2(global_id.xy), 0);
     vec3 base_rgb = base_sample.xyz;
     float base_alpha = base_sample.w;
 
@@ -268,11 +268,11 @@ void main() {
     vec3 final_rgb = attenuated_rgb + overlay_color.xyz;
     float final_alpha = base_alpha;
 
-    if (channel_count >= 4u) {
+    if (channelCount >= 4u) {
         final_alpha = base_alpha * attenuation + overlay_color.w;
     }
 
-    if (channel_count >= 3u) {
+    if (channelCount >= 3u) {
         final_rgb = clamp(final_rgb, vec3(0.0), vec3(1.0));
     } else {
         float gray = clamp(attenuated_rgb.x + overlay_positive, 0.0, 1.0);

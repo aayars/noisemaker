@@ -11,7 +11,7 @@ const float STRIDE_SCALE = 1024.0;
 const uint CHANNEL_COUNT = 4u;
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
 uniform vec4 flow;
 uniform vec4 motion;
@@ -50,7 +50,7 @@ void main() {
     // Read source pixel
     uint src_x = global_id.x;
     uint src_y = global_id.y;
-    vec4 src_color = textureLoad(input_texture, vec2(int(src_x), int(src_y)), 0);
+    vec4 src_color = textureLoad(inputTex, vec2(int(src_x), int(src_y)), 0);
     
     // Calculate flow field offset based on luminance
     float lum = luminance(src_color);

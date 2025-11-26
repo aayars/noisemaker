@@ -39,7 +39,6 @@ export default class Repeat extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "repeat",
       inputs: {
       "tex0": "inputTex"

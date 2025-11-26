@@ -10,7 +10,7 @@ struct WobbleParams {
     speed_pad : vec4<f32>,   // (speed, _pad0, _pad1, _pad2)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : WobbleParams;
 
@@ -191,7 +191,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let wrapped_x : i32 = wrap_index(i32(global_id.x), x_offset, i32(width));
     let wrapped_y : i32 = wrap_index(i32(global_id.y), y_offset, i32(height));
 
-    let texel : vec4<f32> = textureLoad(input_texture, vec2<i32>(wrapped_x, wrapped_y), 0);
+    let texel : vec4<f32> = textureLoad(inputTex, vec2<i32>(wrapped_x, wrapped_y), 0);
 
     let pixel_index : u32 = global_id.y * width + global_id.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;

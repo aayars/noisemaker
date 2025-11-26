@@ -169,7 +169,6 @@ export default class Kaleido extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "kaleido",
       inputs: {
         inputTex: "inputTex"

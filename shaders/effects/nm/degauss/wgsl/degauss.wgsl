@@ -10,7 +10,7 @@ struct DegaussParams {
     dims1 : vec4<f32>, // (speed, _pad0, _pad1, _pad2)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : DegaussParams;
 
@@ -272,10 +272,10 @@ fn sample_bilinear(pos : vec2<f32>, width : f32, height : f32) -> vec4<f32> {
     let fx : f32 = clamp(wrapped_x - f32(x0), 0.0, 1.0);
     let fy : f32 = clamp(wrapped_y - f32(y0), 0.0, 1.0);
 
-    let tex00 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y0), 0);
-    let tex10 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y0), 0);
-    let tex01 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x0, y1), 0);
-    let tex11 : vec4<f32> = textureLoad(input_texture, vec2<i32>(x1, y1), 0);
+    let tex00 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y0), 0);
+    let tex10 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y0), 0);
+    let tex01 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x0, y1), 0);
+    let tex11 : vec4<f32> = textureLoad(inputTex, vec2<i32>(x1, y1), 0);
 
     let mix_x0 : vec4<f32> = mix(tex00, tex10, vec4<f32>(fx));
     let mix_x1 : vec4<f32> = mix(tex01, tex11, vec4<f32>(fx));
@@ -331,7 +331,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let pixel_index : u32 = gid.y * width + gid.x;
     let base_index : u32 = pixel_index * 4u;
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let original : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let original : vec4<f32> = textureLoad(inputTex, coords, 0);
 
     let displacement : f32 = params.dims0.z;
     if (displacement == 0.0) {

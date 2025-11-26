@@ -18,7 +18,6 @@ export default class Gradient extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "gradient",
       inputs: {},
       outputs: {

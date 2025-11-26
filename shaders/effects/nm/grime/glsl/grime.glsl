@@ -8,9 +8,9 @@ precision highp int;
 
 const uint CHANNEL_COUNT = 4u;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
-uniform vec4 time_speed;
+uniform vec4 timeSpeed;
 
 out vec4 fragColor;
 
@@ -251,7 +251,7 @@ void main() {
     }
 
     ivec2 coords = ivec2(int(global_id.x), int(global_id.y));
-    vec4 base_color = texelFetch(input_texture, coords, 0);
+    vec4 base_color = texelFetch(inputTex, coords, 0);
 
     vec2 dims = vec2(
         max(size.x, 1.0),
@@ -260,10 +260,10 @@ void main() {
     vec2 pixel_size = vec2(1.0 / dims.x, 1.0 / dims.y);
     vec2 uv = (vec2(float(global_id.x), float(global_id.y)) + 0.5) * pixel_size;
 
-    float time_value = time_speed.x;
-    float speed_value = time_speed.y;
-    float strength = max(time_speed.z, 0.0);
-    float debug_mode = time_speed.w;
+    float time_value = timeSpeed.x;
+    float speed_value = timeSpeed.y;
+    float strength = max(timeSpeed.z, 0.0);
+    float debug_mode = timeSpeed.w;
 
     vec2 freq_mask = freq_for_shape(5.0, dims.x, dims.y);
     float mask_refracted = refracted_scalar_field(

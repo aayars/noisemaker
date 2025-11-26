@@ -1,11 +1,10 @@
 // WGSL version – WebGPU
 @group(0) @binding(0) var<uniform> resolution: vec2<f32>;
-@group(0) @binding(1) var<uniform> time: f32;
-@group(0) @binding(2) var<uniform> backgroundType: i32;
-@group(0) @binding(3) var<uniform> rotation: f32;
-@group(0) @binding(4) var<uniform> opacity: f32;
-@group(0) @binding(5) var<uniform> color1: vec4<f32>;
-@group(0) @binding(6) var<uniform> color2: vec4<f32>;
+@group(0) @binding(1) var<uniform> backgroundType: i32;
+@group(0) @binding(2) var<uniform> rotation: f32;
+@group(0) @binding(3) var<uniform> opacity: f32;
+@group(0) @binding(4) var<uniform> color1: vec4<f32>;
+@group(0) @binding(5) var<uniform> color2: vec4<f32>;
 
 fn map(value: f32, inMin: f32, inMax: f32, outMin: f32, outMax: f32) -> f32 {
     return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);

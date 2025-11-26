@@ -10,10 +10,10 @@ export default class Voronoi extends Effect {
   func = "voronoi";
 
   globals = {
-    diagram_type: {
+    diagramType: {
         type: "integer",
         default: 1,
-        uniform: "diagram_type",
+        uniform: "diagramType",
         min: 0,
         max: 7,
         step: 1,
@@ -34,10 +34,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    dist_metric: {
+    distMetric: {
         type: "integer",
         default: 1,
-        uniform: "dist_metric",
+        uniform: "distMetric",
         min: 1,
         max: 4,
         step: 1,
@@ -46,10 +46,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    sdf_sides: {
+    sdfSides: {
         type: "integer",
         default: 3,
-        uniform: "sdf_sides",
+        uniform: "sdfSides",
         min: 3,
         max: 24,
         step: 1,
@@ -70,10 +70,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    with_refract: {
+    withRefract: {
         type: "float",
         default: 0,
-        uniform: "with_refract",
+        uniform: "withRefract",
         min: 0,
         max: 2,
         step: 0.01,
@@ -91,28 +91,28 @@ export default class Voronoi extends Effect {
             control: "checkbox"
         }
     },
-    ridges_hint: {
+    ridgesHint: {
         type: "boolean",
         default: false,
-        uniform: "ridges_hint",
+        uniform: "ridgesHint",
         ui: {
             label: "Ridges Hint",
             control: "checkbox"
         }
     },
-    refract_y_from_offset: {
+    refractYFromOffset: {
         type: "boolean",
         default: true,
-        uniform: "refract_y_from_offset",
+        uniform: "refractYFromOffset",
         ui: {
             label: "Refract Offset",
             control: "checkbox"
         }
     },
-    point_freq: {
+    pointFreq: {
         type: "integer",
         default: 3,
-        uniform: "point_freq",
+        uniform: "pointFreq",
         min: 1,
         max: 10,
         step: 1,
@@ -121,10 +121,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    point_generations: {
+    pointGenerations: {
         type: "integer",
         default: 1,
-        uniform: "point_generations",
+        uniform: "pointGenerations",
         min: 1,
         max: 5,
         step: 1,
@@ -133,10 +133,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    point_distrib: {
+    pointDistrib: {
         type: "integer",
         default: 0,
-        uniform: "point_distrib",
+        uniform: "pointDistrib",
         min: 0,
         max: 9,
         step: 1,
@@ -145,10 +145,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    point_drift: {
+    pointDrift: {
         type: "float",
         default: 0,
-        uniform: "point_drift",
+        uniform: "pointDrift",
         min: 0,
         max: 1,
         step: 0.01,
@@ -157,10 +157,10 @@ export default class Voronoi extends Effect {
             control: "slider"
         }
     },
-    point_corners: {
+    pointCorners: {
         type: "boolean",
         default: false,
-        uniform: "point_corners",
+        uniform: "pointCorners",
         ui: {
             label: "Include Corners",
             control: "checkbox"
@@ -175,18 +175,17 @@ export default class Voronoi extends Effect {
             control: "checkbox"
         }
     }
-};
+  };
 
   passes = [
     {
       name: "main",
-      type: "render",
       program: "voronoi",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

@@ -8,7 +8,7 @@ const CHANNEL_COUNT : u32 = 4u;
 struct VaselineParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     _pad0 : f32,
     alpha : f32,
     time : f32,
@@ -16,7 +16,7 @@ struct VaselineParams {
     _pad1 : f32,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : VaselineParams;
 @group(0) @binding(3) var bloom_texture : texture_2d<f32>;
@@ -70,7 +70,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coord : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base_sample : vec4<f32> = clamp_vec4_01(textureLoad(input_texture, coord, 0));
+    let base_sample : vec4<f32> = clamp_vec4_01(textureLoad(inputTex, coord, 0));
 
     let alpha : f32 = clamp(params.alpha, 0.0, 1.0);
     if (alpha <= 0.0) {

@@ -25,7 +25,6 @@ export default class Mod extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "mod",
       inputs: {
       "tex0": "inputTex",

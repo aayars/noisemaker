@@ -17,7 +17,6 @@ export default class Sketch extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "sketch",
       inputs: {
         inputTex: "inputTex"

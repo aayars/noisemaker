@@ -30,7 +30,6 @@ export default class Snow extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "snow",
       inputs: {
         inputTex: "inputTex"

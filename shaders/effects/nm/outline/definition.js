@@ -10,10 +10,10 @@ export default class Outline extends Effect {
   func = "outline";
 
   globals = {
-    sobel_metric: {
+    sobelMetric: {
         type: "enum",
         default: 1,
-        uniform: "sobel_metric",
+        uniform: "sobelMetric",
         ui: {
             label: "Sobel Metric"
         }
@@ -35,7 +35,6 @@ export default class Outline extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "outline",
       inputs: {
         inputTex: "inputTex"

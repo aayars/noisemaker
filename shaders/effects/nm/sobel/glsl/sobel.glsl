@@ -7,7 +7,7 @@ precision highp int;
 // Computes gradient magnitude using Sobel kernels
 
 uniform sampler2D inputTex;
-uniform float dist_metric;
+uniform float distMetric;
 uniform float alpha;
 uniform float time;
 
@@ -54,7 +54,7 @@ void main() {
     // Sobel Y kernel: [-1 -2 -1; 0 0 0; 1 2 1]
     vec4 gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
     
-    int metric = int(dist_metric);
+    int metric = int(distMetric);
     
     vec4 result;
     result.r = distance_metric(gx.r, gy.r, metric);

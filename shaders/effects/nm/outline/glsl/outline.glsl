@@ -10,15 +10,15 @@ precision highp int;
 const uint CHANNEL_COUNT = 4u;
 
 
-uniform sampler2D base_texture;
+uniform sampler2D inputTex;
 uniform float width;
 uniform float height;
-uniform float channel_count;
-uniform float invert_flag;
-uniform float sobel_metric;
+uniform float channelCount;
+uniform float invertFlag;
+uniform float sobelMetric;
 uniform float time;
 uniform float speed;
-uniform sampler2D edges_texture;
+uniform sampler2D edgesTexture;
 
 
 
@@ -32,8 +32,8 @@ void main() {
     if (global_id.x >= width || global_id.y >= height) { return; }
 
     vec2 coord = vec2(int(global_id.x), int(global_id.y));
-    vec4 base = texture(base_texture, (vec2(coord) + vec2(0.5)) / vec2(textureSize(base_texture, 0)));
-    vec4 edges = texture(edges_texture, (vec2(coord) + vec2(0.5)) / vec2(textureSize(edges_texture, 0)));
+    vec4 base = texture(inputTex, (vec2(coord) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
+    vec4 edges = texture(edgesTexture, (vec2(coord) + vec2(0.5)) / vec2(textureSize(edgesTexture, 0)));
 
 
     // Clamp edges (already normalized from sobel combine + optional normalize pass upstream)
@@ -42,7 +42,7 @@ void main() {
     float s = max(e.x, max(e.y, e.z));
     float strength = clamp(s, 0.0, 1.0);
     // If inverted, flip the strength (optional control)
-    if (invert_flag > 0.5) {
+    if (invertFlag > 0.5) {
         strength = 1.0 - strength;
     }
     vec3 out_rgb = mix(base.xyz, vec3(0.0), strength);

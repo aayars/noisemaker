@@ -93,7 +93,6 @@ export default class Final extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "final",
       inputs: {
         postTex: "inputTex"

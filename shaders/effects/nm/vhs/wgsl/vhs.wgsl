@@ -9,7 +9,7 @@ struct VHSParams {
     motion : vec4<f32>,  // (time, speed, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : VHSParams;
 
@@ -148,7 +148,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let src_coord : vec2<i32> = vec2<i32>(src_x, i32(gid.y));
 
     // Sample source pixel
-    let src_texel : vec4<f32> = textureLoad(input_texture, src_coord, 0);
+    let src_texel : vec4<f32> = textureLoad(inputTex, src_coord, 0);
     
     // Compute gradient at source location for blending
     let src_x_norm : f32 = (f32(src_x) + 0.5) / width_f;

@@ -31,11 +31,25 @@ export function registerStarterOps(names = []) {
 
 export function isStarterOp(name) {
     if (typeof name !== 'string') { return false }
+    // Check exact name first
     if (STARTER_OPS.has(name)) { return true }
+    // For namespaced names like nm.voronoi
     const parts = name.split('.')
     if (parts.length > 1) {
         const canonical = parts[parts.length - 1]
-        return STARTER_OPS.has(canonical)
+        // If the bare canonical is a starter, check if any namespaced version exists
+        if (STARTER_OPS.has(canonical)) {
+            // Look for any "X.canonical" in STARTER_OPS
+            for (const op of STARTER_OPS) {
+                if (op.endsWith('.' + canonical)) {
+                    // A namespaced starter exists (e.g., basics.voronoi)
+                    // Since our exact name (nm.voronoi) wasn't found, we're not a starter
+                    return false
+                }
+            }
+            // No namespaced version - bare name applies
+            return true
+        }
     }
     return false
 }
@@ -170,13 +184,24 @@ export function validate(ast) {
     function getStarterInfo(node) {
         if (!node || typeof node !== 'object') return null
         if (node.type === 'Call') {
-            return STARTER_OPS.has(node.name) ? {call: node, index: 0} : null
+            // Build namespaced name if namespace exists
+            let name = node.name
+            if (node.namespace && node.namespace.resolved) {
+                name = `${node.namespace.resolved}.${node.name}`
+            }
+            return isStarterOp(name) ? {call: node, index: 0} : null
         }
         if (node.type === 'Chain' && Array.isArray(node.chain)) {
             for (let i = 0; i < node.chain.length; i++) {
                 const entry = node.chain[i]
-                if (entry && entry.type === 'Call' && STARTER_OPS.has(entry.name)) {
-                    return {call: entry, index: i}
+                if (entry && entry.type === 'Call') {
+                    let name = entry.name
+                    if (entry.namespace && entry.namespace.resolved) {
+                        name = `${entry.namespace.resolved}.${entry.name}`
+                    }
+                    if (isStarterOp(name)) {
+                        return {call: entry, index: i}
+                    }
                 }
             }
         }

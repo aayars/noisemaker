@@ -25,7 +25,6 @@ export default class Blend extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "blend",
       inputs: {
       "tex0": "inputTex",

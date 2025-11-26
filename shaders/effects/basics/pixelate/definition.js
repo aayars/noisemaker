@@ -25,7 +25,6 @@ export default class Pixelate extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "pixelate",
       inputs: {
       "tex0": "inputTex"

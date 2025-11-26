@@ -354,15 +354,14 @@ export default class Physarum extends Effect {
   passes = [
     {
       name: "agent",
-      type: "compute",  // GPGPU: updates agent state (position, heading, age)
       program: "agent",
       inputs: {
-        stateTex: "global_physarum_state",
-        bufTex: "global_physarum_trail",
+        stateTex: "globalPhysarumState",
+        bufTex: "globalPhysarumTrail",
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "global_physarum_state"
+        fragColor: "globalPhysarumState"
       },
       uniforms: {
         spawnPattern: "spawnPattern"
@@ -370,36 +369,33 @@ export default class Physarum extends Effect {
     },
     {
       name: "diffuse",
-      type: "compute",  // GPGPU: blur and decay trail map
       program: "diffuse",
       inputs: {
-        sourceTex: "global_physarum_trail"
+        sourceTex: "globalPhysarumTrail"
       },
       outputs: {
-        fragColor: "global_physarum_trail"
+        fragColor: "globalPhysarumTrail"
       }
     },
     {
       name: "deposit",
-      type: "render",
       program: "deposit",
       drawMode: "points",
       count: 1000000,
       blend: true,
       inputs: {
-        stateTex: "global_physarum_state",
+        stateTex: "globalPhysarumState",
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "global_physarum_trail"
+        fragColor: "globalPhysarumTrail"
       }
     },
     {
       name: "render",
-      type: "render",
       program: "physarum",
       inputs: {
-              bufTex: "global_physarum_trail",
+              bufTex: "globalPhysarumTrail",
               inputTex: "inputTex"
             },
       outputs: {

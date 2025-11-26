@@ -32,7 +32,6 @@ export default class Shape extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "shape",
       inputs: {},
       outputs: {

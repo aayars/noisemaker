@@ -49,11 +49,6 @@ export class Pipeline {
                     pass: pass.id
                 }
             }
-            
-            // Include pass type in spec (compute vs render)
-            if (pass.type && !spec.type) {
-                spec.type = pass.type
-            }
 
             await this.backend.compileProgram(pass.program, spec)
             compiled.add(pass.program)
@@ -97,6 +92,32 @@ export class Pipeline {
      * Create global output surfaces (o0, o1, o2, o3, o4, o5, o6, o7)
      * Also scans the graph for any other required global surfaces (starting with global_)
      */
+    /**
+     * Check if a texture ID is a global surface reference and extract the name.
+     * Supports both "global_name" and "globalName" patterns.
+     * Returns null if not a global, otherwise returns the surface name.
+     */
+    parseGlobalName(texId) {
+        if (typeof texId !== 'string') return null
+        
+        // Pattern 1: "global_name" (underscore separator)
+        if (texId.startsWith('global_')) {
+            return texId.replace('global_', '')
+        }
+        
+        // Pattern 2: "globalName" (camelCase)
+        if (texId.startsWith('global') && texId.length > 6) {
+            const suffix = texId.slice(6)
+            // Check it's actually camelCase (next char is uppercase or digit)
+            if (/^[A-Z0-9]/.test(suffix)) {
+                // Convert to surface name: "CaState" → "caState"
+                return suffix.charAt(0).toLowerCase() + suffix.slice(1)
+            }
+        }
+        
+        return null
+    }
+
     createSurfaces() {
         const surfaceNames = new Set(['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'])
         
@@ -105,15 +126,17 @@ export class Pipeline {
             for (const pass of this.graph.passes) {
                 if (pass.inputs) {
                     for (const texId of Object.values(pass.inputs)) {
-                        if (texId.startsWith('global_')) {
-                            surfaceNames.add(texId.replace('global_', ''))
+                        const name = this.parseGlobalName(texId)
+                        if (name) {
+                            surfaceNames.add(name)
                         }
                     }
                 }
                 if (pass.outputs) {
                     for (const texId of Object.values(pass.outputs)) {
-                        if (texId.startsWith('global_')) {
-                            surfaceNames.add(texId.replace('global_', ''))
+                        const name = this.parseGlobalName(texId)
+                        if (name) {
+                            surfaceNames.add(name)
                         }
                     }
                 }
@@ -135,11 +158,24 @@ export class Pipeline {
             // Calculate scaled dimensions for zoom-sensitive surfaces
             let surfaceWidth = this.width
             let surfaceHeight = this.height
+            let surfaceFormat = 'rgba16f'
             
-            // Apply zoom scaling for CA-specific surfaces
-            if (name.includes('ca_state') || name.includes('physarum')) {
-                surfaceWidth = Math.max(1, Math.round(this.width / effectiveZoom))
-                surfaceHeight = Math.max(1, Math.round(this.height / effectiveZoom))
+            // Check if there's a texture spec for this surface in graph.textures
+            // This handles effect-defined textures that need ping-pong buffering
+            const globalTexId = `global_${name}`
+            const texSpec = this.graph?.textures?.get?.(globalTexId)
+            if (texSpec) {
+                surfaceWidth = this.resolveDimension(texSpec.width, this.width)
+                surfaceHeight = this.resolveDimension(texSpec.height, this.height)
+                if (texSpec.format) surfaceFormat = texSpec.format
+            } else {
+                // Apply zoom scaling for CA-specific surfaces
+                // Match both "ca_state"/"physarum" and "caState"/"physarumState" patterns
+                const lowerName = name.toLowerCase()
+                if (lowerName.includes('ca') || lowerName.includes('physarum') || lowerName.includes('reaction')) {
+                    surfaceWidth = Math.max(1, Math.round(this.width / effectiveZoom))
+                    surfaceHeight = Math.max(1, Math.round(this.height / effectiveZoom))
+                }
             }
             
             // Create double-buffered surface
@@ -147,14 +183,14 @@ export class Pipeline {
             this.backend.createTexture(`global_${name}_read`, {
                 width: surfaceWidth,
                 height: surfaceHeight,
-                format: 'rgba16f',
+                format: surfaceFormat,
                 usage: ['render', 'sample', 'copySrc', 'storage']
             })
             
             this.backend.createTexture(`global_${name}_write`, {
                 width: surfaceWidth,
                 height: surfaceHeight,
-                format: 'rgba16f',
+                format: surfaceFormat,
                 usage: ['render', 'sample', 'copySrc', 'storage']
             })
             
@@ -402,6 +438,37 @@ export class Pipeline {
             // Subsequent passes in this frame should sample the freshly written texture
             this.frameReadTextures.set(surfaceName, writeId)
         }
+    }
+
+    /**
+     * Dispose of all pipeline resources
+     */
+    dispose() {
+        // Destroy all surfaces
+        for (const [name] of this.surfaces) {
+            this.backend.destroyTexture(`global_${name}_read`)
+            this.backend.destroyTexture(`global_${name}_write`)
+        }
+        this.surfaces.clear()
+
+        // Destroy all graph textures
+        if (this.graph && this.graph.textures) {
+            for (const texId of this.graph.textures.keys()) {
+                if (!texId.startsWith('global_')) {
+                    this.backend.destroyTexture(texId)
+                }
+            }
+        }
+
+        // Destroy backend resources
+        if (this.backend && typeof this.backend.destroy === 'function') {
+            this.backend.destroy({ skipTextures: true })
+        }
+
+        // Clear references
+        this.graph = null
+        this.frameReadTextures = null
+        this.globalUniforms = {}
     }
 }
 

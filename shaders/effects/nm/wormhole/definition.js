@@ -62,13 +62,12 @@ export default class Wormhole extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "wormhole",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

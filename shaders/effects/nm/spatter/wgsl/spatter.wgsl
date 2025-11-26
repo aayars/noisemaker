@@ -6,15 +6,15 @@ const CHANNEL_CAP : u32 = 4u;
 const BLEND_FEATHER : f32 = 0.005;
 
 struct SpatterParams {
-    size : vec4<f32>,   // (width, height, channel_count, unused)
+    size : vec4<f32>,   // (width, height, channelCount, unused)
     color : vec4<f32>,  // (toggle, base_r, base_g, base_b)
     timing : vec4<f32>, // (time, speed, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : SpatterParams;
-@group(0) @binding(3) var mask_texture : texture_2d<f32>;
+@group(0) @binding(3) var maskTexture : texture_2d<f32>;
 
 fn clamp01(value : f32) -> f32 {
     return clamp(value, 0.0, 1.0);
@@ -43,7 +43,7 @@ fn blend_spatter_layers(control : f32, base_rgb : vec3<f32>, tinted_rgb : vec3<f
     return mix(lower_layer, upper_layer, feather_mix);
 }
 
-fn sanitized_channel_count(channel_value : f32) -> u32 {
+fn sanitized_channelCount(channel_value : f32) -> u32 {
     let rounded : i32 = i32(round(channel_value));
     if (rounded <= 1) {
         return 1u;
@@ -117,10 +117,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     }
 
     let coords : vec2<i32> = vec2<i32>(i32(gid.x), i32(gid.y));
-    let base_color : vec4<f32> = textureLoad(input_texture, coords, 0);
-    let mask_sample : vec4<f32> = textureLoad(mask_texture, coords, 0);
+    let base_color : vec4<f32> = textureLoad(inputTex, coords, 0);
+    let mask_sample : vec4<f32> = textureLoad(maskTexture, coords, 0);
 
-    let channel_count : u32 = sanitized_channel_count(params.size.z);
+    let channelCount : u32 = sanitized_channelCount(params.size.z);
     let color_toggle : f32 = params.color.x;
     let time_value : f32 = params.timing.x;
 
@@ -131,7 +131,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     );
 
     var splash_rgb : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-    if (color_toggle > 0.5 && channel_count >= 3u) {
+    if (color_toggle > 0.5 && channelCount >= 3u) {
         if (color_toggle > 1.5) {
             splash_rgb = base_splash_rgb;
         } else {

@@ -98,10 +98,13 @@ Complete reference for all MCP shader testing tools.
   },
   "metrics": {
     "mean_rgb": [0.52, 0.48, 0.51],
+    "mean_alpha": 1.0,
     "std_rgb": [0.18, 0.17, 0.19],
     "luma_variance": 0.042,
     "unique_sampled_colors": 847,
     "is_all_zero": false,
+    "is_all_transparent": false,
+    "is_essentially_blank": false,
     "is_monochrome": false
   }
 }
@@ -110,10 +113,13 @@ Complete reference for all MCP shader testing tools.
 | Metric | Type | Description |
 |--------|------|-------------|
 | `mean_rgb` | [r, g, b] | Average color (0-1 range) |
+| `mean_alpha` | number | Average alpha (0-1 range) |
 | `std_rgb` | [r, g, b] | Color standard deviation |
 | `luma_variance` | number | Brightness variation (0-1) |
 | `unique_sampled_colors` | number | Distinct colors sampled |
 | `is_all_zero` | boolean | True if image is pure black |
+| `is_all_transparent` | boolean | True if alpha is 0 everywhere |
+| `is_essentially_blank` | boolean | True if mean RGB < 0.01 and colors <= 10 |
 | `is_monochrome` | boolean | True if single solid color |
 
 ### Interpreting Metrics
@@ -122,6 +128,8 @@ Complete reference for all MCP shader testing tools.
 |-----------|--------------|
 | `is_monochrome: true` | Shader outputs constant color |
 | `is_all_zero: true` | Shader outputs black (no output) |
+| `is_all_transparent: true` | Shader outputs fully transparent pixels |
+| `is_essentially_blank: true` | Shader outputs near-black with minimal variation |
 | `unique_sampled_colors < 10` | Very low color diversity |
 | `luma_variance < 0.001` | Nearly flat brightness |
 
@@ -339,9 +347,10 @@ Output:
 
 ## checkEffectStructure
 
-**Purpose**: Analyze effect structure for unused shader files, compute pass requirements, and leaked internal uniforms.
+**Purpose**: Analyze effect structure for naming conventions, unused shader files, compute pass requirements, and leaked internal uniforms.
 
 This tool helps enforce best practices for shader effect organization:
+- Validates camelCase naming conventions across the entire effect definition
 - Detects unused shader files that should be removed or integrated
 - Ensures multi-pass effects use compute/GPGPU shaders for heavy workloads
 - Verifies that internal uniforms (channels, time) are not exposed as UI controls
@@ -364,6 +373,9 @@ This tool helps enforce best practices for shader effect organization:
 
 ```json
 {
+  "namingIssues": [
+    { "type": "effectName", "name": "Worms", "reason": "must start with lowercase" }
+  ],
   "unusedFiles": ["old_shader.wgsl", "deprecated.wgsl"],
   "multiPass": true,
   "hasComputePass": true,
@@ -377,6 +389,7 @@ This tool helps enforce best practices for shader effect organization:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `namingIssues` | array | Names that violate camelCase conventions |
 | `unusedFiles` | string[] | Shader files not referenced by any pass |
 | `multiPass` | boolean | True if effect has more than one pass |
 | `hasComputePass` | boolean | True if at least one pass is compute/gpgpu |
@@ -385,6 +398,29 @@ This tool helps enforce best practices for shader effect organization:
 | `computePassExempt` | boolean | True if effect is exempt from compute requirement |
 | `computePassExemptReason` | string \| null | Reason for exemption if applicable |
 | `leakedInternalUniforms` | string[] | Internal uniforms (channels, time) exposed as controls |
+
+### Naming Convention Validation
+
+All names must follow camelCase convention (start with lowercase, no underscores or hyphens):
+
+| Type | Validates | Valid Example | Invalid Example |
+|------|-----------|---------------|-----------------|
+| `diskName` | Directory name | `erosionWorms` | `erosion_worms` (snake_case) |
+| `func` | `func` property (DSL name) | `erosionWorms` | `erosion_worms` (snake_case) |
+| `uniform` | `uniform` values | `wormLifetime` | `worm_lifetime` |
+| `globalKey` | `globals` keys | `strideDeviation` | `stride_deviation` |
+| `passInputKey` | `inputs` keys | `inputTex` | `input_texture` |
+| `passOutputKey` | `outputs` keys | `fragColor` | `output_buffer` |
+| `passName` | Pass `name` | `reduce1` | `reduce_1` |
+| `programName` | Pass `program` | `agentMove` | `agent_move` |
+| `textureName` | Texture refs | `trailTex` | `trail_tex` |
+
+**Note**: The class `name` property (e.g., `"Worms"`) correctly uses StudlyCaps/PascalCase and is not validated.
+
+**Special cases for texture names:**
+- `global_` prefix allowed (e.g., `global_worms_state1`)
+- `_` prefix allowed for internals (e.g., `_bloomDownsample`)
+- Reserved: `inputTex`, `outputColor`, `fragColor`, etc.
 
 ### Internal Uniform Leaks
 
@@ -415,7 +451,10 @@ node test-harness.js nm/worms --structure --webgpu
 Output:
 ```
 [nm/worms]
-  ✓ no unused shader files
+  ✓ no inline shaders
+  ⚠ naming issues (1):
+     effectName: "Worms" - must start with lowercase letter (not StudlyCaps/PascalCase)
+  ⚠ unused files: compose_to_texture.wgsl, init_from_prev.wgsl
   ✓ no leaked internal uniforms
   ✓ multi-pass: has compute/gpgpu pass
   ✓ compile
@@ -424,6 +463,15 @@ Output:
 
 Summary output for multiple effects:
 ```
+⚠ Effects with naming convention issues: 15
+  effectName: 12 issues
+    nm/worms: "Worms" - must start with lowercase letter (not StudlyCaps/PascalCase)
+    nm/blur: "Blur" - must start with lowercase letter (not StudlyCaps/PascalCase)
+    ... and 10 more
+  uniform: 3 issues
+    nm/erosion_worms: "worm_lifetime" - contains underscore (snake_case)
+    ... and 2 more
+
 ⚠ Effects with unused shader files: 3
   nm/worms: buffer_to_texture.wgsl, final_blend.wgsl
   nm/dla: dla.wgsl, init_seeds.wgsl

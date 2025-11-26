@@ -1,6 +1,6 @@
 // Fibers final combine pass.
 // Reuses the worms low-level pipelines to paint a chaotic mask into
-// `worm_texture`, then synthesizes animated brightness noise that is blended
+// `wormTexture`, then synthesizes animated brightness noise that is blended
 // back over the input image. The heavy lifting (worm simulation) lives in the
 // dedicated worms shaders; this pass is only responsible for layering the
 // brightness streaks according to that mask.
@@ -8,7 +8,7 @@
 struct FibersParams {
     width : f32,
     height : f32,
-    channel_count : f32,
+    channelCount : f32,
     mask_scale : f32,
     time : f32,
     speed : f32,
@@ -16,8 +16,8 @@ struct FibersParams {
     _pad0 : f32,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
-@group(0) @binding(1) var worm_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
+@group(0) @binding(1) var wormTexture : texture_2d<f32>;
 @group(0) @binding(2) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(3) var<uniform> params : FibersParams;
 
@@ -191,7 +191,7 @@ fn clamp_coords(coords : vec2<i32>, dims : vec2<i32>) -> vec2<i32> {
 }
 
 fn worm_mask_sample(coords : vec2<i32>) -> vec4<f32> {
-    let worm_sample : vec4<f32> = textureLoad(worm_texture, coords, 0);
+    let worm_sample : vec4<f32> = textureLoad(wormTexture, coords, 0);
     return clamp(worm_sample, vec4<f32>(0.0), vec4<f32>(1.0));
 }
 
@@ -225,9 +225,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let pixel_index : u32 = gid.y * width + gid.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;
 
-    let base_sample : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let base_sample : vec4<f32> = textureLoad(inputTex, coords, 0);
 
-    let mask_dims_u : vec2<u32> = textureDimensions(worm_texture, 0);
+    let mask_dims_u : vec2<u32> = textureDimensions(wormTexture, 0);
     let mask_dims : vec2<i32> = vec2<i32>(i32(mask_dims_u.x), i32(mask_dims_u.y));
     let speed_value : f32 = max(params.speed, 0.0);
     let time_value : f32 = params.time;

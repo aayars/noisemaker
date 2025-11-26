@@ -14,13 +14,12 @@ export default class Texture extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "texture",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

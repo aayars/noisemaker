@@ -39,7 +39,6 @@ export default class ModPixelate extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modPixelate",
       inputs: {
       "tex0": "inputTex",

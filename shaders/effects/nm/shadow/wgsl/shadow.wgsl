@@ -31,10 +31,10 @@ struct ShadowParams {
     anim : vec4<f32>,    // (time, speed, unused, unused)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : ShadowParams;
-@group(0) @binding(3) var reference_texture : texture_2d<f32>;
+@group(0) @binding(3) var referenceTexture : texture_2d<f32>;
 
 fn as_u32(value : f32) -> u32 {
     return u32(max(round(value), 0.0));
@@ -44,7 +44,7 @@ fn clamp01(value : f32) -> f32 {
     return clamp(value, 0.0, 1.0);
 }
 
-fn sanitized_channel_count(channel_value : f32) -> u32 {
+fn sanitized_channelCount(channel_value : f32) -> u32 {
     let rounded : i32 = i32(round(channel_value));
     if (rounded <= 1) {
         return 1u;
@@ -170,18 +170,18 @@ fn hsv_to_rgb(hsv : vec3<f32>) -> vec3<f32> {
     }
 }
 
-fn value_map_component(texel : vec4<f32>, channel_count : u32) -> f32 {
-    if (channel_count <= 2u) {
+fn value_map_component(texel : vec4<f32>, channelCount : u32) -> f32 {
+    if (channelCount <= 2u) {
         return texel.x;
     }
     return oklab_l_component(vec3<f32>(texel.x, texel.y, texel.z));
 }
 
-fn sample_reference_raw(x : i32, y : i32, width : i32, height : i32, channel_count : u32) -> f32 {
+fn sample_reference_raw(x : i32, y : i32, width : i32, height : i32, channelCount : u32) -> f32 {
     let xi : i32 = wrap_coord(x, width);
     let yi : i32 = wrap_coord(y, height);
-    let texel : vec4<f32> = textureLoad(reference_texture, vec2<i32>(xi, yi), 0);
-    return value_map_component(texel, channel_count);
+    let texel : vec4<f32> = textureLoad(referenceTexture, vec2<i32>(xi, yi), 0);
+    return value_map_component(texel, channelCount);
 }
 
 fn sample_reference_normalized(
@@ -189,11 +189,11 @@ fn sample_reference_normalized(
     y : i32,
     width : i32,
     height : i32,
-    channel_count : u32,
+    channelCount : u32,
     ref_min : f32,
     inv_ref_range : f32,
 ) -> f32 {
-    let raw_value : f32 = sample_reference_raw(x, y, width, height, channel_count);
+    let raw_value : f32 = sample_reference_raw(x, y, width, height, channelCount);
     if (inv_ref_range == 0.0) {
         return raw_value;
     }
@@ -205,7 +205,7 @@ fn compute_sobel(
     y : i32,
     width : i32,
     height : i32,
-    channel_count : u32,
+    channelCount : u32,
     ref_min : f32,
     inv_ref_range : f32,
 ) -> f32 {
@@ -227,7 +227,7 @@ fn compute_sobel(
                 y + ky,
                 width,
                 height,
-                channel_count,
+                channelCount,
                 ref_min,
                 inv_ref_range,
             );
@@ -253,7 +253,7 @@ fn compute_sharpen(
     y : i32,
     width : i32,
     height : i32,
-    channel_count : u32,
+    channelCount : u32,
     ref_min : f32,
     inv_ref_range : f32,
     shade_min : f32,
@@ -278,7 +278,7 @@ fn compute_sharpen(
                     y + ky,
                     width,
                     height,
-                    channel_count,
+                    channelCount,
                     ref_min,
                     inv_ref_range,
                 );
@@ -320,13 +320,13 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     let width_i : i32 = i32(width);
     let height_i : i32 = i32(height);
-    let channel_count : u32 = sanitized_channel_count(params.size.z);
+    let channelCount : u32 = sanitized_channelCount(params.size.z);
 
     var ref_min : f32 = F32_MAX;
     var ref_max : f32 = F32_MIN;
     for (var y : u32 = 0u; y < height; y = y + 1u) {
         for (var x : u32 = 0u; x < width; x = x + 1u) {
-            let raw_value : f32 = sample_reference_raw(i32(x), i32(y), width_i, height_i, channel_count);
+            let raw_value : f32 = sample_reference_raw(i32(x), i32(y), width_i, height_i, channelCount);
             ref_min = min(ref_min, raw_value);
             ref_max = max(ref_max, raw_value);
         }
@@ -341,7 +341,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     var shade_max : f32 = F32_MIN;
     for (var y : u32 = 0u; y < height; y = y + 1u) {
         for (var x : u32 = 0u; x < width; x = x + 1u) {
-            let shade_raw : f32 = compute_sobel(i32(x), i32(y), width_i, height_i, channel_count, ref_min, inv_ref_range);
+            let shade_raw : f32 = compute_sobel(i32(x), i32(y), width_i, height_i, channelCount, ref_min, inv_ref_range);
             shade_min = min(shade_min, shade_raw);
             shade_max = max(shade_max, shade_raw);
         }
@@ -361,7 +361,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 i32(y),
                 width_i,
                 height_i,
-                channel_count,
+                channelCount,
                 ref_min,
                 inv_ref_range,
                 shade_min,
@@ -382,10 +382,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     for (var y : u32 = 0u; y < height; y = y + 1u) {
         for (var x : u32 = 0u; x < width; x = x + 1u) {
             let coords : vec2<i32> = vec2<i32>(i32(x), i32(y));
-            let src_color : vec4<f32> = textureLoad(input_texture, coords, 0);
+            let src_color : vec4<f32> = textureLoad(inputTex, coords, 0);
             let base_alpha : f32 = clamp01(src_color.w);
 
-            let shade_raw : f32 = compute_sobel(coords.x, coords.y, width_i, height_i, channel_count, ref_min, inv_ref_range);
+            let shade_raw : f32 = compute_sobel(coords.x, coords.y, width_i, height_i, channelCount, ref_min, inv_ref_range);
             let shade_norm : f32 = normalize_value(shade_raw, shade_min, inv_shade_range);
 
             let sharpen_raw : f32 = compute_sharpen(
@@ -393,7 +393,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 coords.y,
                 width_i,
                 height_i,
-                channel_count,
+                channelCount,
                 ref_min,
                 inv_ref_range,
                 shade_min,
@@ -407,7 +407,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
             let pixel_index : u32 = y * width + x;
             let base_index : u32 = pixel_index * 4u;
 
-            if (channel_count == 1u) {
+            if (channelCount == 1u) {
                 let shade_value : f32 = shade_component(src_color.x, final_shade, highlight);
                 let mixed : f32 = mix_f32(src_color.x, shade_value, alpha);
                 let final_value : f32 = clamp01(mixed);
@@ -415,7 +415,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 continue;
             }
 
-            if (channel_count == 2u) {
+            if (channelCount == 2u) {
                 let shade_value : f32 = shade_component(src_color.x, final_shade, highlight);
                 let mixed : f32 = mix_f32(src_color.x, shade_value, alpha);
                 let final_value : f32 = clamp01(mixed);

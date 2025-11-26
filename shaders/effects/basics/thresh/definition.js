@@ -25,7 +25,6 @@ export default class Thresh extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "thresh",
       inputs: {
       "tex0": "inputTex"

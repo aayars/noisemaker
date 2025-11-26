@@ -3,7 +3,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 export default class Pattern extends Effect {
   name = "Pattern";
   namespace = "nd";
-  func = "pattern_nd";
+  func = "pattern";
 
   globals = {
     patternType: {
@@ -148,7 +148,6 @@ export default class Pattern extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "pattern",
       inputs: {
       },

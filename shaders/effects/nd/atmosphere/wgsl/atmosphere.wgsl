@@ -4,29 +4,65 @@
  * Wind and lighting controls are normalized to avoid flicker when animated across large time spans.
  */
 
+// Packed uniforms to stay within WebGPU's 12 uniform buffer limit per stage.
+// Layout:
+//   data[0]: resolution.xy, time, seed
+//   data[1]: noiseType, interp, noiseScale, loopAmp
+//   data[2]: refractAmt, ridges, wrap, colorMode
+//   data[3]: hueRotation, hueRange, intensity, _pad
+//   data[4]: color1
+//   data[5]: color2
+//   data[6]: color3
+//   data[7]: color4
+struct Uniforms {
+    data: array<vec4<f32>, 8>,
+};
 
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var noiseTex: texture_2d<f32>;
 
+// Unpack uniforms at module scope for use in helper functions
+var<private> resolution: vec2<f32>;
+var<private> time: f32;
+var<private> seed: f32;
+var<private> noiseType: i32;
+var<private> interp: i32;
+var<private> noiseScale: f32;
+var<private> loopAmp: f32;
+var<private> refractAmt: f32;
+var<private> ridges: i32;
+var<private> wrap: i32;
+var<private> colorMode: i32;
+var<private> hueRotation: f32;
+var<private> hueRange: f32;
+var<private> intensity: f32;
+var<private> color1: vec4<f32>;
+var<private> color2: vec4<f32>;
+var<private> color3: vec4<f32>;
+var<private> color4: vec4<f32>;
 
-@group(0) @binding(0) var<uniform> resolution: vec2<f32>;
-@group(0) @binding(1) var<uniform> time: f32;
-@group(0) @binding(2) var<uniform> noiseType: i32;
-@group(0) @binding(3) var<uniform> interp: i32;
-@group(0) @binding(4) var<uniform> noiseScale: f32;
-@group(0) @binding(5) var<uniform> loopAmp: f32;
-@group(0) @binding(6) var<uniform> refractAmt: f32;
-@group(0) @binding(7) var<uniform> ridges: i32;
-@group(0) @binding(8) var<uniform> wrap: i32;
-@group(0) @binding(9) var<uniform> seed: f32;
-@group(0) @binding(10) var<uniform> colorMode: i32;
-@group(0) @binding(11) var<uniform> hueRotation: f32;
-@group(0) @binding(12) var<uniform> hueRange: f32;
-@group(0) @binding(13) var<uniform> intensity: f32;
-@group(0) @binding(14) var<uniform> color1: vec4<f32>;
-@group(0) @binding(15) var<uniform> color2: vec4<f32>;
-@group(0) @binding(16) var<uniform> color3: vec4<f32>;
-@group(0) @binding(17) var<uniform> color4: vec4<f32>;
-@group(0) @binding(18) var samp: sampler;
-@group(0) @binding(19) var noiseTex: texture_2d<f32>;
+fn unpackUniforms() {
+    resolution = uniforms.data[0].xy;
+    time = uniforms.data[0].z;
+    seed = uniforms.data[0].w;
+    noiseType = i32(uniforms.data[1].x);
+    interp = i32(uniforms.data[1].y);
+    noiseScale = uniforms.data[1].z;
+    loopAmp = uniforms.data[1].w;
+    refractAmt = uniforms.data[2].x;
+    ridges = i32(uniforms.data[2].y);
+    wrap = i32(uniforms.data[2].z);
+    colorMode = i32(uniforms.data[2].w);
+    hueRotation = uniforms.data[3].x;
+    hueRange = uniforms.data[3].y;
+    intensity = uniforms.data[3].z;
+    // Use explicit .xyzw swizzle so runtime regex can detect max slot usage
+    color1 = uniforms.data[4].xyzw;
+    color2 = uniforms.data[5].xyzw;
+    color3 = uniforms.data[6].xyzw;
+    color4 = uniforms.data[7].xyzw;
+}
 
 
 
@@ -543,10 +579,11 @@ fn textureBicubic(texCoords: vec2<f32>, xFreq: f32, yFreq: f32, _seed: f32, blen
 
     offset *= invTexSize.xxyy;
 
-    var sample0: f32 = textureSample(noiseTex, samp, offset.xz).r;
-    var sample1: f32 = textureSample(noiseTex, samp, offset.yz).r;
-    var sample2: f32 = textureSample(noiseTex, samp, offset.xw).r;
-    var sample3: f32 = textureSample(noiseTex, samp, offset.yw).r;
+    // Use textureSampleLevel to allow calling from non-uniform control flow
+    var sample0: f32 = textureSampleLevel(noiseTex, samp, offset.xz, 0.0).r;
+    var sample1: f32 = textureSampleLevel(noiseTex, samp, offset.yz, 0.0).r;
+    var sample2: f32 = textureSampleLevel(noiseTex, samp, offset.xw, 0.0).r;
+    var sample3: f32 = textureSampleLevel(noiseTex, samp, offset.yw, 0.0).r;
 
     var sx: f32 = s.x / (s.x + s.y);
     var sy: f32 = s.z / (s.z + s.w);
@@ -743,6 +780,8 @@ fn noise(st: vec2<f32>, s: f32) -> vec3<f32> {
 
 @fragment
 fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    // Unpack uniforms from the packed struct
+    unpackUniforms();
 
     var color: vec4<f32> = vec4<f32>(0.0, 0.0, 1.0, 1.0);
     var st: vec2<f32> = pos.xy / resolution.y;

@@ -10,18 +10,18 @@ export default class Derivative extends Effect {
   func = "derivative";
 
   globals = {
-    dist_metric: {
+    distMetric: {
         type: "enum",
         default: 1,
-        uniform: "dist_metric",
+        uniform: "distMetric",
         ui: {
             label: "Distance Metric"
         }
     },
-    with_normalize: {
+    withNormalize: {
         type: "boolean",
         default: true,
-        uniform: "with_normalize",
+        uniform: "withNormalize",
         ui: {
             label: "Normalize",
             control: "checkbox"
@@ -41,19 +41,15 @@ export default class Derivative extends Effect {
     }
 };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
-      type: "render",
       program: "derivative",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        color: "outputColor"
       }
     }
   ];

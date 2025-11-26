@@ -137,7 +137,6 @@ export default class Glitch extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "glitch",
       inputs: {
         inputTex: "inputTex"

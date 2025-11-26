@@ -22,10 +22,10 @@ export default class Kaleido extends Effect {
             control: "slider"
         }
     },
-    sdf_sides: {
+    sdfSides: {
         type: "int",
         default: 5,
-        uniform: "sdf_sides",
+        uniform: "sdfSides",
         min: 0,
         max: 12,
         step: 1,
@@ -34,19 +34,19 @@ export default class Kaleido extends Effect {
             control: "slider"
         }
     },
-    blend_edges: {
+    blendEdges: {
         type: "boolean",
         default: true,
-        uniform: "blend_edges",
+        uniform: "blendEdges",
         ui: {
             label: "Blend Edges",
             control: "checkbox"
         }
     },
-    point_freq: {
+    pointFreq: {
         type: "int",
         default: 1,
-        uniform: "point_freq",
+        uniform: "pointFreq",
         min: 1,
         max: 32,
         step: 1,
@@ -55,10 +55,10 @@ export default class Kaleido extends Effect {
             control: "slider"
         }
     },
-    point_generations: {
+    pointGenerations: {
         type: "int",
         default: 1,
-        uniform: "point_generations",
+        uniform: "pointGenerations",
         min: 1,
         max: 5,
         step: 1,
@@ -67,18 +67,18 @@ export default class Kaleido extends Effect {
             control: "slider"
         }
     },
-    point_distrib: {
+    pointDistrib: {
         type: "enum",
         default: 0,
-        uniform: "point_distrib",
+        uniform: "pointDistrib",
         ui: {
             label: "Distribution"
         }
     },
-    point_drift: {
+    pointDrift: {
         type: "float",
         default: 0,
-        uniform: "point_drift",
+        uniform: "pointDrift",
         min: 0,
         max: 1,
         step: 0.01,
@@ -87,10 +87,10 @@ export default class Kaleido extends Effect {
             control: "slider"
         }
     },
-    point_corners: {
+    pointCorners: {
         type: "boolean",
         default: false,
-        uniform: "point_corners",
+        uniform: "pointCorners",
         ui: {
             label: "Include Corners",
             control: "checkbox"
@@ -104,7 +104,6 @@ export default class Kaleido extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "kaleido",
       inputs: {
         inputTex: "inputTex"

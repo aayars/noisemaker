@@ -19,7 +19,6 @@ export default class Prev extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "prev",
       inputs: {
       "tex0": "tex"

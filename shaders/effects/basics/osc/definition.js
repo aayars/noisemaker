@@ -35,7 +35,6 @@ export default class Osc extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "osc",
       inputs: {},
       outputs: {

@@ -12,7 +12,7 @@ struct WormholeParams {
     _pad : vec4<f32>,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : WormholeParams;
 
@@ -46,7 +46,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     // Read source pixel
     let src_x : u32 = gid.x;
     let src_y : u32 = gid.y;
-    let src_color : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(src_x), i32(src_y)), 0);
+    let src_color : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(src_x), i32(src_y)), 0);
     
     // Calculate flow field offset based on luminance
     let lum : f32 = luminance(src_color);

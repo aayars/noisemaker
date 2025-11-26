@@ -9,10 +9,10 @@ precision highp int;
 const uint CHANNEL_COUNT = 4u;
 
 
-uniform sampler2D smear_texture;
-uniform sampler2D spatter_primary_texture;
-uniform sampler2D spatter_secondary_texture;
-uniform sampler2D removal_texture;
+uniform sampler2D smearTexture;
+uniform sampler2D spatterPrimaryTexture;
+uniform sampler2D spatterSecondaryTexture;
+uniform sampler2D removalTexture;
 uniform vec4 size;
 
 uint as_u32(float value) {

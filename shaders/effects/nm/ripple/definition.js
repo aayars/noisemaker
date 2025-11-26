@@ -46,10 +46,10 @@ export default class Ripple extends Effect {
             control: "slider"
         }
     },
-    spline_order: {
+    splineOrder: {
         type: "int",
         default: 3,
-        uniform: "spline_order",
+        uniform: "splineOrder",
         min: 0,
         max: 3,
         step: 1,
@@ -75,11 +75,10 @@ export default class Ripple extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "ripple",
       inputs: {
-        input_texture: "inputTex",
-        reference_texture: "inputTex"
+        inputTex: "inputTex",
+        referenceTexture: "inputTex"
       },
       outputs: {
         color: "outputColor"

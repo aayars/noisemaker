@@ -8,21 +8,16 @@ const float PI = 3.14159265358979323846;
 const float TAU = 6.28318530717958647692;
 const float FLOAT_EPSILON = 1e-5;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float displacement;
 uniform float warp;
-uniform float spline_order;
-uniform float derivative;
+uniform int splineOrder;
+uniform bool derivative;
 uniform float range;
 uniform float speed;
-uniform float channel_count;
 uniform float time;
 
 out vec4 fragColor;
-
-bool bool_from_float(float value) {
-    return value > 0.5;
-}
 
 float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
@@ -81,23 +76,13 @@ float oklab_l_component(vec3 rgb) {
     return clamp01(0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720468 * s_c);
 }
 
-uint safe_channel_count(float value) {
-    float rounded = round(max(value, 0.0));
-    uint count = uint(max(rounded, 1.0));
-    return count == 0u ? 4u : min(count, 4u);
-}
-
-float value_map(vec4 texel, uint count, bool signed_range) {
-    float value = texel.x;
-    if (count > 2u) {
-        value = oklab_l_component(texel.xyz);
-    }
+float value_map(vec4 texel, bool signed_range) {
+    float value = oklab_l_component(texel.xyz);
     if (signed_range) {
         value = value * 2.0 - 1.0;
     }
     return value;
 }
-
 vec2 freq_for_shape(float base_freq, float width, float height) {
     if (base_freq <= FLOAT_EPSILON) {
         return vec2(0.0);
@@ -241,7 +226,7 @@ vec4 texel_fetch_safe(sampler2D tex, ivec2 coord, ivec2 dims) {
 }
 
 void main() {
-    ivec2 texDims = textureSize(input_texture, 0);
+    ivec2 texDims = textureSize(inputTex, 0);
     uint width_u = uint(max(texDims.x, 1));
     uint height_u = uint(max(texDims.y, 1));
 
@@ -256,13 +241,11 @@ void main() {
     float width_f = float(width_u);
     float height_f = float(height_u);
 
-    uint channelCount = safe_channel_count(channel_count);
-
     float base_scale_x = displacement_value * range_scale * width_f;
     float base_scale_y = displacement_value * range_scale * height_f;
 
     vec2 normalized_coords = (vec2(gid) + vec2(0.5)) / vec2(texDims);
-    vec4 source_texel = texture(input_texture, normalized_coords);
+    vec4 source_texel = texture(inputTex, normalized_coords);
 
     if (base_scale_x <= FLOAT_EPSILON && base_scale_y <= FLOAT_EPSILON) {
         fragColor = source_texel;
@@ -270,8 +253,8 @@ void main() {
     }
 
     float warp_scalar = max(warp, 0.0);
-    int splineOrder = clamp(int(round(spline_order)), 0, 3);
-    bool use_derivative = bool_from_float(derivative);
+    int splineOrderClamped = clamp(splineOrder, 0, 3);
+    bool use_derivative = derivative;
     bool quad_directional = !use_derivative;
 
     float ref_value_x;
@@ -281,20 +264,20 @@ void main() {
     ivec2 base_coord = ivec2(gid);
 
     if (use_derivative) {
-        vec4 center = texelFetch(input_texture, base_coord, 0);
-        vec4 right = texel_fetch_safe(input_texture, base_coord + ivec2(1, 0), dims_i);
-        vec4 down = texel_fetch_safe(input_texture, base_coord + ivec2(0, 1), dims_i);
+        vec4 center = texelFetch(inputTex, base_coord, 0);
+        vec4 right = texel_fetch_safe(inputTex, base_coord + ivec2(1, 0), dims_i);
+        vec4 down = texel_fetch_safe(inputTex, base_coord + ivec2(0, 1), dims_i);
 
         vec4 deriv_x_texel = center - right;
         vec4 deriv_y_texel = center - down;
 
-        ref_value_x = value_map(deriv_x_texel, channelCount, false);
-        ref_value_y = value_map(deriv_y_texel, channelCount, false);
+        ref_value_x = value_map(deriv_x_texel, false);
+        ref_value_y = value_map(deriv_y_texel, false);
     } else if (warp_scalar > FLOAT_EPSILON) {
         vec2 freq_vec = freq_for_shape(warp_scalar, width_f, height_f);
         vec2 size_vec = vec2(width_f, height_f);
-        float warp_x = generate_warp_value(gid, size_vec, freq_vec, time, speed, splineOrder, 0.0);
-        float warp_y = generate_warp_value(gid, size_vec, freq_vec, time, speed, splineOrder, 37.0);
+        float warp_x = generate_warp_value(gid, size_vec, freq_vec, time, speed, splineOrderClamped, 0.0);
+        float warp_y = generate_warp_value(gid, size_vec, freq_vec, time, speed, splineOrderClamped, 37.0);
         ref_value_x = warp_x * 2.0 - 1.0;
         ref_value_y = warp_y * 2.0 - 1.0;
     } else {
@@ -306,8 +289,8 @@ void main() {
         ref_x = clamp(cos(angle_x) * 0.5 + 0.5, vec4(0.0), vec4(1.0));
         ref_y = clamp(sin(angle_y) * 0.5 + 0.5, vec4(0.0), vec4(1.0));
 
-        ref_value_x = value_map(ref_x, channelCount, true);
-        ref_value_y = value_map(ref_y, channelCount, true);
+        ref_value_x = value_map(ref_x, true);
+        ref_value_y = value_map(ref_y, true);
     }
 
     float scale_x = base_scale_x;
@@ -329,10 +312,10 @@ void main() {
     int x1 = wrap_coord(x0 + 1, dims_i.x);
     int y1 = wrap_coord(y0 + 1, dims_i.y);
 
-    vec4 tex00 = texel_fetch_safe(input_texture, ivec2(x0, y0), dims_i);
-    vec4 tex10 = texel_fetch_safe(input_texture, ivec2(x1, y0), dims_i);
-    vec4 tex01 = texel_fetch_safe(input_texture, ivec2(x0, y1), dims_i);
-    vec4 tex11 = texel_fetch_safe(input_texture, ivec2(x1, y1), dims_i);
+    vec4 tex00 = texel_fetch_safe(inputTex, ivec2(x0, y0), dims_i);
+    vec4 tex10 = texel_fetch_safe(inputTex, ivec2(x1, y0), dims_i);
+    vec4 tex01 = texel_fetch_safe(inputTex, ivec2(x0, y1), dims_i);
+    vec4 tex11 = texel_fetch_safe(inputTex, ivec2(x1, y1), dims_i);
 
     vec4 mix_x0 = mix(tex00, tex10, vec4(fx));
     vec4 mix_x1 = mix(tex01, tex11, vec4(fx));

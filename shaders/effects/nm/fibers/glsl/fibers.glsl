@@ -2,12 +2,12 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D input_texture;
-uniform sampler2D worm_texture;
+uniform sampler2D inputTex;
+uniform sampler2D wormTexture;
 uniform float width;
 uniform float height;
-uniform float channel_count;
-uniform float mask_scale;
+uniform float channelCount;
+uniform float maskScale;
 uniform float time;
 uniform float seed;
 uniform float speed;
@@ -173,7 +173,7 @@ float mask_strength(vec4 mask) {
 }
 
 vec4 worm_mask_sample(vec2 coords) {
-    vec4 worm_sample = texture(worm_texture, (coords + vec2(0.5)) / vec2(textureSize(worm_texture, 0)));
+    vec4 worm_sample = texture(wormTexture, (coords + vec2(0.5)) / vec2(textureSize(wormTexture, 0)));
     return clamp(worm_sample, vec4(0.0), vec4(1.0));
 }
 
@@ -198,8 +198,8 @@ void main() {
     uint w = to_dimension(width);
     uint h = to_dimension(height);
     
-    if (w == 0u) w = uint(textureSize(input_texture, 0).x);
-    if (h == 0u) h = uint(textureSize(input_texture, 0).y);
+    if (w == 0u) w = uint(textureSize(inputTex, 0).x);
+    if (h == 0u) h = uint(textureSize(inputTex, 0).y);
 
     if (global_id.x >= w || global_id.y >= h) {
         return;
@@ -207,10 +207,10 @@ void main() {
 
     vec2 coords = vec2(float(global_id.x), float(global_id.y));
 
-    vec2 uv = (gl_FragCoord.xy - 0.5) / vec2(textureSize(input_texture, 0));
-    vec4 base_sample = texture(input_texture, uv);
+    vec2 uv = (gl_FragCoord.xy - 0.5) / vec2(textureSize(inputTex, 0));
+    vec4 base_sample = texture(inputTex, uv);
 
-    vec2 mask_dims = vec2(textureSize(worm_texture, 0));
+    vec2 mask_dims = vec2(textureSize(wormTexture, 0));
     float speed_value = max(speed, 0.0);
     float time_value = time;
     vec4 base_mask = worm_mask_accumulated(coords, mask_dims, time_value, speed_value);

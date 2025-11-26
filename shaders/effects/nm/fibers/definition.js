@@ -28,10 +28,10 @@ export default class Fibers extends Effect {
       step: 1.0,
       ui: { label: "Seed", control: "slider" }
     },
-    mask_scale: {
+    maskScale: {
       type: "float",
       default: 1.0,
-      uniform: "mask_scale",
+      uniform: "maskScale",
       min: 0.1,
       max: 5.0,
       step: 0.1,
@@ -56,10 +56,10 @@ export default class Fibers extends Effect {
         step: 0.1,
         ui: { label: "Stride", control: "slider" }
     },
-    worm_lifetime: {
+    wormLifetime: {
         type: "float",
         default: 30,
-        uniform: "worm_lifetime",
+        uniform: "wormLifetime",
         min: 0,
         max: 60,
         step: 1,
@@ -69,50 +69,46 @@ export default class Fibers extends Effect {
 
   passes = [
     {
-      name: "update_agents",
-      type: "compute",  // GPGPU: agent simulation
-      program: "update_agents",
+      name: "updateAgents",
+      program: "updateAgents",
       inputs: {
-        agentTex: "global_agent_state",
+        agentTex: "globalAgentState",
         inputTex: "inputTex"
       },
       outputs: {
-        outAgents: "global_agent_state"
+        outAgents: "globalAgentState"
       }
     },
     {
-      name: "fade_trails",
-      type: "compute",  // GPGPU: trail decay
-      program: "fade_trails",
+      name: "fadeTrails",
+      program: "fadeTrails",
       inputs: {
-        trailTex: "global_trail_state",
+        trailTex: "globalTrailState",
         inputTex: "inputTex"
       },
       outputs: {
-        outTrails: "global_trail_state"
+        outTrails: "globalTrailState"
       }
     },
     {
-      name: "draw_agents",
-      type: "render",
-      program: "draw_agents",
+      name: "drawAgents",
+      program: "drawAgents",
       drawMode: "points",
       blend: true,
       count: 262144, // 512x512 agents
       inputs: {
-        agentTex: "global_agent_state"
+        agentTex: "globalAgentState"
       },
       outputs: {
-        outTrails: "global_trail_state"
+        outTrails: "globalTrailState"
       }
     },
     {
       name: "render",
-      type: "render",
       program: "fibers",
       inputs: {
-        input_texture: "inputTex",
-        worm_texture: "global_trail_state"
+        inputTex: "inputTex",
+        wormTexture: "globalTrailState"
       },
       outputs: {
         fragColor: "outputColor"

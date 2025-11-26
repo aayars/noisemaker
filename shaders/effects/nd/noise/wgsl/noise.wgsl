@@ -9,7 +9,6 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(1) var samp : sampler;
 
 var<private> resolution : vec2<f32>;
 var<private> time : f32;

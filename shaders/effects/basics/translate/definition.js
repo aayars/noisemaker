@@ -25,7 +25,6 @@ export default class Translate extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "translate",
       inputs: {
       "tex0": "inputTex"

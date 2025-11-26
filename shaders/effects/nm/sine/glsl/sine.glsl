@@ -9,10 +9,10 @@ precision highp int;
 
 const uint CHANNEL_COUNT = 4u;
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float width;
 uniform float height;
-uniform float channel_count;
+uniform float channelCount;
 uniform float amount;
 uniform float time;
 uniform float speed;
@@ -22,7 +22,7 @@ uint as_u32(float value) {
     return uint(max(round(value), 0.0));
 }
 
-uint sanitized_channel_count(float raw) {
+uint sanitized_channelCount(float raw) {
     uint count = as_u32(raw);
     if (count <= 1u) {
         return 1u;
@@ -41,15 +41,15 @@ vec3 normalized_sine_vec3(vec3 value) {
     return (sin(value) + vec3(1.0)) * 0.5;
 }
 
-vec4 apply_sine(vec4 texel, float amount, uint channel_count, bool use_rgb) {
+vec4 apply_sine(vec4 texel, float amount, uint channelCount, bool use_rgb) {
     vec4 result = texel;
 
-    if (channel_count <= 2u) {
+    if (channelCount <= 2u) {
         result.x = normalized_sine(texel.x * amount);
         return result;
     }
 
-    if (channel_count == 3u) {
+    if (channelCount == 3u) {
         if (use_rgb) {
             vec3 rgb = normalized_sine_vec3(texel.xyz * amount);
             result = vec4(rgb, result.w);
@@ -74,7 +74,7 @@ out vec4 fragColor;
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    ivec2 tex_dims = textureSize(input_texture, 0);
+    ivec2 tex_dims = textureSize(inputTex, 0);
     int width_px = max(tex_dims.x, 1);
     int height_px = max(tex_dims.y, 1);
     if (int(global_id.x) >= width_px || int(global_id.y) >= height_px) {
@@ -82,11 +82,11 @@ void main() {
     }
 
     ivec2 pixel_coord = ivec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texelFetch(input_texture, pixel_coord, 0);
+    vec4 texel = texelFetch(inputTex, pixel_coord, 0);
     float amount_value = amount;
     bool use_rgb = rgb > 0.5;
-    uint channel_count_u = sanitized_channel_count(channel_count);
+    uint channelCount_u = sanitized_channelCount(channelCount);
 
-    vec4 result = apply_sine(texel, amount_value, channel_count_u, use_rgb);
+    vec4 result = apply_sine(texel, amount_value, channelCount_u, use_rgb);
     fragColor = result;
 }

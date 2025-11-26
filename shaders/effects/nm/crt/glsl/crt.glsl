@@ -11,7 +11,7 @@ const float TAU = 6.28318530717958647692;
 const float INV_THREE = 0.3333333333333333;
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec2 resolution;
 uniform float time;
 uniform float speed;
@@ -491,7 +491,7 @@ void main() {
     float scan_value = sample_scanline_bilinear(x + base_offsets.x, y + base_offsets.y, width_f, height_f, scanline_base);
 
     // Step 3: Sample the input texture at the ORIGINAL, un-warped coordinates.
-    vec3 base_color = texelFetch(input_texture, ivec2(int(x), int(y)), 0).xyz;
+    vec3 base_color = texelFetch(inputTex, ivec2(int(x), int(y)), 0).xyz;
 
     // Step 4: Blend the original input color with the warped scanlines.
     vec3 color = mix(
@@ -519,7 +519,7 @@ void main() {
         red_x = blend_linear(red_x, x, gradient);
         float red_sample_x = blend_cosine(x, red_x, aber_mask);
         
-        vec3 red_base_col = texelFetch(input_texture, ivec2(int(red_sample_x), int(y)), 0).xyz;
+        vec3 red_base_col = texelFetch(inputTex, ivec2(int(red_sample_x), int(y)), 0).xyz;
         vec2 red_offsets = compute_lens_offsets(
             vec2(red_sample_x, y),
             width_f,
@@ -540,7 +540,7 @@ void main() {
         blue_x = blend_linear(x, blue_x, gradient);
         float blue_sample_x = blend_cosine(x, blue_x, aber_mask);
 
-        vec3 blue_base_col = texelFetch(input_texture, ivec2(int(blue_sample_x), int(y)), 0).xyz;
+        vec3 blue_base_col = texelFetch(inputTex, ivec2(int(blue_sample_x), int(y)), 0).xyz;
         vec2 blue_offsets = compute_lens_offsets(
             vec2(blue_sample_x, y),
             width_f,

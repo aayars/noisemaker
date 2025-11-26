@@ -9,7 +9,6 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(1) var samp : sampler;
 
 var<private> resolution : vec2<f32>;
 var<private> time : f32;
@@ -244,6 +243,51 @@ fn bicubicValue(st: vec2<f32>, freq: f32, loopAmp: f32) -> f32 {
     let y3 = blendBicubic(x0y3, x1y3, x2y3, x3y3, fract(uv.x));
 
     return blendBicubic(y0, y1, y2, y3, fract(uv.y));
+}
+
+fn catmullRom4x4Value(st: vec2<f32>, freq: f32, loopAmp: f32) -> f32 {
+    // Neighbor Distance
+    let ndX = 1.0 / freq;
+    let ndY = 1.0 / freq;
+
+    let u0 = st.x - ndX;
+    let u1 = st.x;
+    let u2 = st.x + ndX;
+    let u3 = st.x + ndX + ndX;
+
+    let v0 = st.y - ndY;
+    let v1 = st.y;
+    let v2 = st.y + ndY;
+    let v3 = st.y + ndY + ndY;
+
+    let x0y0 = constant(vec2<f32>(u0, v0), freq, loopAmp);
+    let x0y1 = constant(vec2<f32>(u0, v1), freq, loopAmp);
+    let x0y2 = constant(vec2<f32>(u0, v2), freq, loopAmp);
+    let x0y3 = constant(vec2<f32>(u0, v3), freq, loopAmp);
+
+    let x1y0 = constant(vec2<f32>(u1, v0), freq, loopAmp);
+    let x1y1 = constant(st, freq, loopAmp);
+    let x1y2 = constant(vec2<f32>(u1, v2), freq, loopAmp);
+    let x1y3 = constant(vec2<f32>(u1, v3), freq, loopAmp);
+
+    let x2y0 = constant(vec2<f32>(u2, v0), freq, loopAmp);
+    let x2y1 = constant(vec2<f32>(u2, v1), freq, loopAmp);
+    let x2y2 = constant(vec2<f32>(u2, v2), freq, loopAmp);
+    let x2y3 = constant(vec2<f32>(u2, v3), freq, loopAmp);
+
+    let x3y0 = constant(vec2<f32>(u3, v0), freq, loopAmp);
+    let x3y1 = constant(vec2<f32>(u3, v1), freq, loopAmp);
+    let x3y2 = constant(vec2<f32>(u3, v2), freq, loopAmp);
+    let x3y3 = constant(vec2<f32>(u3, v3), freq, loopAmp);
+
+    let uv = st * freq;
+
+    let y0 = catmullRom4(x0y0, x1y0, x2y0, x3y0, fract(uv.x));
+    let y1 = catmullRom4(x0y1, x1y1, x2y1, x3y1, fract(uv.x));
+    let y2 = catmullRom4(x0y2, x1y2, x2y2, x3y2, fract(uv.x));
+    let y3 = catmullRom4(x0y3, x1y3, x2y3, x3y3, fract(uv.x));
+
+    return catmullRom4(y0, y1, y2, y3, fract(uv.y));
 }
 
 // Simplex 2D - MIT License

@@ -25,7 +25,6 @@ export default class R extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "r",
       inputs: {
       "tex0": "inputTex"

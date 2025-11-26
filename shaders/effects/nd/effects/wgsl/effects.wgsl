@@ -122,8 +122,8 @@ fn rgb2hsv(rgb: vec3f) -> vec3f {
     return vec3f(h, s, maxC);
 }
 
-fn posterize(color: vec3f, lev_in: f32) -> vec3f {
-    var lev = lev_in;
+fn posterize(color: vec3f, levIn: f32) -> vec3f {
+    var lev = levIn;
     if (lev == 0.0) { return color; }
     else if (lev == 1.0) { return step(vec3f(0.5), color); }
     let gamma = 0.65;
@@ -132,8 +132,8 @@ fn posterize(color: vec3f, lev_in: f32) -> vec3f {
     return pow(c, vec3f(1.0 / gamma));
 }
 
-fn pixellate(uv_in: vec2f, size_in: f32) -> vec3f {
-    var size = size_in;
+fn pixellate(uv_in: vec2f, sizeIn: f32) -> vec3f {
+    var size = sizeIn;
     if (size < 1.0) { return textureSample(inputTex, samp, uv_in).rgb; }
     size *= 4.0;
     let dx = size / u.resolution.x;
@@ -266,8 +266,8 @@ fn cga(color: vec4f, st: vec2f) -> vec3f {
     return result;
 }
 
-fn subpixel(st: vec2f, scale_in: f32) -> vec3f {
-    let scale = mapRange(scale_in, 0.0, 100.0, 0.0, 10.0);
+fn subpixel(st: vec2f, scaleIn: f32) -> vec3f {
+    let scale = mapRange(scaleIn, 0.0, 100.0, 0.0, 10.0);
     let orig = pixellate(st, scale);
     var color = orig;
     let coord = floor(st * u.resolution);

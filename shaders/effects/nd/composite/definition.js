@@ -88,7 +88,6 @@ export default class Composite extends Effect {
   passes = [
     {
       name: "render",
-      type: "render",
       program: "composite",
       inputs: {
               tex0: "inputTex",

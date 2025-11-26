@@ -341,10 +341,11 @@ export class WebGL2Backend extends Backend {
     executePass(pass, state) {
         const gl = this.gl
         
-        // WebGL2 GPGPU: Convert compute passes to render passes
+        // WebGL2 GPGPU: Convert passes with compute-style conventions to render passes
         // Compute shaders don't exist in WebGL2, so we use fragment shaders
         // with fullscreen triangles as a GPGPU fallback
-        const effectivePass = pass.type === 'compute' ? this.convertComputeToRender(pass) : pass
+        const needsConversion = pass.storageTextures || (pass.outputs && pass.outputs.outputBuffer)
+        const effectivePass = needsConversion ? this.convertComputeToRender(pass) : pass
         
         const program = this.programs.get(effectivePass.program)
         
@@ -366,6 +367,7 @@ export class WebGL2Backend extends Backend {
         
         let fbo = null
         let viewportTex = null
+        let outputId = null  // Track primary output for reference (used by points draw mode)
         
         if (isMRT) {
             // MRT pass - bind multiple outputs
@@ -373,23 +375,26 @@ export class WebGL2Backend extends Backend {
             const resolvedOutputIds = []
             
             for (const outputKey of outputKeys) {
-                let outputId = effectivePass.outputs[outputKey]
+                let currentOutputId = effectivePass.outputs[outputKey]
                 
                 // Resolve global surface to current write buffer
-                if (outputId.startsWith('global_')) {
-                    const surfaceName = outputId.replace('global_', '')
+                if (currentOutputId.startsWith('global_')) {
+                    const surfaceName = currentOutputId.replace('global_', '')
                     if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
-                        outputId = state.writeSurfaces[surfaceName]
+                        currentOutputId = state.writeSurfaces[surfaceName]
                     }
                 }
                 
-                resolvedOutputIds.push(outputId)
-                const tex = this.textures.get(outputId)
+                // Track first output as primary reference
+                if (!outputId) outputId = currentOutputId
+                
+                resolvedOutputIds.push(currentOutputId)
+                const tex = this.textures.get(currentOutputId)
                 if (tex) {
                     textures.push(tex.handle)
                     if (!viewportTex) viewportTex = tex
                 } else {
-                    console.warn(`[executePass MRT] Texture not found for ${outputId} in pass ${effectivePass.id}`)
+                    console.warn(`[executePass MRT] Texture not found for ${currentOutputId} in pass ${effectivePass.id}`)
                 }
             }
             
@@ -400,7 +405,7 @@ export class WebGL2Backend extends Backend {
             }
         } else {
             // Single output pass
-            let outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0]
+            outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0]
             
             // Resolve global surface to current write buffer
             if (outputId && outputId.startsWith('global_')) {

@@ -15,7 +15,7 @@ struct WormholeParams {
     motion : vec4<f32>,
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : WormholeParams;
 
@@ -55,7 +55,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         return;
     }
 
-    let dims : vec2<u32> = textureDimensions(input_texture, 0);
+    let dims : vec2<u32> = textureDimensions(inputTex, 0);
     let width : u32 = dims.x;
     let height : u32 = dims.y;
     if (width == 0u || height == 0u) {
@@ -92,7 +92,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 break;
             }
 
-            let src_texel : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(x), i32(y)), 0);
+            let src_texel : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(x), i32(y)), 0);
             let lum : f32 = luminance(src_texel);
             let angle : f32 = lum * TAU * kink;
             let offset_x : f32 = (cos(angle) + 1.0) * stride_pixels;
@@ -171,7 +171,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
                 continue;
             }
 
-            let original : vec4<f32> = textureLoad(input_texture, vec2<i32>(i32(out_x), i32(out_y)), 0);
+            let original : vec4<f32> = textureLoad(inputTex, vec2<i32>(i32(out_x), i32(out_y)), 0);
 
             let raw_r : f32 = output_buffer[base_index + 0u];
             let raw_g : f32 = output_buffer[base_index + 1u];

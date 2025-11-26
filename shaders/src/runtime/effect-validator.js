@@ -18,9 +18,6 @@ export function validateEffectDefinition(def) {
         errors.push('Missing or empty "passes" array');
     } else {
         def.passes.forEach((pass, index) => {
-            if (!pass.type || !['render', 'compute'].includes(pass.type)) {
-                errors.push(`Pass ${index}: Invalid or missing "type" (must be "render" or "compute")`);
-            }
             if (!pass.program || typeof pass.program !== 'string') {
                 errors.push(`Pass ${index}: Missing "program" string`);
             }

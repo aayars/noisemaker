@@ -5,10 +5,10 @@ const CHANNEL_COUNT : u32 = 4u;
 
 struct RotateParams {
     dims : vec4<f32>,                 // (width, height, channels, unused)
-    angle_time_speed_pad : vec4<f32>, // (angle_degrees, time, speed, _pad0)
+    angle_timeSpeed_pad : vec4<f32>, // (angle_degrees, time, speed, _pad0)
 };
 
-@group(0) @binding(0) var input_texture : texture_2d<f32>;
+@group(0) @binding(0) var inputTex : texture_2d<f32>;
 @group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
 @group(0) @binding(2) var<uniform> params : RotateParams;
 
@@ -73,7 +73,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let normalized : vec2<f32> =
         padded_coord_f / padded_size_f - vec2<f32>(0.5, 0.5);
 
-    let angle_radians : f32 = radians(params.angle_time_speed_pad.x);
+    let angle_radians : f32 = radians(params.angle_timeSpeed_pad.x);
     let cos_angle : f32 = cos(angle_radians);
     let sin_angle : f32 = sin(angle_radians);
     let rotation : mat2x2<f32> = mat2x2<f32>(
@@ -95,7 +95,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     );
 
     let coords : vec2<i32> = source;
-    let texel : vec4<f32> = textureLoad(input_texture, coords, 0);
+    let texel : vec4<f32> = textureLoad(inputTex, coords, 0);
 
     let pixel_index : u32 = global_id.y * width + global_id.x;
     let base_index : u32 = pixel_index * CHANNEL_COUNT;

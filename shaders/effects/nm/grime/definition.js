@@ -22,10 +22,10 @@ export default class Grime extends Effect {
             control: "slider"
         }
     },
-    debug_mode: {
+    debugMode: {
         type: "number",
         default: 0,
-        uniform: "debug_mode",
+        uniform: "debugMode",
         min: 0,
         max: 4,
         step: 1,
@@ -42,7 +42,6 @@ export default class Grime extends Effect {
   passes = [
     {
       name: "main",
-      type: "compute",
       program: "grime",
       inputs: {
         inputTex: "inputTex"

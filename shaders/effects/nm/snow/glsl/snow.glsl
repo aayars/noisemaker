@@ -12,7 +12,7 @@ const vec3 STATIC_SEED = vec3(37.0, 17.0, 53.0);
 const vec3 LIMITER_SEED = vec3(113.0, 71.0, 193.0);
 
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform float width;
 uniform float height;
 uniform float channels;
@@ -86,7 +86,7 @@ void main() {
     float alpha = clamp(alpha, 0.0, 1.0);
     uint base_index = (global_id.y * width + global_id.x) * CHANNEL_COUNT;
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texture(input_texture, (vec2(coords) + vec2(0.5)) / vec2(textureSize(input_texture, 0)));
+    vec4 texel = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
 
     if (alpha <= 0.0) {
         fragColor = vec4(texel.xyz, texel.w);

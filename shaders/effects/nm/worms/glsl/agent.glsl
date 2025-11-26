@@ -77,28 +77,43 @@ float normalized_sine(float value) {
     return (sin(value) + 1.0) * 0.5;
 }
 
-float computeRotation(int behaviorMode, float baseHeading, uint seed, float agentRot, float t) {
+// Compute rotation bias based on behavior mode
+// Called EVERY FRAME to allow behavior changes to take effect immediately
+// baseRotRand is per-agent random [0,1] stored in state
+float computeRotationBias(int behaviorMode, float baseHeading, float baseRotRand, float time, int agentIndex, int totalAgents) {
     if (behaviorMode <= 0) {
+        // None: all face right (no rotation bias)
         return 0.0;
     } else if (behaviorMode == 1) {
         // Obedient: all same direction
         return baseHeading;
     } else if (behaviorMode == 2) {
-        // Crosshatch: 4 cardinal directions
-        float randVal = hash(seed);
-        return baseHeading + floor(randVal * 4.0) * RIGHT_ANGLE;
+        // Crosshatch: 4 cardinal directions based on per-agent random
+        return baseHeading + floor(baseRotRand * 4.0) * RIGHT_ANGLE;
     } else if (behaviorMode == 3) {
         // Unruly: small deviation from base
-        return baseHeading + (hash(seed) - 0.5) * 0.25;
+        return baseHeading + (baseRotRand - 0.5) * 0.25;
     } else if (behaviorMode == 4) {
         // Chaotic: random direction
-        return hash(seed) * TAU;
+        return baseRotRand * TAU;
+    } else if (behaviorMode == 5) {
+        // Random Mix: divide agents into 4 quarters with different behaviors
+        int quarterSize = max(1, totalAgents / 4);
+        int band = agentIndex / quarterSize;
+        if (band <= 0) {
+            return baseHeading;  // Obedient
+        } else if (band == 1) {
+            return baseHeading + floor(baseRotRand * 4.0) * RIGHT_ANGLE;  // Crosshatch
+        } else if (band == 2) {
+            return baseHeading + (baseRotRand - 0.5) * 0.25;  // Unruly
+        } else {
+            return baseRotRand * TAU;  // Chaotic
+        }
     } else if (behaviorMode == 10) {
-        // Meandering: sine-based rotation bias over time
-        float phase = fract(agentRot);
-        return normalized_sine((t - phase) * TAU);
+        // Meandering: time-varying sine rotation using per-agent phase
+        return normalized_sine((time - baseRotRand) * TAU);
     } else {
-        return hash(seed) * TAU;
+        return baseRotRand * TAU;
     }
 }
 
@@ -108,14 +123,14 @@ void main() {
     int height = int(resolution.y);
     
     // Read current agent state
-    vec4 state1 = texelFetch(stateTex1, coord, 0);  // x, y, rot, agentStride
+    vec4 state1 = texelFetch(stateTex1, coord, 0);  // x, y, rotRand, strideRand
     vec4 state2 = texelFetch(stateTex2, coord, 0);  // r, g, b, seed
     vec4 state3 = texelFetch(stateTex3, coord, 0);  // age, initialized, 0, 0
     
     float worms_x = state1.x;
     float worms_y = state1.y;
-    float worms_rot = state1.z;
-    float worms_stride = state1.w;
+    float rotRand = state1.z;  // Per-agent random [0,1] for rotation variation
+    float strideRand = state1.w;  // Per-agent random value [-0.5, 0.5] for stride variation
     float cr = state2.x;
     float cg = state2.y;
     float cb = state2.z;
@@ -126,6 +141,10 @@ void main() {
     uint agentSeed = uint(coord.x + coord.y * width);
     uint baseSeed = agentSeed + uint(time * 1000.0);
     
+    // Compute total agent count for Random Mix behavior
+    int totalAgents = width * height;  // Max possible agents (texture size)
+    int agentIndex = coord.x + coord.y * width;
+    
     // Check if this agent needs initialization
     if (initialized < 0.5) {
         // Initialize agent at random position
@@ -133,16 +152,13 @@ void main() {
         worms_x = pos.x * float(width);
         worms_y = pos.y * float(height);
         
-        // Set rotation based on behavior
-        int behaviorMode = int(behavior);
-        float baseHeading = hash(agentSeed + 100u) * TAU;
-        worms_rot = computeRotation(behaviorMode, baseHeading, agentSeed + 200u, 0.0, time);
+        // Store per-agent random [0,1] for rotation variation
+        // Actual rotation computed each frame based on current behavior uniform
+        rotRand = hash(agentSeed + 200u);
         
-        // Set stride with deviation
-        float scale = max(float(max(width, height)) / 1024.0, 1.0);
-        float baseStride = stride * scale;
-        float variation = 1.0 + (hash(agentSeed + 300u) - 0.5) * 2.0 * strideDeviation;
-        worms_stride = max(0.1, baseStride * variation);
+        // Store per-agent random value for stride deviation
+        // Actual deviation factor computed each frame using strideDeviation uniform
+        strideRand = hash(agentSeed + 300u) - 0.5;  // Range [-0.5, 0.5]
         
         // Sample color from input
         int xi = wrap_int(int(worms_x), width);
@@ -157,15 +173,12 @@ void main() {
         initialized = 1.0;
     }
     
-    // Check for respawn based on lifetime
-    float normalizedLifetime = lifetime / 60.0;
-    float timeOffset = seed_f / 1000000.0;
-    float timeInCycle = fract(time + timeOffset);
-    float prevTimeInCycle = fract(time + timeOffset - 0.016);
+    // Check for respawn based on lifetime (literal seconds)
+    // Each agent gets a staggered start based on index so they don't all respawn at once
+    float agentPhase = float(agentIndex) / float(max(totalAgents, 1));
+    float staggeredAge = age + agentPhase * lifetime;
     
-    bool shouldRespawn = lifetime > 0.0 && normalizedLifetime > 0.0 &&
-                         timeInCycle < normalizedLifetime &&
-                         prevTimeInCycle >= normalizedLifetime;
+    bool shouldRespawn = lifetime > 0.0 && staggeredAge >= lifetime;
     
     if (shouldRespawn) {
         // Respawn at new random location
@@ -173,8 +186,8 @@ void main() {
         worms_x = pos.x * float(width);
         worms_y = pos.y * float(height);
         
-        // Randomize rotation
-        worms_rot = hash(baseSeed + 400u) * TAU;
+        // New random for rotation variation
+        rotRand = hash(baseSeed + 200u);
         
         // Sample new color
         int xi = wrap_int(int(worms_x), width);
@@ -193,17 +206,11 @@ void main() {
     vec4 texel = texelFetch(mixerTex, ivec2(xi, yi), 0);
     float indexValue = oklab_l(texel.rgb);
     
-    // Compute rotation bias based on behavior
+    // Compute rotation bias based on behavior uniform (computed each frame!)
+    // baseHeading is constant across all agents (seed 0)
+    float baseHeading = hash(0u) * TAU;
     int behaviorMode = int(behavior);
-    float rotationBias;
-    if (behaviorMode <= 0) {
-        rotationBias = 0.0;
-    } else if (behaviorMode == 10) {
-        float phase = fract(worms_rot);
-        rotationBias = normalized_sine((time - phase) * TAU);
-    } else {
-        rotationBias = worms_rot;
-    }
+    float rotationBias = computeRotationBias(behaviorMode, baseHeading, rotRand, time, agentIndex, totalAgents);
     
     // Final angle based on input texture and kink
     float finalAngle = indexValue * TAU * kink + rotationBias;
@@ -212,9 +219,15 @@ void main() {
         finalAngle = round(finalAngle);
     }
     
+    // Compute actual stride: uniform stride * resolution scale * per-agent deviation
+    // strideRand is per-agent random [-0.5, 0.5], strideDeviation uniform controls magnitude
+    float scale = max(float(max(width, height)) / 1024.0, 1.0);
+    float devFactor = 1.0 + strideRand * 2.0 * strideDeviation;
+    float actualStride = max(0.1, stride * scale * devFactor);
+    
     // Move agent
-    float newX = worms_x + sin(finalAngle) * worms_stride;
-    float newY = worms_y + cos(finalAngle) * worms_stride;
+    float newX = worms_x + sin(finalAngle) * actualStride;
+    float newY = worms_y + cos(finalAngle) * actualStride;
     
     // Wrap position
     newX = wrap_float(newX, float(width));
@@ -223,7 +236,7 @@ void main() {
     age += 0.016; // Approximate frame time
     
     // Output updated state
-    outState1 = vec4(newX, newY, worms_rot, worms_stride);
+    outState1 = vec4(newX, newY, rotRand, strideRand);
     outState2 = vec4(cr, cg, cb, seed_f);
     outState3 = vec4(age, initialized, 0.0, 0.0);
 }

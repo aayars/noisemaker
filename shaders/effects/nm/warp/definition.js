@@ -57,10 +57,10 @@ export default class Warp extends Effect {
         control: "slider"
       }
     },
-    spline_order: {
+    splineOrder: {
       type: "float",
       default: 2,
-      uniform: "spline_order",
+      uniform: "splineOrder",
       min: 0,
       max: 3,
       step: 1,
@@ -74,13 +74,12 @@ export default class Warp extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "warp",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        color: "outputColor"
       }
     }
   ];

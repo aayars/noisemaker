@@ -25,7 +25,6 @@ export default class Mult extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "mult",
       inputs: {
       "tex0": "inputTex",

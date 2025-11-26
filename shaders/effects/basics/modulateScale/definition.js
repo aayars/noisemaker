@@ -39,7 +39,6 @@ export default class ModScale extends Effect {
   passes = [
     {
       name: "main",
-      type: "render",
       program: "modScale",
       inputs: {
       "tex0": "inputTex",

@@ -11,15 +11,15 @@ const uint CHANNEL_COUNT = 4u;
 const float EPSILON = 1e-10;
 const vec3 LUMA_WEIGHTS = vec3(0.299, 0.587, 0.114);
 
-uniform sampler2D input_texture;
+uniform sampler2D inputTex;
 uniform vec4 size;
-uniform vec4 time_speed;
+uniform vec4 timeSpeed;
 
 uint as_u32(float value) {
     return uint(max(round(value), 0.0));
 }
 
-uint sanitized_channel_count(float channel_value) {
+uint sanitized_channelCount(float channel_value) {
     int rounded = int(round(channel_value));
     if (rounded <= 1) {
         return 1u;
@@ -51,7 +51,7 @@ int reflect_coord(int coord, int limit) {
 vec4 load_texel(ivec2 coord, ivec2 size) {
     int reflected_x = reflect_coord(coord.x, size.x);
     int reflected_y = reflect_coord(coord.y, size.y);
-    return texelFetch(input_texture, ivec2(reflected_x, reflected_y), 0);
+    return texelFetch(inputTex, ivec2(reflected_x, reflected_y), 0);
 }
 
 float luminance_from_rgb(vec3 rgb) {
@@ -74,7 +74,7 @@ void main() {
         return;
     }
 
-    uint channel_count = sanitized_channel_count(size.z);
+    uint channelCount = sanitized_channelCount(size.z);
 
     ivec2 image_size = ivec2(int(width_u), int(height_u));
     ivec2 pixel_coord = ivec2(int(global_id.x), int(global_id.y));
@@ -97,7 +97,7 @@ void main() {
     float west_luma;
     float east_luma;
 
-    if (channel_count >= 3u) {
+    if (channelCount >= 3u) {
         center_luma = luminance_from_rgb(center_rgb);
         north_luma = luminance_from_rgb(north_rgb);
         south_luma = luminance_from_rgb(south_rgb);
@@ -119,7 +119,7 @@ void main() {
     float weight_sum = weight_center + weight_north + weight_south + weight_west + weight_east + EPSILON;
 
     vec4 result_texel = center_texel;
-    if (channel_count <= 2u) {
+    if (channelCount <= 2u) {
         float blended_luma = (
             center_texel.x * weight_center
             + north_texel.x * weight_north
@@ -129,7 +129,7 @@ void main() {
         ) / weight_sum;
 
         result_texel.x = blended_luma;
-        if (channel_count == 1u) {
+        if (channelCount == 1u) {
             result_texel.y = center_texel.y;
             result_texel.z = center_texel.z;
         }
