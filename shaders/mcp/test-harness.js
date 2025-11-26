@@ -77,6 +77,20 @@ async function testEffect(harness, effectId, options = {}) {
         timings.push(`structure:${Date.now() - t0}ms`);
         results.structure = structureResult;
         
+        // CRITICAL: Check for inline shaders - this is a HARD FAIL
+        if (structureResult.hasInlineShaders) {
+            console.log(`  ❌ INLINE SHADERS DETECTED - FORBIDDEN`);
+            for (const loc of structureResult.inlineShaderLocations) {
+                console.log(`     Line ${loc.line}: ${loc.type}`);
+                console.log(`       ${loc.snippet}...`);
+            }
+            console.log(`  All shaders MUST be in separate files under glsl/ or wgsl/ directories.`);
+            results.compile = 'error';
+            return results;  // Hard fail - do not continue
+        } else {
+            console.log(`  ✓ no inline shaders`);
+        }
+        
         // Report unused files
         if (structureResult.unusedFiles?.length > 0) {
             console.log(`  ⚠ unused files: ${structureResult.unusedFiles.join(', ')}`);

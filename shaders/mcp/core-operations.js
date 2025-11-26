@@ -685,13 +685,47 @@ export async function checkEffectStructure(effectId, options = {}) {
         passTypes: [],
         computePassExempt: false,
         computePassExemptReason: null,
-        leakedInternalUniforms: []
+        leakedInternalUniforms: [],
+        hasInlineShaders: false,
+        inlineShaderLocations: []
     };
     
     try {
         // Read definition.js to get passes
         const definitionPath = path.join(effectDir, 'definition.js');
         const definitionSource = fs.readFileSync(definitionPath, 'utf-8');
+        
+        // CRITICAL: Check for inline shader code in the definition
+        // Inline shaders are FORBIDDEN - all shaders must be in separate files
+        const inlineShaderPatterns = [
+            // Direct shader source strings (multiline template literals or strings with shader keywords)
+            { pattern: /\bglsl\s*:\s*`[\s\S]*?`/g, type: 'glsl template literal' },
+            { pattern: /\bwgsl\s*:\s*`[\s\S]*?`/g, type: 'wgsl template literal' },
+            { pattern: /\bsource\s*:\s*`[\s\S]*?`/g, type: 'source template literal' },
+            { pattern: /\bfragment\s*:\s*`[\s\S]*?`/g, type: 'fragment template literal' },
+            { pattern: /\bvertex\s*:\s*`[\s\S]*?`/g, type: 'vertex template literal' },
+            // Shader code indicators within strings (GLSL)
+            { pattern: /["'`][^"'`]*#version\s+\d+[^"'`]*["'`]/g, type: 'GLSL #version directive' },
+            { pattern: /["'`][^"'`]*\bprecision\s+(highp|mediump|lowp)\b[^"'`]*["'`]/g, type: 'GLSL precision qualifier' },
+            { pattern: /["'`][^"'`]*\bgl_FragColor\b[^"'`]*["'`]/g, type: 'GLSL gl_FragColor' },
+            { pattern: /["'`][^"'`]*\buniform\s+\w+\s+\w+\s*;[^"'`]*["'`]/g, type: 'GLSL uniform declaration' },
+            // Shader code indicators within strings (WGSL)
+            { pattern: /["'`][^"'`]*@fragment[^"'`]*["'`]/g, type: 'WGSL @fragment' },
+            { pattern: /["'`][^"'`]*@vertex[^"'`]*["'`]/g, type: 'WGSL @vertex' },
+            { pattern: /["'`][^"'`]*@compute[^"'`]*["'`]/g, type: 'WGSL @compute' },
+            { pattern: /["'`][^"'`]*@binding\s*\(\s*\d+\s*\)[^"'`]*["'`]/g, type: 'WGSL @binding' },
+        ];
+        
+        for (const { pattern, type } of inlineShaderPatterns) {
+            const matches = [...definitionSource.matchAll(pattern)];
+            for (const match of matches) {
+                // Find line number
+                const beforeMatch = definitionSource.substring(0, match.index);
+                const lineNumber = (beforeMatch.match(/\n/g) || []).length + 1;
+                result.hasInlineShaders = true;
+                result.inlineShaderLocations.push({ type, line: lineNumber, snippet: match[0].substring(0, 80) });
+            }
+        }
         
         // Extract passes section from definition
         // Look for passes = [ ... ] or passes: [ ... ]

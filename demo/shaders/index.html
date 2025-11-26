@@ -892,6 +892,17 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
             ];
 
             const effects = [];
+            
+            // Load the single top-level manifest
+            let globalManifest = {};
+            try {
+                const manifestRes = await fetch('../../shaders/effects/manifest.json');
+                if (manifestRes.ok) {
+                    globalManifest = await manifestRes.json();
+                }
+            } catch (e) {
+                console.warn('Failed to load shader manifest, will probe for files');
+            }
 
             for (const dir of effectDirs) {
                 try {
@@ -904,6 +915,8 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                             
                             if (EffectClass) {
                                 const instance = new EffectClass();
+                                const effectId = `${dir.namespace}/${effectName}`;
+                                const manifest = globalManifest[effectId];
                                 
                                 // Load shaders for each pass (both GLSL and WGSL)
                                 if (instance.passes) {
@@ -912,25 +925,45 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                                         if (pass.program) {
                                             try {
                                                 const shaderBucket = instance.shaders[pass.program] ?? (instance.shaders[pass.program] = {});
+                                                const prog = pass.program;
                                                 
-                                                // Try loading combined .glsl first, then separate .vert/.frag
-                                                const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${pass.program}.glsl`);
-                                                if (glslRes.ok) {
-                                                    shaderBucket.glsl = await glslRes.text();
+                                                // Use manifest to determine what to load (no 404s)
+                                                if (manifest) {
+                                                    // GLSL
+                                                    const glslInfo = manifest.glsl?.[prog];
+                                                    if (glslInfo === 'combined') {
+                                                        const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.glsl`);
+                                                        if (res.ok) shaderBucket.glsl = await res.text();
+                                                    } else if (glslInfo) {
+                                                        if (glslInfo.v) {
+                                                            const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.vert`);
+                                                            if (res.ok) shaderBucket.vertex = await res.text();
+                                                        }
+                                                        if (glslInfo.f) {
+                                                            const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.frag`);
+                                                            if (res.ok) shaderBucket.fragment = await res.text();
+                                                        }
+                                                    }
+                                                    // WGSL
+                                                    if (manifest.wgsl?.[prog]) {
+                                                        const res = await fetch(`${dir.path}/${effectName}/wgsl/${prog}.wgsl`);
+                                                        if (res.ok) shaderBucket.wgsl = await res.text();
+                                                    }
                                                 } else {
-                                                    // Try separate vertex/fragment files
-                                                    const [vertRes, fragRes] = await Promise.all([
-                                                        fetch(`${dir.path}/${effectName}/glsl/${pass.program}.vert`),
-                                                        fetch(`${dir.path}/${effectName}/glsl/${pass.program}.frag`)
-                                                    ]);
-                                                    if (vertRes.ok) shaderBucket.vertex = await vertRes.text();
-                                                    if (fragRes.ok) shaderBucket.fragment = await fragRes.text();
-                                                }
-                                                
-                                                // Load WGSL shader from file
-                                                const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${pass.program}.wgsl`);
-                                                if (wgslRes.ok) {
-                                                    shaderBucket.wgsl = await wgslRes.text();
+                                                    // Fallback: try to load without manifest (will cause 404s)
+                                                    const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${prog}.glsl`);
+                                                    if (glslRes.ok) {
+                                                        shaderBucket.glsl = await glslRes.text();
+                                                    } else {
+                                                        const [vertRes, fragRes] = await Promise.all([
+                                                            fetch(`${dir.path}/${effectName}/glsl/${prog}.vert`),
+                                                            fetch(`${dir.path}/${effectName}/glsl/${prog}.frag`)
+                                                        ]);
+                                                        if (vertRes.ok) shaderBucket.vertex = await vertRes.text();
+                                                        if (fragRes.ok) shaderBucket.fragment = await fragRes.text();
+                                                    }
+                                                    const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${prog}.wgsl`);
+                                                    if (wgslRes.ok) shaderBucket.wgsl = await wgslRes.text();
                                                 }
                                             } catch (e) {
                                                 console.warn(`Failed to load shaders for ${pass.program}`, e);
@@ -992,7 +1025,7 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                     'add', 'alpha', 'blend', 'blue', 'brightness', 'color', 'contrast', 'diff', 'gradient', 'green', 'hue', 'invert', 'kaleid', 'layer', 'luma', 'mask', 'modulate', 'modulateHue', 'modulateKaleid', 'modulatePixelate', 'modulateRepeat', 'modulateRotate', 'modulateScale', 'mult', 'noise', 'osc', 'pixelate', 'posterize', 'prev', 'red', 'repeat', 'rot', 'saturate', 'scale', 'scroll', 'shape', 'shift', 'solid', 'src', 'sub', 'sum', 'thresh', 'translate', 'voronoi'
                 ],
                 '../../shaders/effects/nd': [
-                    'atmosphere', 'background', 'bit-effects', 'cell-noise', 'cell-refract', 'cellular-automata', 'cellular-automata-mn', 'coalesce', 'color-lab', 'composite', 'demo-synth', 'depth-of-field', 'displace-mixer', 'effects', 'feedback-mixer', 'feedback-post', 'feedback-synth', 'final', 'fractal', 'glitch', 'kaleido', 'lens-distortion', 'media-input', 'media-mixer', 'media-post', 'noise', 'noise-3d', 'palette', 'pattern', 'physarum', 'reaction-diffusion', 'refract', 'shape-mixer', 'shapes', 'shapes-3d', 'splat', 'text', 'tunnel', 'warp', 'wgsl-mixer-demo', 'wgsl-post-demo'
+                    'atmosphere', 'background', 'bit-effects', 'cell-noise', 'cell-refract', 'cellular-automata', 'cellular-automata-mn', 'coalesce', 'color-lab', 'composite', 'demo-synth', 'depth-of-field', 'displace-mixer', 'effects', 'feedback-mixer', 'feedback-post', 'feedback-synth', 'final', 'fractal', 'glitch', 'kaleido', 'lens-distortion', 'media-input', 'media-mixer', 'media-post', 'noise', 'noise-3d', 'palette', 'pattern', 'physarum', 'reaction-diffusion', 'refract', 'shape-mixer', 'shapes', 'shapes-3d', 'splat', 'text', 'tunnel', 'warp'
                 ],
                 '../../shaders/effects/nm': [
                     'aberration', 'adjust_brightness', 'adjust_contrast', 'adjust_hue', 'adjust_saturation', 'bloom', 'blur', 'clouds', 'color_map', 'conv_feedback', 'convolve', 'crt', 'degauss', 'density_map', 'derivative', 'dla', 'erosion_worms', 'false_color', 'fibers', 'frame', 'fxaa', 'glowing_edges', 'glyph_map', 'grain', 'grime', 'jpeg_decimate', 'kaleido', 'lens_distortion', 'lens_warp', 'light_leak', 'lowpoly', 'nebula', 'normal_map', 'normalize', 'on_screen_display', 'outline', 'palette', 'pixel_sort', 'posterize', 'refract', 'reindex', 'reverb', 'ridge', 'ripple', 'rotate', 'scanline_error', 'scratches', 'shadow', 'simple_frame', 'sine', 'sketch', 'snow', 'sobel', 'spatter', 'spooky_ticker', 'stray_hair', 'texture', 'tint', 'value_refract', 'vaseline', 'vhs', 'vignette', 'voronoi', 'vortex', 'warp', 'wobble', 'wormhole', 'worms'
