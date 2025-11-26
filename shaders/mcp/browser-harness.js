@@ -132,7 +132,7 @@ export class BrowserHarness {
                 }
             });
             
-            this.serverProcess.stderr.on('data', (data) => {
+            this.serverProcess.stderr.on('data', (_data) => {
                 // Server logs to stderr
             });
             

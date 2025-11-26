@@ -365,7 +365,7 @@ export class Pipeline {
             writeSurfaceMap[name] = surface.write
         }
         
-        const o0 = this.surfaces.get('o0')
+        const _o0 = this.surfaces.get('o0')
         
         return {
             frameIndex: this.frameIndex,

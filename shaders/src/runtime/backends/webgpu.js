@@ -41,12 +41,6 @@ function float16ToFloat32(h) {
     return (sign ? -1 : 1) * f * Math.pow(2, exponent - 15)
 }
 
-/**
- * Standard uniform struct that all shaders can expect.
- * Packed according to std140/WGSL alignment rules for uniform buffers.
- */
-const UNIFORM_BUFFER_INITIAL_SIZE = 256
-
 export class WebGPUBackend extends Backend {
     constructor(device, context) {
         super(device)
@@ -467,7 +461,7 @@ export class WebGPUBackend extends Backend {
     executeRenderPass(pass, program, state) {
         // Resolve output texture
         let outputId = pass.outputs.color || Object.values(pass.outputs)[0]
-        const originalOutputId = outputId
+        const _originalOutputId = outputId
 
         if (outputId.startsWith('global_')) {
             const surfaceName = outputId.replace('global_', '')
@@ -1597,13 +1591,13 @@ export class WebGPUBackend extends Backend {
         
         // Determine bytes per pixel based on format
         let bytesPerPixel = 4 // Default for rgba8unorm
-        let isFloat = false
+        let _isFloat = false
         if (gpuFormat === 'rgba16float') {
             bytesPerPixel = 8 // 2 bytes per channel * 4 channels
-            isFloat = true
+            _isFloat = true
         } else if (gpuFormat === 'rgba32float') {
             bytesPerPixel = 16 // 4 bytes per channel * 4 channels
-            isFloat = true
+            _isFloat = true
         }
         
         const bytesPerRow = Math.ceil(width * bytesPerPixel / 256) * 256 // Align to 256 bytes

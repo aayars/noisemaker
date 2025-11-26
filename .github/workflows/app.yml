@@ -113,7 +113,7 @@ jobs:
       run: npm install --include=dev
 
     - name: Run ESLint
-      run: npx eslint js/ --ext .js
+      run: npm run lint
 
   build-js-bundles:
     runs-on: ubuntu-latest

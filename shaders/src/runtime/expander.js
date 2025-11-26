@@ -106,7 +106,7 @@ export function expand(compilationResult) {
 
                 // Initialize uniforms with defaults
                 if (effectDef.globals) {
-                    for (const [key, def] of Object.entries(effectDef.globals)) {
+                    for (const [_key, def] of Object.entries(effectDef.globals)) {
                         if (def.uniform && def.default !== undefined) {
                             let val = def.default;
                             if (def.type === 'member' && typeof val === 'string') {

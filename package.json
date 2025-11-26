@@ -17,11 +17,15 @@
     "test:shaders": "node shaders/tests/headless.test.js --size 128 --time 0.0 --seed 0",
     "image-regress": "python scripts/image_regression.py",
     "mcp:start": "node shaders/mcp/server.js",
-    "mcp:test": "node shaders/mcp/test-harness.js"
+    "mcp:test": "node shaders/mcp/test-harness.js",
+    "lint": "eslint js/ scripts/ test/ shaders/"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@playwright/test": "^1.56.0",
     "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
     "jpeg-js": "^0.4.4",
     "pngjs": "^7.0.0",
     "postject": "^1.0.0-alpha.6",

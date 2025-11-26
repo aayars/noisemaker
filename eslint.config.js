@@ -17,7 +17,7 @@ export default [
     files: ['js/**/*.js', 'scripts/**/*.js', 'test/**/*.js', 'shaders/**/*.js'],
     languageOptions: {
       ...pluginJs.configs.recommended.languageOptions,
-      ecmaVersion: 2022,
+      ecmaVersion: 'latest',
       sourceType: 'module',
       globals: {
         ...globals.browser,
