@@ -105,6 +105,14 @@ async function testEffect(harness, effectId, options = {}) {
         console.log(`  ✓ render (${renderResult.metrics?.unique_sampled_colors} colors)`);
     }
     
+    // Show DSL from compile result
+    if (compileResult.console_errors) {
+        const dslMsg = compileResult.console_errors.find(m => m.includes('DSL'));
+        if (dslMsg) {
+            console.log(`  ${dslMsg}`);
+        }
+    }
+    
     // Benchmark (skip compile)
     if (options.benchmark) {
         const benchResult = await harness.benchmarkEffectFps(effectId, {
@@ -119,14 +127,23 @@ async function testEffect(harness, effectId, options = {}) {
     
     // Vision (skip compile)
     if (options.vision && getOpenAIApiKey()) {
+        const prompt = options.visionPrompt || 'Is this a valid shader output? Describe briefly.';
         const visionResult = await harness.describeEffectFrame(
             effectId,
-            'Is this a valid shader output? Describe briefly.',
-            { skipCompile: true }
+            prompt,
+            { skipCompile: true, backend }
         );
         results.vision = visionResult.status;
         if (visionResult.vision) {
             console.log(`  ✓ vision: ${visionResult.vision.tags?.slice(0, 3).join(', ')}`);
+            if (visionResult.vision.description) {
+                console.log(`    ${visionResult.vision.description}`);
+            }
+            if (visionResult.vision.notes) {
+                console.log(`    Notes: ${visionResult.vision.notes}`);
+            }
+        } else if (visionResult.error) {
+            console.log(`  ⚠ vision: ${visionResult.error}`);
         }
     }
     
@@ -138,6 +155,14 @@ async function main() {
     const pattern = process.argv[2] || 'basics/noise';
     const runBenchmark = process.argv.includes('--benchmark');  // off by default for speed
     const runVision = process.argv.includes('--vision');
+    
+    // Extract vision prompt from --prompt "..." argument
+    let visionPrompt = null;
+    const promptIdx = process.argv.indexOf('--prompt');
+    if (promptIdx !== -1 && process.argv[promptIdx + 1]) {
+        visionPrompt = process.argv[promptIdx + 1];
+    }
+    
     const useWebGPU = process.argv.includes('--webgpu') || process.argv.includes('--wgsl');
     const backend = useWebGPU ? 'webgpu' : 'webgl2';
     
@@ -164,6 +189,7 @@ async function main() {
             const result = await testEffect(harness, effectId, { 
                 benchmark: runBenchmark, 
                 vision: runVision,
+                visionPrompt,
                 backend
             });
             results.push(result);

@@ -189,28 +189,33 @@ void main() {
     int width = int(round(width_f));
     int height = int(round(height_f));
     
-    int down_width = int(max(round(width_f * scale), 1.0));
-    int down_height = int(max(round(height_f * scale), 1.0));
-    ivec2 down_size_i = ivec2(down_width, down_height);
+    // Get actual shaded texture dimensions instead of calculating from scale
+    ivec2 shaded_size = textureSize(shadedTex, 0);
+    ivec2 down_size_i = shaded_size;
 
     vec2 uv = vec2(
         (gl_FragCoord.x) / max(width_f, 1.0),
         (gl_FragCoord.y) / max(height_f, 1.0)
     );
 
-    // Combined is already 0-1 from blend_layers
+    // Combined and shade from shade pass
     float combined_value = clamp01(sample_channel_bicubic(uv, down_size_i, 0u));
-    
-    // Sample and soften shade mask
     float shade_mask = sample_channel_bicubic(uv, down_size_i, 1u);
-    // reduce harshness and boost low values
-    float shade_factor = smoothstep(0.0, 0.5, shade_mask * 0.75);
+    float shade_factor = clamp01(shade_mask * 0.75);
 
+    // Sample input
     vec4 texel = texture(inputTex, uv);
 
+    // Python: tensor = blend(tensor, zeros, shaded * 0.75) -> darken
     vec3 shaded_color = mix(texel.xyz, vec3(0.0), vec3(shade_factor));
-    vec4 lit_color = vec4(mix(shaded_color, vec3(1.0), vec3(combined_value)), clamp(mix(texel.w, 1.0, combined_value), 0.0, 1.0));
+    
+    // Python: tensor = blend(tensor, ones, combined) -> lighten toward white
+    vec4 lit_color = vec4(
+        mix(shaded_color, vec3(1.0), vec3(combined_value)),
+        clamp(mix(texel.w, 1.0, combined_value), 0.0, 1.0)
+    );
 
+    // Apply shadow effect
     vec4 final_texel = shadow(lit_color, uv, ivec2(width, height), 0.5);
 
     fragColor = final_texel;

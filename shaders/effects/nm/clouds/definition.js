@@ -1,8 +1,13 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Clouds
- * /shaders/effects/clouds/clouds.wgsl
+ * Clouds - Top-down cloud cover effect
+ * 
+ * Multi-pass rendering:
+ * 1. Generate ridged multires noise control at 25% resolution, with warp
+ * 2. Reduce to find global min/max of control for proper normalization
+ * 3. Compute combined (white/black blend) and shaded (offset + blur) masks using normalized control
+ * 4. Upsample and composite onto input with shadow effect
  */
 export default class Clouds extends Effect {
   name = "Clouds";
@@ -34,6 +39,14 @@ export default class Clouds extends Effect {
     }
   };
 
+  textures = {
+    downsampleTex: { width: "25%", height: "25%", format: "rgba16f" },
+    // Reduction textures for finding global min/max of control
+    reduce1Tex: { width: "1.5625%", height: "1.5625%", format: "rgba16f" },  // 25% / 16
+    statsTex: { width: 1, height: 1, format: "rgba16f" },  // Final 1x1 with min/max
+    shadedTex: { width: "25%", height: "25%", format: "rgba16f" }
+  };
+
   passes = [
     {
       name: "downsample",
@@ -44,11 +57,34 @@ export default class Clouds extends Effect {
       }
     },
     {
+      name: "reduce",
+      type: "render", 
+      program: "clouds_reduce",
+      inputs: {
+        downsampleTex: "downsampleTex"
+      },
+      outputs: {
+        fragColor: "reduce1Tex"
+      }
+    },
+    {
+      name: "stats",
+      type: "render",
+      program: "clouds_stats",
+      inputs: {
+        reduceTex: "reduce1Tex"
+      },
+      outputs: {
+        fragColor: "statsTex"
+      }
+    },
+    {
       name: "shade",
       type: "render",
       program: "clouds_shade",
       inputs: {
-        downsampleTex: "downsampleTex"
+        downsampleTex: "downsampleTex",
+        statsTex: "statsTex"
       },
       outputs: {
         fragColor: "shadedTex"

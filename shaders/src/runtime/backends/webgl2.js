@@ -323,8 +323,9 @@ export class WebGL2Backend extends Backend {
 
         const fbo = this.fbos.get(outputId)
         if (!fbo && outputId !== 'screen') {
-             console.warn(`FBO not found for ${outputId}`)
+             console.warn(`[executePass] FBO not found for ${outputId} in pass ${pass.id}`)
         }
+        
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo || null)
         
         // Set viewport

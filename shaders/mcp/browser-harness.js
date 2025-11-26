@@ -81,6 +81,7 @@ export class BrowserHarness {
             // Capture all messages for debugging
             if (text.includes('Error') || text.includes('error') || text.includes('warning') || 
                 text.includes('Storage') || text.includes('getOutput') ||
+                text.includes('[bindTextures]') || text.includes('DSL') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }

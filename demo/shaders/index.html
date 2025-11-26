@@ -1346,18 +1346,27 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
 
         // Helper to check if effect is starter
         function isStarterEffect(effect) {
-            const firstPass = effect.instance.passes?.[0];
-            if (!firstPass || !firstPass.inputs) return true;
+            const passes = effect.instance.passes || [];
+            if (passes.length === 0) return true;
             
-            const inputs = Object.values(firstPass.inputs);
-            // Check if any input maps to a pipeline input (usually 'inputColor' or similar)
+            // Check if ANY pass uses a pipeline input (not just the first pass)
+            // This handles effects like clouds which generate noise internally in early passes
+            // but need inputTex in later passes for blending
             const pipelineInputs = [
                 'inputTex', 'src',
                 'o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'
             ];
-            const hasPipelineInput = inputs.some(val => pipelineInputs.includes(val));
             
-            return !hasPipelineInput;
+            for (const pass of passes) {
+                if (!pass.inputs) continue;
+                const inputs = Object.values(pass.inputs);
+                const hasPipelineInput = inputs.some(val => pipelineInputs.includes(val));
+                if (hasPipelineInput) {
+                    return false; // Not a starter - needs external input
+                }
+            }
+            
+            return true; // No pass needs pipeline input - it's a starter
         }
 
         // Select and load an effect

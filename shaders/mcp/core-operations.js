@@ -408,10 +408,24 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         };
     }
     
+    // Capture image if requested (for vision API)
+    let imageUri = null;
+    if (options.captureImage) {
+        try {
+            const canvas = await page.$('canvas');
+            if (canvas) {
+                const screenshot = await canvas.screenshot({ type: 'png' });
+                imageUri = `data:image/png;base64,${screenshot.toString('base64')}`;
+            }
+        } catch (err) {
+            // Image capture failed, but metrics are still valid
+        }
+    }
+    
     return {
         status: 'ok',
         frame: {
-            image_uri: null,  // Not computed for speed
+            image_uri: imageUri,
             width: result.width,
             height: result.height
         },
@@ -515,8 +529,8 @@ export async function benchmarkEffectFps(page, effectId, options = {}) {
  * @returns {Promise<{status: 'ok'|'error', frame: {image_uri: string}, vision: {description: string, tags: string[], notes?: string}}>}
  */
 export async function describeEffectFrame(page, effectId, prompt, options = {}) {
-    // First render the frame
-    const renderResult = await renderEffectFrame(page, effectId, options);
+    // First render the frame with image capture enabled
+    const renderResult = await renderEffectFrame(page, effectId, { ...options, captureImage: true });
     if (renderResult.status === 'error') {
         return {
             status: 'error',

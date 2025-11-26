@@ -3,6 +3,7 @@ precision highp float;
 precision highp int;
 
 uniform sampler2D downsampleTex;
+uniform sampler2D statsTex;
 uniform vec2 resolution;
 uniform float time;
 uniform float speed;
@@ -49,8 +50,6 @@ float read_channel(ivec2 coord, ivec2 size, uint channel) {
     int safe_x = wrap_index(coord.x, width);
     int safe_y = wrap_index(coord.y, height);
     
-    // In GLSL, we read the whole vec4. Channel selects component.
-    // channel 0 -> r, 1 -> g, 2 -> b, 3 -> a
     vec4 val = texelFetch(downsampleTex, ivec2(safe_x, safe_y), 0);
     if (channel == 0u) return val.r;
     if (channel == 1u) return val.g;
@@ -64,11 +63,12 @@ float normalize_control(float raw_value, float min_value, float max_value) {
 }
 
 float combined_from_normalized(float control_norm) {
+    // Python blend_layers(control, 1.0, ones, zeros):
+    // - control in [0, 0.5]: result = 1 - control*2 (white fading to black)
+    // - control >= 0.5: result = 0 (black)
+    // This matches: max(1.0 - control * 2.0, 0.0)
     float scaled = control_norm * 2.0;
-    if (scaled < 1.0) {
-        return clamp(1.0 - scaled, 0.0, 1.0);
-    }
-    return 0.0;
+    return max(1.0 - scaled, 0.0);
 }
 
 float combined_from_raw(float raw_value, float min_value, float max_value) {
@@ -114,11 +114,19 @@ void main() {
 
     ivec2 size_i = ivec2(down_width, down_height);
     ivec2 coord_i = ivec2(floor(gl_FragCoord.xy));
-    ivec2 offset_i = ivec2(0, 0);
+    
+    // Compute seeded random offset for shadow (Python: rng.random_int(-15, 15))
+    // Use resolution-based hash to get deterministic but varying offset
+    float hash1 = fract(sin(dot(resolution, vec2(12.9898, 78.233))) * 43758.5453);
+    float hash2 = fract(sin(dot(resolution, vec2(53.2317, 91.7623))) * 28461.8291);
+    int offset_x = int(floor(hash1 * 31.0)) - 15;  // -15 to +15
+    int offset_y = int(floor(hash2 * 31.0)) - 15;  // -15 to +15
+    ivec2 offset_i = ivec2(offset_x, offset_y);
 
-    // TODO: Use real stats from a texture if possible
-    float min_value = 0.0;
-    float max_value = 1.0;
+    // Read global min/max from stats texture (computed via reduction)
+    vec4 stats = texelFetch(statsTex, ivec2(0, 0), 0);
+    float min_value = stats.r;
+    float max_value = stats.g;
     
     float control_raw = read_channel(coord_i, size_i, 2u);
     float combined = combined_from_raw(control_raw, min_value, max_value);

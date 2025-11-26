@@ -13,7 +13,7 @@ const uint CHANNEL_COUNT = 4u;
 const uint CONTROL_OCTAVES = 8u;
 const uint WARP_OCTAVES = 2u;
 const uint WARP_SUB_OCTAVES = 3u;
-const float WARP_DISPLACEMENT = 0.125;
+const float WARP_DISPLACEMENT = 0.0;  // Disabled - clean cloud shapes
 const float PI = 3.14159265358979323846;
 const float TAU = 6.28318530717958647692;
 
@@ -170,17 +170,21 @@ float animated_simplex_value(
     vec3 base_seed,
     vec3 time_seed
 ) {
-    float angle = TAU * time_value;
+    // Slow down animation - time in shaders increments much faster than Python
+    float slow_time = time_value * 0.002;  // ~500x slower for gentle cloud drift
+    float angle = TAU * slow_time;
     float z_coord = cos(angle) * speed_value;
 
     vec2 scale = freq / dims;
     vec2 scaled_coord = coord * scale;
 
+    // Simplex returns ~[-1, 1], normalize to [0, 1] to match Python
     float base_noise = simplex_noise(vec3(
         scaled_coord.x + base_seed.x,
         scaled_coord.y + base_seed.y,
         z_coord
     ));
+    base_noise = base_noise * 0.5 + 0.5;  // [-1,1] -> [0,1]
 
     if (speed_value == 0.0 || time_value == 0.0) {
         return base_noise;
@@ -191,6 +195,7 @@ float animated_simplex_value(
         scaled_coord.y + time_seed.y,
         1.0
     ));
+    time_noise = time_noise * 0.5 + 0.5;  // [-1,1] -> [0,1]
 
     float scaled_time = periodic_value(time_value, time_noise) * speed_value;
     return periodic_value(scaled_time, base_noise);
@@ -297,7 +302,8 @@ vec2 warp_coordinate(
 
         vec2 offset_vec = vec2(flow_x * 2.0 - 1.0, flow_y * 2.0 - 1.0);
         float displacement = WARP_DISPLACEMENT / pow(2.0, float(octave));
-        warped = wrap_coord(warped + offset_vec * displacement * dims, dims);
+        // Python warp uses displacement as fraction of image, not multiplied by dims
+        warped = wrap_coord(warped + offset_vec * displacement * min(dims.x, dims.y), dims);
     }
 
     return warped;
