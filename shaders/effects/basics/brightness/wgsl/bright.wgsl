@@ -8,5 +8,6 @@
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
   let st = position.xy / vec2<f32>(textureDimensions(tex0, 0));
   let c = textureSample(tex0, samp, st);
-  return vec4<f32>(c.rgb + vec3<f32>(a), 1.0);
+  let rgb = fract(c.rgb + vec3<f32>(a));
+  return vec4<f32>(rgb, c.a);
 }

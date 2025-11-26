@@ -9,6 +9,8 @@
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
   let st = position.xy / vec2<f32>(textureDimensions(tex0, 0));
   let a = textureSample(tex0, samp, st);
-  let b = textureSample(tex1, samp, st).rgb * amount;
-  return vec4<f32>(a.rgb * b, 1.0);
+  let mask = textureSample(tex1, samp, st).rgb;
+  let mixAmount = clamp(amount, 0.0, 1.0);
+  let blended = mix(vec3<f32>(1.0), mask, mixAmount);
+  return vec4<f32>(a.rgb * blended, a.a);
 }

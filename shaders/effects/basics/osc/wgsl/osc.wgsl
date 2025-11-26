@@ -15,6 +15,9 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
   let r = sin(phase) * 0.5 + 0.5;
   let g = sin(phase + 2.0) * 0.5 + 0.5;
   let b = sin(phase + 4.0) * 0.5 + 0.5;
-  let col = vec3<f32>(r, g, b) * amp;
+  let wave = vec3<f32>(r, g, b);
+  let mixAmount = max(clamp(amp, 0.0, 1.0), 0.1);
+  let base = vec3<f32>(0.5);
+  let col = mix(base, wave, mixAmount);
   return vec4<f32>(col, 1.0);
 }
