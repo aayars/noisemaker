@@ -3,8 +3,10 @@ precision highp float;
 precision highp int;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 options;
+uniform vec2 resolution;
+uniform int distMetric;
+uniform bool withNormalize;
+uniform float alpha;
 
 out vec4 fragColor;
 
@@ -126,12 +128,8 @@ GradientPair compute_gradients(ivec2 coords, int width, int height) {
 
 void main() {
     ivec2 dims = textureSize(inputTex, 0);
-    uint width = as_u32(size.x);
-    uint height = as_u32(size.y);
-    
-    // Use texture dims if size uniform is 0
-    if (width == 0u) width = uint(dims.x);
-    if (height == 0u) height = uint(dims.y);
+    uint width = uint(resolution.x > 0.0 ? resolution.x : float(dims.x));
+    uint height = uint(resolution.y > 0.0 ? resolution.y : float(dims.y));
     
     uvec2 global_id = uvec2(gl_FragCoord.xy);
     if (global_id.x >= width || global_id.y >= height) {
@@ -141,13 +139,11 @@ void main() {
     int width_i = int(width);
     int height_i = int(height);
     
-    uint channelCount = as_u32(size.z);
-    if (channelCount == 0u) channelCount = 4u;
-    channelCount = min(channelCount, 4u);
+    uint channelCount = 4u;
     
-    uint metric = uint(floor(size.w + 0.5));
-    bool do_normalize = options.x > 0.5;
-    float alpha = clamp(options.y, 0.0, 1.0);
+    uint metric = uint(distMetric);
+    bool do_normalize = withNormalize;
+    float alpha_val = clamp(alpha, 0.0, 1.0);
 
     int xi = int(global_id.x);
     int yi = int(global_id.y);
@@ -170,12 +166,12 @@ void main() {
 
     distances.w = 1.0;
     
-    if (alpha < 1.0) {
+    if (alpha_val < 1.0) {
         vec4 blended = distances;
         for (uint c = 0u; c < channelCount; c++) {
             float orig = get_component(source_texel, c);
             float der = get_component(distances, c);
-            float val = mix(orig, der, alpha);
+            float val = mix(orig, der, alpha_val);
             blended = set_component(blended, c, val);
         }
         distances = blended;

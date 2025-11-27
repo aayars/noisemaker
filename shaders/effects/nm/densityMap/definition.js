@@ -2,7 +2,8 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Density Map
- * /shaders/effects/density_map/density_map.wgsl
+ * Normalizes image values based on min/max.
+ * Uses a two-stage reduction to find global min/max.
  */
 export default class DensityMap extends Effect {
   name = "DensityMap";
@@ -11,28 +12,33 @@ export default class DensityMap extends Effect {
 
   globals = {};
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  // Internal textures for min/max reduction
+  textures = {
+    _minmax1: { width: 32, height: 32, format: "rgba32float" },
+    _minmaxGlobal: { width: 1, height: 1, format: "rgba32float" }
+  };
+
   passes = [
     {
       name: "reduce1",
       program: "reduce1",
+      viewport: { width: 32, height: 32 },
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "minmax1"
+        fragColor: "_minmax1"
       }
     },
     {
       name: "reduce2",
       program: "reduce2",
+      viewport: { width: 1, height: 1 },
       inputs: {
-        inputTex: "minmax1"
+        inputTex: "_minmax1"
       },
       outputs: {
-        fragColor: "minmaxGlobal"
+        fragColor: "_minmaxGlobal"
       }
     },
     {
@@ -40,7 +46,7 @@ export default class DensityMap extends Effect {
       program: "densityMap",
       inputs: {
         inputTex: "inputTex",
-        minmaxTexture: "minmaxGlobal"
+        minmaxTexture: "_minmaxGlobal"
       },
       outputs: {
         fragColor: "outputColor"

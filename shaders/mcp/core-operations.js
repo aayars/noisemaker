@@ -690,6 +690,545 @@ User prompt: ${prompt}`;
 }
 
 /**
+ * Check if an effect is a filter-type effect (takes texture input).
+ * Filter effects have an 'inputTex' texture binding in at least one pass.
+ * 
+ * @param {string} effectId - Effect identifier (e.g., "nm/sobel")
+ * @returns {Promise<boolean>}
+ */
+export async function isFilterEffect(effectId) {
+    const [namespace, effectName] = effectId.split('/');
+    const effectDir = path.join(PROJECT_ROOT, 'shaders', 'effects', namespace, effectName);
+    const definitionPath = path.join(effectDir, 'definition.js');
+    
+    try {
+        const source = fs.readFileSync(definitionPath, 'utf-8');
+        
+        // Look for inputTex in inputs section - can be a key OR a value
+        // Pattern 1: inputs: { inputTex: ... } (inputTex as key)
+        // Pattern 2: inputs: { tex0: "inputTex", ... } (inputTex as value)
+        // Pattern 3: default: "inputTex" (surface type with inputTex default)
+        const hasInputTexAsKey = /inputs:\s*\{[^}]*inputTex:/s.test(source);
+        const hasInputTexAsValue = /inputs:\s*\{[^}]*:\s*["']inputTex["']/s.test(source);
+        const hasInputTexDefault = /default:\s*["']inputTex["']/s.test(source);
+        
+        return hasInputTexAsKey || hasInputTexAsValue || hasInputTexDefault;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Test that a filter effect does NOT simply pass through its input unchanged.
+ * Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN.
+ * 
+ * This test:
+ * 1. Verifies the effect is a filter-type (has inputTex)
+ * 2. Captures both the input texture and output texture on the SAME frame
+ * 3. Computes a similarity metric between them
+ * 4. FAILS if the textures are too similar (indicating passthrough)
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
+ * @param {string} effectId - Effect identifier (e.g., "nm/sobel")
+ * @param {object} options
+ * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
+ * @param {boolean} [options.skipCompile=false] - Skip compilation if effect already loaded
+ * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
+ */
+export async function testNoPassthrough(page, effectId, options = {}) {
+    const backend = options.backend || 'webgl2';
+    const skipCompile = options.skipCompile ?? false;
+    
+    // Check if this is a filter effect
+    const isFilter = await isFilterEffect(effectId);
+    if (!isFilter) {
+        return {
+            status: 'skipped',
+            isFilterEffect: false,
+            similarity: null,
+            details: 'Not a filter effect (no inputTex)'
+        };
+    }
+    
+    // Compile the effect if needed
+    if (!skipCompile) {
+        const compileResult = await compileEffect(page, effectId, { backend });
+        if (compileResult.status === 'error') {
+            return {
+                status: 'error',
+                isFilterEffect: true,
+                similarity: null,
+                details: compileResult.message
+            };
+        }
+    }
+    
+    // Apply non-default uniform values to ensure the effect does something
+    // Many effects have defaults that result in no-op (e.g., rotate angle=0)
+    const uniformSetResult = await page.evaluate(() => {
+        const pipeline = window.__noisemakerRenderingPipeline;
+        const effect = window.__noisemakerCurrentEffect;
+        
+        if (!pipeline || !effect?.instance?.globals) return { uniformsSet: [] };
+        
+        const globals = effect.instance.globals;
+        const uniformsSet = [];
+        
+        for (const [key, spec] of Object.entries(globals)) {
+            if (!spec.uniform) continue;
+            if (spec.type !== 'float' && spec.type !== 'int') continue;
+            
+            // Skip if no range defined
+            if (typeof spec.min !== 'number' || typeof spec.max !== 'number') continue;
+            if (spec.min === spec.max) continue;
+            
+            // Use mid-range value (or a value that will cause visible change)
+            // For angle-like parameters, use a noticeable value
+            const defaultVal = spec.default ?? spec.min;
+            let testVal;
+            
+            // Use a value that's far enough from default to be visible
+            if (defaultVal === spec.min) {
+                testVal = spec.min + (spec.max - spec.min) * 0.5;  // Mid-range
+            } else if (defaultVal === spec.max) {
+                testVal = spec.min + (spec.max - spec.min) * 0.5;  // Mid-range
+            } else {
+                // Default is in the middle - move toward one extreme
+                testVal = spec.max - (spec.max - spec.min) * 0.1;  // Near max
+            }
+            
+            // For int types, round
+            if (spec.type === 'int') {
+                testVal = Math.round(testVal);
+            }
+            
+            // Apply to globalUniforms (which the backend reads from)
+            if (pipeline.globalUniforms) {
+                pipeline.globalUniforms[spec.uniform] = testVal;
+            }
+            
+            // Apply to all passes - create uniform if needed
+            for (const pass of pipeline.graph?.passes || []) {
+                if (!pass.uniforms) pass.uniforms = {};
+                pass.uniforms[spec.uniform] = testVal;
+                uniformsSet.push(`${pass.id || pass.program}:${spec.uniform}=${testVal}`);
+            }
+        }
+        
+        return { uniformsSet };
+    });
+    
+    // Wait for warmup frames to apply the uniform changes
+    const FRAME_WAIT_TIMEOUT = 5000;
+    
+    await page.evaluate(() => {
+        delete window.__noisemakerTestBaselineFrame;
+    });
+    
+    try {
+        await page.waitForFunction(({ warmupFrames }) => {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            if (!pipeline) return false;
+            const frameCount = window.__noisemakerFrameCount || 0;
+            if (window.__noisemakerTestBaselineFrame === undefined) {
+                window.__noisemakerTestBaselineFrame = frameCount;
+            }
+            return frameCount >= window.__noisemakerTestBaselineFrame + warmupFrames;
+        }, { warmupFrames: 10 }, { timeout: FRAME_WAIT_TIMEOUT });
+    } catch (err) {
+        return {
+            status: 'error',
+            isFilterEffect: true,
+            similarity: null,
+            details: `Frame wait timeout: ${err.message}`
+        };
+    }
+    
+    // Capture both input and output textures on the same frame
+    // The pipeline uses ping-pong buffers, so we need to capture at the right moment
+    // For filter effects using DSL like `noise(seed: 1).sobel().out(o0)`:
+    // - The noise outputs to an intermediate texture
+    // - That intermediate is bound to inputTex for the sobel pass
+    // - The sobel outputs to o0
+    //
+    // To capture both, we read pixels from:
+    // 1. The pass's inputTex binding (which points to the intermediate texture)
+    // 2. The output surface (o0)
+    
+    const result = await page.evaluate(async () => {
+        const pipeline = window.__noisemakerRenderingPipeline;
+        if (!pipeline) {
+            return { error: 'Pipeline not available' };
+        }
+        
+        // Debug: log current uniform values
+        const uniformDebug = {};
+        if (pipeline.globalUniforms) {
+            for (const [k, v] of Object.entries(pipeline.globalUniforms)) {
+                uniformDebug[k] = v;
+            }
+        }
+        
+        // Also capture pass.uniforms for all passes
+        const passUniformsDebug = {};
+        for (const pass of pipeline.graph?.passes || []) {
+            if (pass.uniforms) {
+                passUniformsDebug[pass.id || pass.program] = { ...pass.uniforms };
+            }
+        }
+        
+        const backend = pipeline.backend;
+        const backendName = backend?.getName?.() || 'WebGL2';
+        
+        // Find the filter pass and its input texture
+        // The filter pass is the one that:
+        //   1. Has inputTex in its inputs (as key or resolved from inputTex)
+        //   2. Or has an input that references a previous pass's output (for nd effects)
+        //   3. And ultimately outputs to o0
+        const passes = pipeline.graph?.passes || [];
+        let filterPass = null;
+        let inputTextureId = null;
+        
+        // First, try to find a pass with inputTex as a key (nm effects)
+        for (const pass of passes) {
+            if (pass.inputs && pass.inputs.inputTex) {
+                filterPass = pass;
+                inputTextureId = pass.inputs.inputTex;
+                break;
+            }
+        }
+        
+        // If not found, look for the pass that outputs to o0 and find its input
+        // This handles nd effects where inputTex is resolved during expansion
+        if (!filterPass) {
+            for (let i = passes.length - 1; i >= 0; i--) {
+                const pass = passes[i];
+                if (!pass.outputs) continue;
+                
+                // Check if this pass outputs to o0
+                const outputsToO0 = Object.values(pass.outputs).some(v => 
+                    v === 'global_o0' || v === 'o0' || v.includes('_o0')
+                );
+                
+                if (outputsToO0 && pass.inputs) {
+                    filterPass = pass;
+                    // Find the first input that looks like a previous pass output or chain texture
+                    // These typically look like: node_0_out, _chain_0, etc.
+                    for (const [key, value] of Object.entries(pass.inputs)) {
+                        if (typeof value === 'string' && (
+                            value.includes('node_') ||
+                            value.includes('_chain_') ||
+                            value.includes('_out') ||
+                            /^global_o[0-7]$/.test(value)
+                        )) {
+                            inputTextureId = value;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (!filterPass || !inputTextureId) {
+            // Debug: include available passes and inputs
+            const passInfo = passes.map(p => ({
+                id: p.id || p.program,
+                inputs: p.inputs,
+                outputs: p.outputs
+            }));
+            return { 
+                error: 'No filter pass with inputTex found in pipeline',
+                debug: { passes: passInfo }
+            };
+        }
+        
+        // Get the output surface (o0)
+        const outputSurface = pipeline.surfaces?.get('o0');
+        if (!outputSurface) {
+            return { error: 'Output surface o0 not found' };
+        }
+        
+        // Read pixel data from both textures
+        // We need to sample them on the same frame/state
+        
+        const readPixels = async (textureId, label) => {
+            if (backendName === 'WebGPU') {
+                try {
+                    // For WebGPU, we need to find the texture
+                    let texResult = null;
+                    
+                    // Try surfaces first (for global surfaces like o0, o1)
+                    const surfaceMatch = textureId.match(/^global_(\w+)_(read|write)$/);
+                    if (surfaceMatch) {
+                        const surfaceName = surfaceMatch[1];
+                        const surface = pipeline.surfaces?.get(surfaceName);
+                        if (surface) {
+                            texResult = await backend.readPixels(textureId);
+                        }
+                    }
+                    
+                    // Try direct texture lookup
+                    if (!texResult) {
+                        texResult = await backend.readPixels(textureId);
+                    }
+                    
+                    if (!texResult || !texResult.data) {
+                        return { error: `Failed to read ${label} from WebGPU` };
+                    }
+                    
+                    return { data: texResult.data, width: texResult.width, height: texResult.height };
+                } catch (err) {
+                    return { error: `WebGPU readPixels failed for ${label}: ${err.message}` };
+                }
+            } else {
+                // WebGL2 path
+                const gl = backend?.gl;
+                if (!gl) {
+                    return { error: 'GL context not available' };
+                }
+                
+                const textureInfo = backend.textures?.get(textureId);
+                if (!textureInfo) {
+                    return { error: `Texture info missing for ${label} (${textureId})` };
+                }
+                
+                const width = textureInfo.width;
+                const height = textureInfo.height;
+                
+                const fbo = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureInfo.handle, 0);
+                
+                // Check framebuffer completeness
+                const fbStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+                if (fbStatus !== gl.FRAMEBUFFER_COMPLETE) {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                    gl.deleteFramebuffer(fbo);
+                    return { error: `Framebuffer not complete for ${label}: ${fbStatus}` };
+                }
+                
+                // Query the implementation's preferred format for this framebuffer
+                const implFormat = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
+                const implType = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+                
+                // Use the implementation's preferred format
+                let data;
+                let readFormat = implFormat || gl.RGBA;
+                let readType = implType || gl.UNSIGNED_BYTE;
+                
+                // Allocate appropriate array based on type
+                if (readType === gl.FLOAT) {
+                    data = new Float32Array(width * height * 4);
+                } else if (readType === gl.HALF_FLOAT) {
+                    // For half float, we still need Float32Array as there's no native Float16Array
+                    data = new Float32Array(width * height * 4);
+                    readType = gl.FLOAT; // Fall back to FLOAT
+                } else {
+                    data = new Uint8Array(width * height * 4);
+                }
+                
+                gl.readPixels(0, 0, width, height, readFormat, readType, data);
+                
+                // Normalize to 0-255 if we read floats
+                let normalizedData;
+                if (readType === gl.FLOAT) {
+                    normalizedData = new Uint8Array(width * height * 4);
+                    for (let i = 0; i < data.length; i++) {
+                        normalizedData[i] = Math.max(0, Math.min(255, Math.round(data[i] * 255)));
+                    }
+                } else {
+                    normalizedData = data;
+                }
+                
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.deleteFramebuffer(fbo);
+                
+                return { data: normalizedData, width, height };
+            }
+        };
+        
+        // Resolve actual texture ID for input
+        // inputTextureId might be a reference that needs resolution via frame state
+        let resolvedInputId = inputTextureId;
+        
+        // Check if it's a surface reference (like "global_o1_read")
+        // The pipeline resolves "inputTex" to actual texture IDs during execution
+        // For the DSL `noise(seed: 1).sobel().out(o0)`, the intermediate is an auto-generated texture
+        
+        // Check if it's referring to a pass output
+        // Look for passes that output to this texture
+        for (let i = 0; i < passes.length; i++) {
+            const pass = passes[i];
+            if (pass === filterPass) break; // Stop before the filter pass
+            
+            if (pass.outputs) {
+                for (const [key, outputId] of Object.entries(pass.outputs)) {
+                    // The output of a previous pass becomes the input of the filter
+                    // Check if this matches our inputTex reference
+                    if (outputId === inputTextureId) {
+                        // This pass outputs to our input texture
+                        // The actual texture ID is the output
+                        resolvedInputId = outputId;
+                    }
+                }
+            }
+        }
+        
+        // If inputTextureId looks like a direct texture reference, use it
+        // Otherwise, we need to find the actual texture from surfaces or textures map
+        if (inputTextureId.startsWith('global_')) {
+            // It's a global surface reference
+            const surfaceName = inputTextureId.replace('global_', '').replace(/_read$/, '').replace(/_write$/, '');
+            const surface = pipeline.surfaces?.get(surfaceName);
+            if (surface) {
+                // Use the read texture (what the filter pass would sample)
+                const readTexId = pipeline.frameReadTextures?.get(surfaceName) || surface.read;
+                resolvedInputId = readTexId;
+            }
+        }
+        
+        // For intermediate textures (like _chain_0), look in backend.textures
+        if (!backend.textures?.has(resolvedInputId)) {
+            // Try with the original ID
+            if (backend.textures?.has(inputTextureId)) {
+                resolvedInputId = inputTextureId;
+            }
+        }
+        
+        // Get output texture ID
+        const outputTextureId = outputSurface.read; // Use read (what was just rendered)
+        
+        // Debug info
+        const debugInfo = {
+            inputTextureId,
+            resolvedInputId,
+            outputTextureId,
+            availableTextures: Array.from(backend.textures?.keys() || []),
+            surfaces: Array.from(pipeline.surfaces?.keys() || []),
+            passes: passes.map(p => ({ id: p.id, program: p.program, inputs: p.inputs, outputs: p.outputs }))
+        };
+        
+        // Read both textures
+        const inputResult = await readPixels(resolvedInputId, 'input');
+        if (inputResult.error) {
+            return { error: inputResult.error, debug: debugInfo };
+        }
+        
+        const outputResult = await readPixels(outputTextureId, 'output');
+        if (outputResult.error) {
+            return { error: outputResult.error, debug: debugInfo };
+        }
+        
+        // Compare the textures
+        // Compute Mean Absolute Difference (MAD) - simple and effective
+        const inputData = inputResult.data;
+        const outputData = outputResult.data;
+        
+        // Handle size mismatch by sampling at corresponding positions
+        const inputWidth = inputResult.width;
+        const inputHeight = inputResult.height;
+        const outputWidth = outputResult.width;
+        const outputHeight = outputResult.height;
+        
+        let totalDiff = 0;
+        let sampleCount = 0;
+        const stride = Math.max(1, Math.floor(Math.max(inputWidth * inputHeight, outputWidth * outputHeight) / 1000));
+        
+        for (let i = 0; i < Math.min(inputData.length, outputData.length); i += stride * 4) {
+            const diffR = Math.abs(inputData[i] - outputData[i]);
+            const diffG = Math.abs(inputData[i + 1] - outputData[i + 1]);
+            const diffB = Math.abs(inputData[i + 2] - outputData[i + 2]);
+            
+            totalDiff += (diffR + diffG + diffB) / 3;
+            sampleCount++;
+        }
+        
+        // Normalize to 0-1 range (0 = identical, 1 = completely different)
+        const meanDiff = totalDiff / sampleCount / 255;
+        
+        // Also compute a "similarity" score (1 = identical, 0 = completely different)
+        const similarity = 1 - meanDiff;
+        
+        return {
+            similarity,
+            meanDiff,
+            inputTextureId: resolvedInputId,
+            outputTextureId,
+            inputSize: [inputWidth, inputHeight],
+            outputSize: [outputWidth, outputHeight],
+            sampleCount,
+            debug: debugInfo,
+            uniformDebug,
+            passUniformsDebug
+        };
+    });
+    
+    if (result.error) {
+        return {
+            status: 'error',
+            isFilterEffect: true,
+            similarity: null,
+            details: result.error,
+            debug: result.debug
+        };
+    }
+    
+    // Determine pass/fail
+    // A similarity > 0.99 (less than 1% difference) is considered passthrough
+    // This threshold accounts for minor floating-point precision differences
+    const PASSTHROUGH_THRESHOLD = 0.99;
+    
+    const isPassthrough = result.similarity >= PASSTHROUGH_THRESHOLD;
+    
+    // Reset all uniforms to their default values after the test
+    await page.evaluate(() => {
+        const pipeline = window.__noisemakerRenderingPipeline;
+        const effect = window.__noisemakerCurrentEffect;
+        
+        if (!pipeline || !effect?.instance?.globals) return;
+        
+        const globals = effect.instance.globals;
+        
+        // Reset all uniforms to their default values
+        for (const [key, spec] of Object.entries(globals)) {
+            if (!spec.uniform) continue;
+            
+            const defaultVal = spec.default ?? spec.min ?? 0;
+            
+            // Apply to all passes
+            for (const pass of pipeline.graph?.passes || []) {
+                if (pass.uniforms && spec.uniform in pass.uniforms) {
+                    pass.uniforms[spec.uniform] = defaultVal;
+                }
+            }
+        }
+        
+        // Also reset built-in time to known values
+        // NOTE: Do NOT reset seed here - it's an effect-specific parameter set by DSL
+        for (const pass of pipeline.graph?.passes || []) {
+            if (pass.uniforms) {
+                if ('time' in pass.uniforms) pass.uniforms.time = 0;
+                if ('u_time' in pass.uniforms) pass.uniforms.u_time = 0;
+            }
+        }
+    });
+    
+    return {
+        status: isPassthrough ? 'passthrough' : 'ok',
+        isFilterEffect: true,
+        similarity: result.similarity,
+        meanDiff: result.meanDiff,
+        details: isPassthrough 
+            ? `PASSTHROUGH DETECTED: similarity=${(result.similarity * 100).toFixed(2)}% (threshold: ${PASSTHROUGH_THRESHOLD * 100}%)`
+            : `Filter modifies input: similarity=${(result.similarity * 100).toFixed(2)}%, diff=${(result.meanDiff * 100).toFixed(2)}%`,
+        debug: result.debug,
+        uniformDebug: result.uniformDebug,
+        passUniformsDebug: result.passUniformsDebug
+    };
+}
+
+/**
  * Effects that are exempt from compute pass requirements for multi-pass pipelines.
  * These are typically simple filter chains or effects where GPGPU provides no benefit.
  */
@@ -708,6 +1247,53 @@ const COMPUTE_PASS_EXEMPT_EFFECTS = new Set([
  * Note: 'speed' is allowed as a user-exposed uniform.
  */
 const INTERNAL_UNIFORMS = new Set(['channels', 'time']);
+
+/**
+ * System uniforms that are auto-provided by the runtime.
+ * Shaders may use these without declaring them in globals.
+ * 
+ * Each entry maps the uniform name to its expected type in GLSL and WGSL:
+ * - glslDecl: regex pattern for GLSL uniform declaration
+ * - wgslDecl: regex pattern for WGSL uniform declaration  
+ * - usagePatterns: regex patterns that indicate the uniform is being used
+ */
+const SYSTEM_UNIFORMS = {
+    resolution: {
+        glslDecl: /uniform\s+vec2\s+resolution\s*;/,
+        wgslDecl: /var<uniform>\s+resolution\s*:\s*vec2<f32>/,
+        usagePatterns: [/\bresolution\b/]
+    },
+    time: {
+        glslDecl: /uniform\s+float\s+time\s*;/,
+        wgslDecl: /var<uniform>\s+time\s*:\s*f32/,
+        usagePatterns: [/\btime\b/]
+    },
+    aspect: {
+        glslDecl: /uniform\s+float\s+aspect\s*;/,
+        wgslDecl: /var<uniform>\s+aspect\s*:\s*f32/,
+        usagePatterns: [/\baspect\b/]
+    },
+    aspectRatio: {
+        glslDecl: /uniform\s+float\s+aspectRatio\s*;/,
+        wgslDecl: /var<uniform>\s+aspectRatio\s*:\s*f32/,
+        usagePatterns: [/\baspectRatio\b/]
+    },
+    deltaTime: {
+        glslDecl: /uniform\s+float\s+deltaTime\s*;/,
+        wgslDecl: /var<uniform>\s+deltaTime\s*:\s*f32/,
+        usagePatterns: [/\bdeltaTime\b/]
+    },
+    frame: {
+        glslDecl: /uniform\s+int\s+frame\s*;/,
+        wgslDecl: /var<uniform>\s+frame\s*:\s*(i32|u32)/,
+        usagePatterns: [/\bframe\b/]
+    },
+    speed: {
+        glslDecl: /uniform\s+float\s+speed\s*;/,
+        wgslDecl: /var<uniform>\s+speed\s*:\s*f32/,
+        usagePatterns: [/\bspeed\b/]
+    }
+};
 
 /**
  * Check if a name is valid camelCase.
@@ -845,7 +1431,11 @@ export async function checkEffectStructure(effectId, options = {}) {
         // Split shader validation (GLSL only)
         splitShaderIssues: [],
         // Naming convention issues (camelCase validation)
-        namingIssues: []
+        namingIssues: [],
+        // Required uniform issues (system uniforms not properly declared)
+        requiredUniformIssues: [],
+        // Structural parity between GLSL and WGSL (1:1 file mapping)
+        structuralParityIssues: []
     };
     
     try {
@@ -923,8 +1513,20 @@ export async function checkEffectStructure(effectId, options = {}) {
         
         // Check for leaked internal uniforms exposed as UI controls
         // Extract globals section from definition
-        const globalsMatch = definitionSource.match(/globals\s*[=:]\s*\{([\s\S]*?)\n\s{2}\};/);
-        const globalsSection = globalsMatch ? globalsMatch[1] : '';
+        // Handle both multi-line globals and empty globals = {}
+        let globalsSection = '';
+        
+        // First try to match empty globals on a single line
+        const emptyGlobalsMatch = definitionSource.match(/globals\s*=\s*\{\s*\};/);
+        if (emptyGlobalsMatch) {
+            // Empty globals, nothing to check
+            globalsSection = '';
+        } else {
+            // Try to match multi-line globals block
+            // The block ends with }; at the same indent level as globals (2 spaces for class properties)
+            const multiLineMatch = definitionSource.match(/globals\s*=\s*\{([\s\S]*?)\n  \};/);
+            globalsSection = multiLineMatch ? multiLineMatch[1] : '';
+        }
         
         // Look for global entries that expose internal uniforms as controls
         // An internal uniform is leaked if:
@@ -1127,6 +1729,91 @@ export async function checkEffectStructure(effectId, options = {}) {
             }
         }
         
+        // =====================================================================
+        // REQUIRED UNIFORMS VALIDATION
+        // =====================================================================
+        // Check that shaders properly declare system uniforms they use.
+        // System uniforms (resolution, time, aspect, etc.) are auto-provided by
+        // the runtime, but shaders must still declare them to receive the values.
+        
+        const isGLSL = backend === 'webgl2';
+        
+        // Read all shader files and check for system uniform usage vs declaration
+        for (const programName of referencedPrograms) {
+            // Determine which files to check
+            const filesToCheck = [];
+            
+            if (isGLSL) {
+                // Check for split shaders first (.vert/.frag), then combined (.glsl)
+                const vertPath = path.join(shaderDirPath, `${programName}.vert`);
+                const fragPath = path.join(shaderDirPath, `${programName}.frag`);
+                const combinedPath = path.join(shaderDirPath, `${programName}.glsl`);
+                
+                if (fs.existsSync(vertPath)) filesToCheck.push({ path: vertPath, name: `${programName}.vert` });
+                if (fs.existsSync(fragPath)) filesToCheck.push({ path: fragPath, name: `${programName}.frag` });
+                if (fs.existsSync(combinedPath)) filesToCheck.push({ path: combinedPath, name: `${programName}.glsl` });
+            } else {
+                // WGSL - just .wgsl
+                const wgslPath = path.join(shaderDirPath, `${programName}.wgsl`);
+                if (fs.existsSync(wgslPath)) filesToCheck.push({ path: wgslPath, name: `${programName}.wgsl` });
+            }
+            
+            for (const { path: filePath, name: fileName } of filesToCheck) {
+                try {
+                    const shaderSource = fs.readFileSync(filePath, 'utf-8');
+                    
+                    // For each system uniform, check if it's used but not declared
+                    for (const [uniformName, uniformSpec] of Object.entries(SYSTEM_UNIFORMS)) {
+                        const declPattern = isGLSL ? uniformSpec.glslDecl : uniformSpec.wgslDecl;
+                        const hasDeclared = declPattern.test(shaderSource);
+                        
+                        // Check if there's a local variable declaration that shadows this name
+                        // GLSL: "float time = ..." or "vec2 resolution = ..."
+                        // WGSL: "var time: f32 = ..." or "let resolution = ..."
+                        const glslLocalDeclPattern = new RegExp(
+                            `\\b(float|int|vec[234]|mat[234]|ivec[234]|uvec[234])\\s+${uniformName}\\s*[=;]`
+                        );
+                        const wgslLocalDeclPattern = new RegExp(
+                            `\\b(var|let)\\s+${uniformName}\\s*[=:]`
+                        );
+                        const localDeclPattern = isGLSL ? glslLocalDeclPattern : wgslLocalDeclPattern;
+                        const hasLocalDecl = localDeclPattern.test(shaderSource);
+                        
+                        // If there's a local variable with this name, it shadows any uniform
+                        // So we don't need to check for uniform declaration
+                        if (hasLocalDecl) {
+                            continue;
+                        }
+                        
+                        // Check if any usage pattern matches in the code body
+                        // We strip out comments to avoid false positives from commented code
+                        let codeWithoutComments = shaderSource
+                            // Remove multi-line comments first (before single-line)
+                            .replace(/\/\*[\s\S]*?\*\//g, '')
+                            // Remove single-line comments
+                            .replace(/\/\/[^\n]*/g, '');
+                        
+                        // Also strip the uniform declaration itself so we don't count it as "usage"
+                        codeWithoutComments = codeWithoutComments
+                            .replace(/uniform\s+\w+\s+\w+\s*;/g, '')
+                            .replace(/@group\([^)]+\)\s*@binding\([^)]+\)\s*var<uniform>\s+\w+\s*:[^;]+;/g, '');
+                        
+                        const isUsed = uniformSpec.usagePatterns.some(pattern => pattern.test(codeWithoutComments));
+                        
+                        if (isUsed && !hasDeclared) {
+                            result.requiredUniformIssues.push({
+                                file: fileName,
+                                uniform: uniformName,
+                                message: `Shader uses '${uniformName}' but doesn't declare it as a uniform`
+                            });
+                        }
+                    }
+                } catch (readErr) {
+                    // Can't read shader file - skip
+                }
+            }
+        }
+
         // Validate split shader consistency (GLSL only)
         // When using custom vertex shaders (not the default full-screen triangle),
         // GLSL files must be split into .vert and .frag extensions
@@ -1177,6 +1864,67 @@ export async function checkEffectStructure(effectId, options = {}) {
                 }
             } catch (err) {
                 // GLSL directory doesn't exist - not a split shader issue
+            }
+        }
+        
+        // =====================================================================
+        // STRUCTURAL PARITY VALIDATION (GLSL ↔ WGSL 1:1 mapping)
+        // =====================================================================
+        // Every GLSL shader program must have a corresponding WGSL shader and vice versa.
+        // This enforces exact 1:1 structural parity across shader languages.
+        
+        const glslPath = path.join(effectDir, 'glsl');
+        const wgslPath = path.join(effectDir, 'wgsl');
+        
+        let glslPrograms = new Set();
+        let wgslPrograms = new Set();
+        
+        try {
+            const glslFiles = fs.readdirSync(glslPath);
+            // Get unique program names from GLSL files
+            // .glsl files → program name is the base name
+            // .vert/.frag files → program name is the base name (both must exist)
+            for (const file of glslFiles) {
+                if (file.endsWith('.glsl')) {
+                    glslPrograms.add(file.replace('.glsl', ''));
+                } else if (file.endsWith('.vert') || file.endsWith('.frag')) {
+                    glslPrograms.add(file.replace(/\.(vert|frag)$/, ''));
+                }
+            }
+        } catch (err) {
+            // No GLSL directory
+        }
+        
+        try {
+            const wgslFiles = fs.readdirSync(wgslPath);
+            for (const file of wgslFiles) {
+                if (file.endsWith('.wgsl')) {
+                    wgslPrograms.add(file.replace('.wgsl', ''));
+                }
+            }
+        } catch (err) {
+            // No WGSL directory
+        }
+        
+        // Find programs that exist in GLSL but not in WGSL
+        for (const program of glslPrograms) {
+            if (!wgslPrograms.has(program)) {
+                result.structuralParityIssues.push({
+                    type: 'missing_wgsl',
+                    program,
+                    message: `GLSL program "${program}" has no corresponding WGSL shader`
+                });
+            }
+        }
+        
+        // Find programs that exist in WGSL but not in GLSL
+        for (const program of wgslPrograms) {
+            if (!glslPrograms.has(program)) {
+                result.structuralParityIssues.push({
+                    type: 'missing_glsl',
+                    program,
+                    message: `WGSL program "${program}" has no corresponding GLSL shader`
+                });
             }
         }
         
@@ -1302,9 +2050,9 @@ export async function checkShaderParity(effectId, options = {}) {
         if (unmatchedGlsl.length > 0) summary.push(`GLSL-only: ${unmatchedGlsl.join(', ')}`);
         if (unmatchedWgsl.length > 0) summary.push(`WGSL-only: ${unmatchedWgsl.join(', ')}`);
         return {
-            status: 'ok',
+            status: 'error',
             pairs: [],
-            summary: `${effectId}: No matching shader pairs found. ${summary.join('. ')}`
+            summary: `${effectId}: No matching shader pairs found. Cannot analyze parity. ${summary.join('. ')}`
         };
     }
     

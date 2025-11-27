@@ -5,8 +5,10 @@ precision highp int;
 const float TAU = 6.28318530717958647692;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 options;
+uniform vec2 resolution;
+uniform float displacement;
+uniform float time;
+uniform float speed;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -274,8 +276,8 @@ vec4 sample_bilinear(vec2 pos, float width, float height) {
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width = as_u32(size.x);
-    uint height = as_u32(size.y);
+    uint width = as_u32(resolution.x);
+    uint height = as_u32(resolution.y);
     ivec2 inputDims = textureSize(inputTex, 0);
     if (width == 0u) {
         width = uint(max(inputDims.x, 1));
@@ -290,8 +292,8 @@ void main() {
     vec2 coords = vec2(int(global_id.x), int(global_id.y));
     vec4 original = texelFetch(inputTex, ivec2(coords), 0);
 
-    float displacement = options.x;
-    if (displacement == 0.0) {
+    float disp = displacement;
+    if (disp == 0.0) {
         fragColor = original;
         return;
     }
@@ -319,14 +321,14 @@ void main() {
         width_f,
         height_f,
         freq,
-        options.y,
-        options.z
+        time,
+        speed
     );
 
     float distortion = (noise_value * 2.0 - 1.0) * mask;
     float angle = distortion * TAU;
     vec2 offsets = vec2(cos(angle), sin(angle))
-        * displacement * vec2(width_f, height_f);
+        * disp * vec2(width_f, height_f);
     vec2 sample_pos = vec2(float(global_id.x), float(global_id.y)) + offsets;
 
     vec4 warped = sample_bilinear(sample_pos, width_f, height_f);

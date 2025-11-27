@@ -12,8 +12,9 @@ Grammar
 
 .. code-block:: none
 
-   Program        ::= Statement* RenderDirective?
-   Statement      ::= VarAssign | ChainStmt | IfStmt | LoopStmt | Break | Continue | Return | NamespaceDecl
+   Program        ::= SearchDirective? Statement* RenderDirective?
+   SearchDirective::= 'search' Ident ( ',' Ident )*
+   Statement      ::= VarAssign | ChainStmt | IfStmt | LoopStmt | Break | Continue | Return
    RenderDirective::= 'render' '(' OutputRef ')'
    Block          ::= '{' Statement* '}'
    IfStmt         ::= 'if' '(' Expr ')' Block ('elif' '(' Expr ')' Block)* ('else' Block)?
@@ -21,7 +22,6 @@ Grammar
    Break          ::= 'break'
    Continue       ::= 'continue'
    Return         ::= 'return' Expr?
-   NamespaceDecl  ::= 'namespace' Ident
    VarAssign      ::= 'let' Ident '=' Expr
    ChainStmt      ::= Chain ('.out(' OutputRef? ')')?
    Chain          ::= Call ( '.' Call )*
@@ -149,15 +149,25 @@ Core Namespaces
 * ``nm``: Effects derived from Noisemaker's Python effects
 * ``basics``: Simple shader collection
 
-Resolution Rules
-^^^^^^^^^^^^^^^^
+Search Order
+^^^^^^^^^^^^
 
-#. **Search Order:** Programs share a global namespace search order that defaults to ``basics``, then ``nd``.
-#. **Unqualified Identifiers:** Calls like ``noise()`` walk the active search order until a matching effect is found.
-#. **Namespace Directive:** A ``namespace`` declaration (e.g., ``namespace nd``) sets the primary namespace for the file, placing it at the front of the search list.
-#. **Overrides:** The ``from(ns, fn())`` helper allows sourcing an operation from a specific namespace temporarily (e.g., ``from(basics, noise())``).
+Every program **must** begin with a ``search`` directive that defines the namespace resolution order. There are no implicit defaults—explicit search order is required.
 
-**Note:** Bare namespace prefixes (e.g., ``nd.noise()``) are **forbidden** in program chains.
+.. code-block:: none
+
+  search nd, basics
+  noise3d(seed: 1).translate(x: 0, y: 0).out(o0)
+
+When a function like ``noise3d()`` is called, the runtime walks the search order (``nd``, then ``basics``) until a matching effect is found.
+
+**Resolution Rules:**
+
+#. **Mandatory Search Directive:** Every program must start with ``search <namespace>, ...`` to specify which namespaces to search and in what order.
+#. **Unqualified Identifiers:** Calls like ``noise()`` walk the search order until a matching effect is found.
+#. **Overrides:** The ``from("ns", fn())`` helper allows sourcing an operation from a specific namespace temporarily (e.g., ``from("basics", noise())``).
+
+**Note:** Inline namespace prefixes (e.g., ``nd.noise()``) are **forbidden** in program chains. Use the ``search`` directive or ``from()`` helper instead.
 
 Enums
 -----

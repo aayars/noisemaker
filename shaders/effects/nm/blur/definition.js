@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Blur
- * /shaders/effects/blur/blur.wgsl
+ * Two-pass blur: downsample to coarse buffer, then upsample with interpolation
  */
 export default class Blur extends Effect {
   name = "Blur";
@@ -34,40 +34,40 @@ export default class Blur extends Effect {
             control: "slider"
         }
     }
-};
+  };
+
+  // Internal texture for downsample buffer
+  textures = {
+    blurDownsample: {
+      width: 64,
+      height: 64,
+      format: "rgba16float"
+    }
+  };
 
   // Two-pass blur: downsample to coarse buffer, then upsample with interpolation
   passes = [
     {
       name: "downsample",
       program: "blur",
-      entryPoint: "downsample_main",
+      viewport: { width: 64, height: 64 },
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        downsample_buffer: "_blurDownsample"
+        fragColor: "blurDownsample"
       }
     },
     {
       name: "upsample",
-      program: "blur",
-      entryPoint: "upsample_main",
+      program: "blurUpsample",
       inputs: {
-        downsample_buffer: "_blurDownsample"
+        downsampleTex: "blurDownsample",
+        inputTex: "inputTex"
       },
       outputs: {
-        output_buffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];
-
-  // Internal texture for downsample buffer
-  textures = {
-    _blurDownsample: {
-      width: 64,
-      height: 64,
-      format: "rgba16float"
-    }
-  };
 }

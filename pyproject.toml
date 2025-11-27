@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    {name = "Alex Ayars", email = "alex@noisefactor.io"},
     {name = "Noise Factor LLC", email = "team@noisefactor.io"}
 ]
 keywords = ["noise", "procedural", "tensorflow", "art", "generative"]

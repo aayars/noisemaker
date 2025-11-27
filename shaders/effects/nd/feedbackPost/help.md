@@ -1,3 +1,0 @@
-# FeedbackPost
-
-Effect description.

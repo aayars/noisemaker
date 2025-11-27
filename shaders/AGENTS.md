@@ -129,6 +129,8 @@ fn main() -> Outputs {
 
 ## Testing Workflow
 
+**MANDATORY**: Use the `noisemaker-shader-tools` MCP Server for all shader testing.
+
 After modifying a shader effect:
 
 1. **Compile check**: `compile_effect({ effect_id: "nm/erosion_worms" })`
@@ -136,7 +138,13 @@ After modifying a shader effect:
    - Verify `is_monochrome: false`
    - Verify `unique_sampled_colors > 100` for complex effects
 3. **Uniform check**: `testUniformResponsiveness({ effect_id: "nm/erosion_worms" })`
-4. **Vision check** (if needed): `describe_effect_frame({ ... })`
+4. **Structure check**: `checkEffectStructure({ effect_id: "nm/erosion_worms" })`
+5. **Vision check** (if needed): `describe_effect_frame({ ... })`
+
+Additional validation tools:
+- `check_alg_equiv`: Verify GLSL/WGSL produce equivalent results
+- `test_no_passthrough`: Verify filter effects modify their input
+- `benchmark_effect_fps`: Check performance meets target FPS
 
 Resolve *all* console errors before returning a solution.
 

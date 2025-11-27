@@ -4,6 +4,70 @@ Complete reference for all MCP shader testing tools.
 
 ---
 
+## Test Harness CLI
+
+The test harness provides a command-line interface for running shader tests.
+
+### Usage
+
+```bash
+node test-harness.js <pattern> [flags]
+```
+
+### Pattern Formats
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| Exact | `basics/noise` | Single effect by ID |
+| Glob | `"basics/*"` | Wildcard match (quote for shell) |
+| Regex | `"/^basics\\//` | Regex pattern (starts with /) |
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Run ALL optional tests (benchmark, uniforms, structure, alg-equiv, passthrough) |
+| `--benchmark` | Run FPS test (~500ms per effect) |
+| `--no-vision` | Skip AI vision validation (vision is ON by default if .openai key exists) |
+| `--uniforms` | Test that uniform controls affect output |
+| `--structure` | Check for unused files, naming conventions, and leaked internal uniforms |
+| `--alg-equiv` | Compare GLSL/WGSL algorithmic equivalence (requires .openai key) |
+| `--passthrough` | Test that filter effects do NOT pass through input unchanged |
+| `--verbose` | Show additional diagnostic information |
+| `--webgpu`, `--wgsl` | Use WebGPU/WGSL backend instead of WebGL2/GLSL |
+
+### Examples
+
+```bash
+node test-harness.js basics/noise              # compile + render + vision
+node test-harness.js "basics/*" --benchmark    # all basics with FPS
+node test-harness.js "basics/*" --all          # all basics with ALL tests
+node test-harness.js basics/noise --no-vision  # skip vision check
+node test-harness.js nm/worms --uniforms       # test uniform responsiveness
+node test-harness.js nm/worms --structure      # test shader organization
+node test-harness.js nm/normalize --webgpu     # test WGSL backend
+node test-harness.js "nm/*" --alg-equiv        # check GLSL/WGSL algorithmic equivalence
+node test-harness.js "nm/*" --passthrough      # test filter effects for passthrough
+```
+
+### Default Tests
+
+By default (no flags), the harness runs:
+- **Compile**: Verify shader compiles without errors
+- **Render**: Check output is not monochrome/blank/transparent
+- **Vision**: AI analysis of rendered output (if .openai key exists)
+
+### Pass/Fail Criteria
+
+An effect **passes** only if ALL of the following are true:
+- Compilation succeeded
+- Rendering succeeded (not monochrome, blank, or transparent)
+- Zero console errors or warnings
+- Vision analysis passed (if run)
+- All optional tests passed (if run)
+
+---
+
 ## compile_effect
 
 **Purpose**: Compile a shader effect and verify it compiles without errors.
@@ -347,13 +411,13 @@ Output:
 
 ## checkEffectStructure
 
-**Purpose**: Analyze effect structure for naming conventions, unused shader files, compute pass requirements, and leaked internal uniforms.
+**Purpose**: Analyze effect structure for naming conventions, unused shader files, leaked internal uniforms, and structural parity between GLSL and WGSL.
 
 This tool helps enforce best practices for shader effect organization:
 - Validates camelCase naming conventions across the entire effect definition
 - Detects unused shader files that should be removed or integrated
-- Ensures multi-pass effects use compute/GPGPU shaders for heavy workloads
 - Verifies that internal uniforms (channels, time) are not exposed as UI controls
+- **Enforces 1:1 structural parity between GLSL and WGSL shader programs**
 
 ### Input Schema
 
@@ -377,13 +441,11 @@ This tool helps enforce best practices for shader effect organization:
     { "type": "effectName", "name": "Worms", "reason": "must start with lowercase" }
   ],
   "unusedFiles": ["old_shader.wgsl", "deprecated.wgsl"],
-  "multiPass": true,
-  "hasComputePass": true,
-  "passCount": 3,
-  "passTypes": ["compute", "compute", "compute"],
-  "computePassExempt": false,
-  "computePassExemptReason": null,
-  "leakedInternalUniforms": []
+  "leakedInternalUniforms": [],
+  "splitShaderIssues": [],
+  "structuralParityIssues": [
+    { "type": "missing_wgsl", "program": "reduce1", "message": "GLSL program \"reduce1\" has no corresponding WGSL shader" }
+  ]
 }
 ```
 
@@ -391,13 +453,32 @@ This tool helps enforce best practices for shader effect organization:
 |-------|------|-------------|
 | `namingIssues` | array | Names that violate camelCase conventions |
 | `unusedFiles` | string[] | Shader files not referenced by any pass |
-| `multiPass` | boolean | True if effect has more than one pass |
-| `hasComputePass` | boolean | True if at least one pass is compute/gpgpu |
-| `passCount` | number | Number of passes in the effect |
-| `passTypes` | string[] | Types of each pass ("render", "compute", "gpgpu") |
-| `computePassExempt` | boolean | True if effect is exempt from compute requirement |
-| `computePassExemptReason` | string \| null | Reason for exemption if applicable |
 | `leakedInternalUniforms` | string[] | Internal uniforms (channels, time) exposed as controls |
+| `splitShaderIssues` | array | Issues with .vert/.frag shader pairs (GLSL only) |
+| `structuralParityIssues` | array | Missing GLSL ↔ WGSL shader pairs |
+
+### Structural Parity Validation
+
+Every GLSL shader program **must** have a corresponding WGSL shader file and vice versa. This enforces exact 1:1 structural parity across shader languages.
+
+| Issue Type | Description |
+|------------|-------------|
+| `missing_wgsl` | GLSL program exists but corresponding WGSL shader is missing |
+| `missing_glsl` | WGSL program exists but corresponding GLSL shader is missing |
+
+**Example failure:**
+```
+nm/convolve:
+  glsl/: convolveRender.glsl, normalizeRender.glsl, reduce1.glsl, reduce2.glsl
+  wgsl/: convolve.wgsl
+
+  ❌ structural parity issues (5):
+     GLSL program "convolveRender" has no corresponding WGSL shader
+     GLSL program "normalizeRender" has no corresponding WGSL shader
+     GLSL program "reduce1" has no corresponding WGSL shader
+     GLSL program "reduce2" has no corresponding WGSL shader
+     WGSL program "convolve" has no corresponding GLSL shader
+```
 
 ### Naming Convention Validation
 
@@ -433,15 +514,6 @@ Internal uniforms are system-managed values that should NOT be exposed as user c
 
 Note: `speed` is allowed as a user-exposed uniform since it controls animation speed.
 
-### Compute Pass Exemptions
-
-Effects can be exempt from the compute pass requirement:
-
-| Exemption | Reason |
-|-----------|--------|
-| Single-pass effects | No multi-pass overhead to optimize |
-| Explicitly exempt | Listed in `COMPUTE_PASS_EXEMPT_EFFECTS` set |
-
 ### CLI Usage
 
 ```bash
@@ -452,18 +524,19 @@ Output:
 ```
 [nm/worms]
   ✓ no inline shaders
-  ⚠ naming issues (1):
-     effectName: "Worms" - must start with lowercase letter (not StudlyCaps/PascalCase)
-  ⚠ unused files: compose_to_texture.wgsl, init_from_prev.wgsl
+  ✓ naming conventions (camelCase)
+  ✓ no unused shader files
   ✓ no leaked internal uniforms
-  ✓ multi-pass: has compute/gpgpu pass
+  ✓ split shaders consistent
+  ✓ required uniforms declared
+  ✓ GLSL ↔ WGSL structural parity
   ✓ compile
   ✓ render (887 colors)
 ```
 
 Summary output for multiple effects:
 ```
-⚠ Effects with naming convention issues: 15
+✗ Effects with naming convention issues: 15
   effectName: 12 issues
     nm/worms: "Worms" - must start with lowercase letter (not StudlyCaps/PascalCase)
     nm/blur: "Blur" - must start with lowercase letter (not StudlyCaps/PascalCase)
@@ -477,12 +550,103 @@ Summary output for multiple effects:
   nm/dla: dla.wgsl, init_seeds.wgsl
   nm/erosion_worms: erosion_worms.wgsl, fade_trails.wgsl
 
-⚠ Multi-pass effects missing compute passes: 2
-  nm/convolve: 4 passes (render, render, render, render)
-  nm/fibers: 4 passes (render, render, render, render)
-
 ⚠ Effects with leaked internal uniforms: 1
   nm/bad_effect: channels, time
+
+❌ EFFECTS WITH STRUCTURAL PARITY ISSUES: 1
+  nm/convolve:
+    GLSL program "convolveRender" has no corresponding WGSL shader
+    WGSL program "convolve" has no corresponding GLSL shader
+```
+
+---
+
+## test_no_passthrough
+
+**Purpose**: Verify that filter effects actually modify their input rather than passing it through unchanged. Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN.
+
+### Input Schema
+
+```json
+{
+  "effect_id": "nm/sobel",
+  "backend": "webgl2"
+}
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `effect_id` | string | ✓ | - | Effect identifier |
+| `backend` | string | | "webgl2" | "webgl2" or "webgpu" |
+
+### Output Schema
+
+```json
+{
+  "status": "ok",
+  "isFilterEffect": true,
+  "similarity": 0.42,
+  "meanDiff": 0.58,
+  "details": "Filter modifies input: similarity=42.00%, diff=58.00%"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | "ok" \| "error" \| "skipped" \| "passthrough" | Test result |
+| `isFilterEffect` | boolean | True if effect uses inputTex |
+| `similarity` | number | 0-1 similarity between input and output (1 = identical) |
+| `meanDiff` | number | Mean absolute difference (0 = identical) |
+| `details` | string | Human-readable result description |
+
+### Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `ok` | Filter properly modifies its input |
+| `passthrough` | FAIL - Output is >99% similar to input |
+| `skipped` | Not a filter effect (no inputTex) |
+| `error` | Test failed to execute |
+
+### How It Works
+
+1. Detects filter effects by looking for `inputTex` in pass inputs
+2. Applies non-default uniform values to ensure effect is active
+3. Captures both input texture and output texture on same frame
+4. Computes similarity metric between textures
+5. FAILS if similarity > 99% (indicating passthrough)
+
+### CLI Usage
+
+```bash
+node test-harness.js "nm/*" --passthrough
+```
+
+Output:
+```
+[nm/sobel]
+  ✓ compile
+  ✓ render (512 colors)
+  ✓ passthrough: Filter modifies input: similarity=23.45%, diff=76.55%
+
+[nm/bad_filter]
+  ✓ compile
+  ✓ render (64 colors)
+  ❌ PASSTHROUGH DETECTED: similarity=99.87% (threshold: 99%)
+```
+
+Summary:
+```
+=== Passthrough Test Summary ===
+15 filter effects tested
+✓ All filter effects modify their input
+```
+
+Or on failure:
+```
+❌ PASSTHROUGH EFFECTS DETECTED: 2
+  nm/bad_filter: output identical to input - FORBIDDEN
+  nm/placeholder: output identical to input - FORBIDDEN
 ```
 
 ---

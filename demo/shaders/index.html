@@ -733,8 +733,14 @@
                 return '';
             }
 
-            // Use namespaced function call to avoid ambiguity
-            const funcName = effect.namespace ? `${effect.namespace}.${effect.instance.func}` : effect.instance.func;
+            // Build search directive if effect has a namespace
+            // nm effects need basics too for generators like noise
+            let searchNs = effect.namespace;
+            if (effect.namespace === 'nm') {
+                searchNs = 'nm, basics';
+            }
+            const searchDirective = searchNs ? `search ${searchNs}\n` : '';
+            const funcName = effect.instance.func;
 
             // Determine effect category
             const starter = isStarterEffect(effect);
@@ -763,9 +769,9 @@
                     const outputSurface = 'o0';
                     // Ensure tex parameter is passed to the effect
                     const paramsWithTex = paramString ? `tex: src(${sourceSurface}), ${paramString}` : `tex: src(${sourceSurface})`;
-                    return `noise(seed: 1).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
+                    return `${searchDirective}noise(seed: 1).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
                 }
-                return `${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}${funcName}(${paramString}).out(o0)`;
             } else if (hasTex) {
                 // Mixer effect (has inputTex and tex): two noise sources
                 // The pipeline always presents o0 to screen, so output to o0
@@ -787,7 +793,7 @@
                     }
                 }
                 const paramString = params.join(', ');
-                return `noise(seed: 1).out(o1)
+                return `${searchDirective}noise(seed: 1).out(o1)
 noise(seed: 2).${funcName}(${paramString}).out(o0)`;
             } else {
                 // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
@@ -802,7 +808,7 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                     }
                 }
                 const paramString = params.join(', ');
-                return `noise(seed: 1).${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}noise(seed: 1).${funcName}(${paramString}).out(o0)`;
             }
         }
 
@@ -1040,10 +1046,6 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                     const func = e.instance.func || e.name;
                     if (func) {
                         starterNames.push(func);
-                        // Also register namespaced version to handle nm.voronoi vs basics.voronoi
-                        if (e.namespace) {
-                            starterNames.push(`${e.namespace}.${func}`);
-                        }
                     }
                 });
 

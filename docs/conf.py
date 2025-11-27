@@ -111,8 +111,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Noisemaker'
-copyright = '2017-2025 Alex Ayars and Noise Factor LLC'
-author = 'Alex Ayars and Noise Factor LLC'
+copyright = '2017-2025 Noise Factor LLC'
+author = 'Noise Factor LLC'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -212,7 +212,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'Noisemaker.tex', 'Noisemaker Documentation',
-     'Alex Ayars and Noise Factor LLC', 'manual'),
+     'Noise Factor LLC', 'manual'),
 ]
 
 

@@ -21,6 +21,8 @@ import {
     describeEffectFrame,
     checkEffectStructure,
     checkShaderParity,
+    testNoPassthrough,
+    isFilterEffect,
     STATUS_TIMEOUT
 } from './core-operations.js';
 
@@ -85,6 +87,7 @@ export class BrowserHarness {
                 text.includes('Storage') || text.includes('getOutput') ||
                 text.includes('[bindTextures]') || text.includes('DSL') ||
                 text.includes('[WebGPU') || text.includes('GPGPU') ||
+                text.includes('[passthrough]') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }
@@ -246,6 +249,35 @@ export class BrowserHarness {
     }
     
     /**
+     * Check if an effect is a filter-type effect (takes texture input)
+     * @param {string} effectId - Effect identifier
+     * @returns {Promise<boolean>}
+     */
+    async isFilterEffect(effectId) {
+        return await isFilterEffect(effectId);
+    }
+    
+    /**
+     * Test that a filter effect does NOT pass through its input unchanged.
+     * Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN.
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
+     * @param {boolean} [options.skipCompile] - Skip initial compilation (effect already loaded)
+     * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
+     */
+    async testNoPassthrough(effectId, options = {}) {
+        this.consoleMessages = [];
+        const result = await testNoPassthrough(this.page, effectId, options);
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
+    }
+    
+    /**
      * Get list of available effects
      */
     async listEffects() {
@@ -337,28 +369,66 @@ export class BrowserHarness {
         let anyResponded = false;
         
         for (const { name, uniformName, spec } of testableUniforms.slice(0, 3)) { // Test up to 3 uniforms
-            // Pick a value far from default
+            // Pick a value that will produce visible change
+            // Avoid values exactly 1.0 apart (which wrap identically with fract())
             const defaultVal = spec.default ?? spec.min;
-            const testVal = defaultVal === spec.min ? spec.max : spec.min;
+            const range = spec.max - spec.min;
+            let testVal;
             
-            // Apply the uniform change directly - no recompilation needed
-            await this.page.evaluate(({ uniformName, testVal }) => {
+            if (range <= 0) {
+                testVal = defaultVal; // Can't test - no range
+            } else if (defaultVal === spec.min) {
+                // Default is at min, use 75% of range (avoids 1.0 wrap)
+                testVal = spec.min + range * 0.75;
+            } else if (defaultVal === spec.max) {
+                // Default is at max, use 25% of range
+                testVal = spec.min + range * 0.25;
+            } else {
+                // Default is in middle - move 50% toward whichever extreme is farther
+                const distToMin = defaultVal - spec.min;
+                const distToMax = spec.max - defaultVal;
+                if (distToMax > distToMin) {
+                    testVal = defaultVal + distToMax * 0.5;
+                } else {
+                    testVal = defaultVal - distToMin * 0.5;
+                }
+            }
+            
+            // For int types, round
+            if (spec.type === 'int') {
+                testVal = Math.round(testVal);
+            }
+            
+            // Apply the uniform change only to passes belonging to this effect
+            // (not to upstream generator passes that may have same-named uniforms)
+            await this.page.evaluate(({ uniformName, testVal, effectId }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
                 if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
                 
-                // Set on all passes that have this uniform
+                // Parse effectId to get namespace/func
+                const parts = effectId.split('/');
+                const effectNamespace = parts.length > 1 ? parts[0] : null;
+                const effectFunc = parts[parts.length - 1];
+                
+                // Only set on passes that belong to this effect (not upstream generators)
                 for (const pass of pipeline.graph.passes) {
-                    if (pass.uniforms && uniformName in pass.uniforms) {
+                    if (!pass.uniforms || !(uniformName in pass.uniforms)) continue;
+                    
+                    // Check if this pass belongs to the effect we're testing
+                    const matchesNamespace = effectNamespace && pass.effectNamespace === effectNamespace;
+                    const matchesFunc = pass.effectFunc === effectFunc;
+                    
+                    if (matchesNamespace || matchesFunc) {
                         pass.uniforms[uniformName] = testVal;
                     }
                 }
-            }, { uniformName, testVal });
+            }, { uniformName, testVal, effectId });
             
-            // Render with the new uniform value - just a couple warmup frames
+            // Render with the new uniform value - need enough frames for change to take effect
             const testRender = await this.renderEffectFrame(effectId, {
                 skipCompile: true,
                 backend,
-                warmupFrames: 2
+                warmupFrames: 5
             });
             
             if (testRender.status === 'ok') {
@@ -378,24 +448,94 @@ export class BrowserHarness {
                 }
             }
             
-            // Reset uniform to default on all passes
-            await this.page.evaluate(({ uniformName, defaultVal }) => {
+            // Reset uniform to default only on effect-specific passes
+            await this.page.evaluate(({ uniformName, defaultVal, effectId }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
                 if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
                 
+                // Parse effectId to get namespace/func
+                const parts = effectId.split('/');
+                const effectNamespace = parts.length > 1 ? parts[0] : null;
+                const effectFunc = parts[parts.length - 1];
+                
+                // Only reset on passes that belong to this effect
                 for (const pass of pipeline.graph.passes) {
-                    if (pass.uniforms && uniformName in pass.uniforms) {
+                    if (!pass.uniforms || !(uniformName in pass.uniforms)) continue;
+                    
+                    const matchesNamespace = effectNamespace && pass.effectNamespace === effectNamespace;
+                    const matchesFunc = pass.effectFunc === effectFunc;
+                    
+                    if (matchesNamespace || matchesFunc) {
                         pass.uniforms[uniformName] = defaultVal;
                     }
                 }
-            }, { uniformName, defaultVal });
+            }, { uniformName, defaultVal, effectId });
         }
+        
+        // Always reset all uniforms to defaults at the end of the test
+        await this.resetUniformsToDefaults();
         
         return {
             status: anyResponded ? 'ok' : 'error',
             tested_uniforms: testedUniforms,
             details: anyResponded ? 'Uniforms affect output' : 'No uniforms affected output'
         };
+    }
+    
+    /**
+     * Reset all uniforms to their default values, including time and seed.
+     * This ensures a clean state between tests.
+     */
+    async resetUniformsToDefaults() {
+        await this.page.evaluate(() => {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            const effect = window.__noisemakerCurrentEffect;
+            
+            if (!pipeline || !effect?.instance?.globals) return;
+            
+            const globals = effect.instance.globals;
+            
+            // Reset all uniforms to their default values
+            for (const [key, spec] of Object.entries(globals)) {
+                if (!spec.uniform) continue;
+                
+                const defaultVal = spec.default ?? spec.min ?? 0;
+                
+                // Apply to pipeline.globalUniforms (source of truth)
+                if (pipeline.globalUniforms) {
+                    pipeline.globalUniforms[spec.uniform] = defaultVal;
+                }
+                
+                // Also apply to all passes
+                for (const pass of pipeline.graph?.passes || []) {
+                    if (pass.uniforms && spec.uniform in pass.uniforms) {
+                        pass.uniforms[spec.uniform] = defaultVal;
+                    }
+                }
+            }
+            
+            // Also reset built-in time to known values
+            // NOTE: Do NOT reset seed here - it's an effect-specific parameter set by DSL
+            if (pipeline.globalUniforms) {
+                if ('time' in pipeline.globalUniforms) {
+                    pipeline.globalUniforms.time = 0;
+                }
+                if ('u_time' in pipeline.globalUniforms) {
+                    pipeline.globalUniforms.u_time = 0;
+                }
+            }
+            for (const pass of pipeline.graph?.passes || []) {
+                if (pass.uniforms) {
+                    // Reset time to 0
+                    if ('time' in pass.uniforms) {
+                        pass.uniforms.time = 0;
+                    }
+                    if ('u_time' in pass.uniforms) {
+                        pass.uniforms.u_time = 0;
+                    }
+                }
+            }
+        });
     }
     
     /**

@@ -2,7 +2,14 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Conv Feedback
- * /shaders/effects/conv_feedback/conv_feedback.wgsl
+ * Iterative blur+sharpen feedback effect.
+ * 
+ * Uses selfTex (previous frame's output) for frame-by-frame accumulation.
+ * Each frame applies one blur+sharpen iteration to the accumulated result.
+ * The effect converges after ~100 frames.
+ * 
+ * Usage: search nm
+ *        noise(seed: 1).convFeedback(alpha: 0.5).out(o0)
  */
 export default class ConvFeedback extends Effect {
   name = "ConvFeedback";
@@ -10,18 +17,6 @@ export default class ConvFeedback extends Effect {
   func = "convFeedback";
 
   globals = {
-    iterations: {
-        type: "float",
-        default: 100,
-        uniform: "iterations",
-        min: 0,
-        max: 100,
-        step: 1,
-        ui: {
-            label: "Feedback Bias",
-            control: "slider"
-        }
-    },
     alpha: {
         type: "float",
         default: 0.5,
@@ -30,31 +25,39 @@ export default class ConvFeedback extends Effect {
         max: 1,
         step: 0.01,
         ui: {
-            label: "Alpha",
+            label: "Blend Alpha",
             control: "slider"
         }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  // Internal texture for intermediate blur result
+  textures = {
+    _blurred: { width: "100%", height: "100%", format: "rgba16f" }
+  };
+
+  // Two-pass feedback: blur then sharpen
+  // selfTex provides previous frame's output for accumulation
   passes = [
+    // Pass 1: Blur the previous frame's accumulated result
     {
       name: "blur",
       program: "convFeedbackBlur",
       inputs: {
-        inputTex: "inputTex"
+        inputTex: "selfTex"  // Previous frame's output (o0)
       },
       outputs: {
-        fragColor: "blurred"
+        fragColor: "_blurred"
       }
     },
+    // Pass 2: Sharpen and blend with original input
     {
-      name: "sharpen",
-      program: "convFeedbackSharpen",
+      name: "sharpenBlend",
+      program: "convFeedbackSharpenBlend",
       inputs: {
-        blurredTex: "blurred"
+        blurredTex: "_blurred",
+        inputTex: "inputTex",   // Original input for blending
+        selfTex: "selfTex"      // For first-frame detection
       },
       outputs: {
         fragColor: "outputColor"

@@ -12,10 +12,10 @@ export default class Aberration extends Effect {
   globals = {
     displacement: {
         type: "float",
-        default: 0.005,
+        default: 0.02,
         uniform: "displacement",
         min: 0,
-        max: 0.05,
+        max: 0.1,
         step: 0.001,
         ui: {
             label: "Displacement",

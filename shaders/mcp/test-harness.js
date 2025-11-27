@@ -28,11 +28,13 @@
  *   "/^basics\\//"        # regex (starts with /)
  * 
  * Flags:
+ *   --all                 # run ALL tests (benchmark, uniforms, structure, alg-equiv, passthrough)
  *   --benchmark           # run FPS test (~500ms per effect)
  *   --no-vision           # skip AI vision validation (vision is ON by default if .openai key exists)
  *   --uniforms            # test that uniform controls affect output
  *   --structure           # test for unused files, compute passes, naming conventions, and leaked internal uniforms
  *   --alg-equiv           # test algorithmic equivalence between GLSL and WGSL shaders (requires .openai key)
+ *   --passthrough         # test that filter effects do NOT pass through input unchanged
  *   --verbose             # show additional diagnostic info
  *   --webgpu, --wgsl      # use WebGPU/WGSL backend instead of WebGL2/GLSL
  * 
@@ -58,16 +60,23 @@
  *   - No unused shader files
  *   - No leaked internal uniforms (channels, time exposed as UI controls)
  *   - Split shader consistency (GLSL .vert/.frag pairs)
- *   - Multi-pass effects have compute passes (with exemptions)
+ * 
+ * Passthrough test validates:
+ *   - Filter effects (those with inputTex) must NOT pass through input unchanged
+ *   - Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN
+ *   - Compares input and output textures on the same frame
+ *   - Fails if textures are >99% similar
  * 
  * Examples:
  *   node test-harness.js basics/noise              # compile + render + vision
  *   node test-harness.js "basics/*" --benchmark    # all basics with FPS
+ *   node test-harness.js "basics/*" --all          # all basics with ALL tests
  *   node test-harness.js basics/noise --no-vision  # skip vision check
  *   node test-harness.js nm/worms --uniforms       # test uniform responsiveness
  *   node test-harness.js nm/worms --structure      # test shader organization
  *   node test-harness.js nm/normalize --benchmark --webgpu  # test WGSL with FPS
  *   node test-harness.js "nm/*" --alg-equiv        # test GLSL/WGSL algorithmic equivalence
+ *   node test-harness.js "nm/*" --passthrough      # test filter effects for passthrough
  */
 
 import { createBrowserHarness } from './browser-harness.js';
@@ -81,18 +90,34 @@ import { getOpenAIApiKey, checkEffectStructure, checkShaderParity } from './core
  */
 const MONOCHROME_EXEMPT_EFFECTS = new Set([
     'basics/alpha',       // Extracts alpha channel as grayscale - input noise has alpha=1.0
+    'basics/shape',       // Outputs a shape on solid background - "solid" tag is valid
     'basics/solid',       // Outputs a solid fill color by design
 ]);
 
 /**
  * Effects exempt from transparent output check.
- * These effects require external input that isn't available in automated testing.
+ * These effects require external input that isn't available in automated testing,
+ * or legitimately output transparency as part of their function.
  * 
  * STRICT: Adding new exemptions requires explicit permission.
  */
 const TRANSPARENT_EXEMPT_EFFECTS = new Set([
+    'basics/luma',        // Luma keying effect - legitimately outputs transparency based on luminance
     'nd/feedbackSynth',   // Feedback effect - outputs transparent when no prior frame exists
     'nd/mediaInput',      // Media input effect - outputs transparent when no media file loaded
+]);
+
+/**
+ * Effects exempt from passthrough check.
+ * These effects preserve average color statistics while changing visual structure,
+ * which causes high similarity scores even though they're NOT passthrough.
+ * 
+ * STRICT: Adding new exemptions requires explicit permission.
+ */
+const PASSTHROUGH_EXEMPT_EFFECTS = new Set([
+    'basics/pixelate',    // Pixelate groups colors into blocks - preserves average but changes structure
+    'nm/aberration',      // Chromatic aberration uses edge mask (pow(dist, 3)) - center unchanged, edges shifted
+    'nm/densityMap',      // Min/max normalization - noise() input already uses full [0,1] range, so remapping is identity
 ]);
 
 /**
@@ -135,6 +160,8 @@ async function testEffect(harness, effectId, options = {}) {
         structure: null, 
         algEquiv: null, 
         algEquivDivergent: false,
+        passthrough: null,
+        passthroughFailed: false,
         benchmark: null, 
         benchmarkFailed: false,
         vision: null, 
@@ -207,16 +234,24 @@ async function testEffect(harness, effectId, options = {}) {
             console.log(`  ✓ split shaders consistent`);
         }
         
-        // Report compute pass check for multi-pass effects
-        if (structureResult.multiPass) {
-            if (structureResult.hasComputePass) {
-                console.log(`  ✓ multi-pass: has compute/gpgpu pass`);
-            } else if (structureResult.computePassExempt) {
-                console.log(`  ⊘ multi-pass: exempt (${structureResult.computePassExemptReason})`);
-            } else {
-                console.log(`  ❌ multi-pass: NO compute pass (${structureResult.passCount} passes, types: ${structureResult.passTypes?.join(', ')})`);
-                results.structure.multiPassNoCompute = true;
+        // Report required uniform issues
+        if (structureResult.requiredUniformIssues?.length > 0) {
+            console.log(`  ❌ required uniform issues (${structureResult.requiredUniformIssues.length}):`);
+            for (const issue of structureResult.requiredUniformIssues) {
+                console.log(`     ${issue.file}: ${issue.message}`);
             }
+        } else {
+            console.log(`  ✓ required uniforms declared`);
+        }
+        
+        // Report structural parity issues (GLSL ↔ WGSL 1:1 mapping)
+        if (structureResult.structuralParityIssues?.length > 0) {
+            console.log(`  ❌ structural parity issues (${structureResult.structuralParityIssues.length}):`);
+            for (const issue of structureResult.structuralParityIssues) {
+                console.log(`     ${issue.message}`);
+            }
+        } else {
+            console.log(`  ✓ GLSL ↔ WGSL structural parity`);
         }
         
         t0 = Date.now();
@@ -351,6 +386,40 @@ async function testEffect(harness, effectId, options = {}) {
         }
     }
     
+    // Passthrough test - verifies filter effects don't just pass through input unchanged
+    if (options.passthrough) {
+        t0 = Date.now();
+        const isPassthroughExempt = PASSTHROUGH_EXEMPT_EFFECTS.has(effectId);
+        
+        if (isPassthroughExempt) {
+            results.passthrough = 'skipped';
+            console.log(`  ⊘ passthrough: exempt (effect preserves average colors by design)`);
+        } else {
+            const passthroughResult = await harness.testNoPassthrough(effectId, { backend, skipCompile: true });
+            timings.push(`passthrough:${Date.now() - t0}ms`);
+            results.passthrough = passthroughResult.status;
+            
+            if (passthroughResult.status === 'skipped') {
+                console.log(`  ⊘ passthrough: ${passthroughResult.details}`);
+            } else if (passthroughResult.status === 'ok') {
+                console.log(`  ✓ passthrough: ${passthroughResult.details}`);
+            } else if (passthroughResult.status === 'passthrough') {
+                results.passthroughFailed = true;
+                console.log(`  ❌ PASSTHROUGH DETECTED: ${passthroughResult.details}`);
+                if (options.verbose && passthroughResult.debug) {
+                    console.log(`     debug: inputTex="${passthroughResult.debug?.inputTextureId}", resolved="${passthroughResult.debug?.resolvedInputId}", output="${passthroughResult.debug?.outputTextureId}"`);
+                    console.log(`     available textures: ${passthroughResult.debug?.availableTextures?.join(', ')}`);
+                }
+            } else {
+                results.passthroughFailed = true;
+                console.log(`  ❌ passthrough: ${passthroughResult.details}`);
+                if (options.verbose && passthroughResult.debug) {
+                    console.log(`     debug: ${JSON.stringify(passthroughResult.debug)}`);
+                }
+            }
+        }
+    }
+    
     // Benchmark (skip compile)
     if (options.benchmark) {
         const benchResult = await harness.benchmarkEffectFps(effectId, {
@@ -368,17 +437,22 @@ async function testEffect(harness, effectId, options = {}) {
         }
     }
     
+    // Reset uniforms to defaults BEFORE vision test to ensure clean state
+    // This is critical because uniform/passthrough tests may have modified state
+    await harness.resetUniformsToDefaults();
+    
     // Vision validation - ALWAYS run if API key available (unless --no-vision)
     // This catches blank/broken output that monochrome detection misses
     const hasApiKey = !!getOpenAIApiKey();
     if (hasApiKey && !options.skipVision) {
         const prompt = `Is this shader output valid?
-Valid = shows actual visual content (patterns, colors, textures, effects)
-Invalid = completely blank, solid color only, random noise with no structure, or obviously broken/corrupted
+Valid = shows actual visual content (patterns, colors, textures, effects, colorful mosaic, grid of colors)
+Invalid = completely blank, solid color only, or obviously broken/corrupted
 
-CRITICAL: If you see a CHECKERED PATTERN (alternating squares like a checkerboard), this indicates the shader output is TRANSPARENT and you're seeing the transparency background. This is INVALID output - tag it as "checkered" and "transparent".
+CRITICAL TRANSPARENCY CHECK: If you see a GRAY AND WHITE checkerboard pattern (like Photoshop's transparency background), this means the output is TRANSPARENT. Tag as "transparency-background". This is different from colorful grids/mosaics which are valid.
 
-Include "blank", "solid", "broken", "invalid", "checkered", or "transparent" in tags if the output has problems.`;
+Only include these tags if problems exist: "blank", "solid", "broken", "invalid", "transparency-background".
+Do NOT tag colorful patterns or mosaics as problematic - those are valid outputs.`;
         
         const visionResult = await harness.describeEffectFrame(
             effectId,
@@ -397,32 +471,32 @@ Include "blank", "solid", "broken", "invalid", "checkered", or "transparent" in 
             const allText = `${desc} ${tags.join(' ')} ${notes}`;
             
             // Check for explicit failure indicators in tags or description
-            // CRITICAL: "checkered" indicates transparent output showing the background
+            // CRITICAL: "transparency-background" indicates transparent output showing the gray/white checkerboard
             // EXCEPTION: Effects in MONOCHROME_EXEMPT_EFFECTS are allowed to be "solid", "blank", or appear "invalid" (since solid color is by design)
-            // EXCEPTION: Effects in TRANSPARENT_EXEMPT_EFFECTS are allowed to be "checkered", "transparent" (since no input = transparent is by design)
+            // EXCEPTION: Effects in TRANSPARENT_EXEMPT_EFFECTS are allowed to be "transparency-background" (since no input = transparent is by design)
             const isMonoExempt = MONOCHROME_EXEMPT_EFFECTS.has(effectId);
             const isTransExempt = TRANSPARENT_EXEMPT_EFFECTS.has(effectId);
-            let baseFailureIndicators = ['blank', 'solid color', 'broken', 'invalid', 'corrupted', 'empty', 'nothing', 'checkered', 'checkerboard', 'transparent'];
+            let baseFailureIndicators = ['blank', 'solid color', 'broken', 'invalid', 'corrupted', 'empty', 'nothing', 'transparency-background'];
             if (isMonoExempt) {
                 baseFailureIndicators = baseFailureIndicators.filter(i => i !== 'solid color' && i !== 'blank' && i !== 'empty' && i !== 'nothing' && i !== 'invalid');
             }
             if (isTransExempt) {
-                baseFailureIndicators = baseFailureIndicators.filter(i => i !== 'checkered' && i !== 'checkerboard' && i !== 'transparent' && i !== 'blank' && i !== 'empty' && i !== 'nothing' && i !== 'invalid');
+                baseFailureIndicators = baseFailureIndicators.filter(i => i !== 'transparency-background' && i !== 'blank' && i !== 'empty' && i !== 'nothing' && i !== 'invalid');
             }
             const failureIndicators = baseFailureIndicators;
             const hasFailureIndicator = failureIndicators.some(indicator => allText.includes(indicator));
             
             // Also check for tags that explicitly indicate problems
-            // CRITICAL: "checkered" = transparency background visible = shader output is transparent/blank
+            // CRITICAL: "transparency-background" = gray/white checkerboard visible = shader output is transparent/blank
             // EXCEPTION: Effects in MONOCHROME_EXEMPT_EFFECTS are allowed to be "solid" or "blank"
-            // EXCEPTION: Effects in TRANSPARENT_EXEMPT_EFFECTS are allowed to be "checkered" or "transparent"
+            // EXCEPTION: Effects in TRANSPARENT_EXEMPT_EFFECTS are allowed to be "transparency-background"
             const problemTags = tags.filter(t => {
                 // Always fail on these regardless of exemption
                 if (t === 'broken' || t === 'corrupted' || t === 'artifact') {
                     return true;
                 }
-                // Checkered/transparent failures - unless transparent-exempt
-                if ((t === 'checkered' || t === 'checkerboard' || t === 'transparent') && !isTransExempt) {
+                // Transparency-background failures - unless transparent-exempt
+                if (t === 'transparency-background' && !isTransExempt) {
                     return true;
                 }
                 // For monochrome or transparent exempt effects, allow solid/blank/empty/invalid tags
@@ -459,18 +533,30 @@ Include "blank", "solid", "broken", "invalid", "checkered", or "transparent" in 
         }
     }
     
+    // ALWAYS reset all uniforms to defaults at the end of each test
+    // This ensures the next test (including vision) starts from a clean state
+    await harness.resetUniformsToDefaults();
+    
     console.log(`  [${timings.join(', ')}]`);
     return results;
 }
 
 async function main() {
-    console.log("⚠️ This is a long-running, expensive test suite. Don't run it multiple times unless you really need to. Capture the results in a log and review the log.");
+    const nag = "⚠️ This is a long-running, expensive test suite. Don't run it multiple times unless you really need to. Capture the results in a log and review the log.";
+    console.log(nag);
 
-    const pattern = process.argv[2] || 'basics/noise';
-    const runBenchmark = process.argv.includes('--benchmark');  // off by default for speed
-    const runUniforms = process.argv.includes('--uniforms');
-    const runStructure = process.argv.includes('--structure');
-    const runAlgEquiv = process.argv.includes('--alg-equiv');
+    // Collect all non-flag arguments as patterns
+    const patterns = process.argv.slice(2).filter(arg => !arg.startsWith('--'));
+    if (patterns.length === 0) {
+        patterns.push('basics/noise');  // default
+    }
+    
+    const runAll = process.argv.includes('--all');
+    const runBenchmark = runAll || process.argv.includes('--benchmark');  // off by default for speed
+    const runUniforms = runAll || process.argv.includes('--uniforms');
+    const runStructure = runAll || process.argv.includes('--structure');
+    const runAlgEquiv = runAll || process.argv.includes('--alg-equiv');
+    const runPassthrough = runAll || process.argv.includes('--passthrough');
     const skipVision = process.argv.includes('--no-vision');  // Vision is ON by default if API key exists
     const verbose = process.argv.includes('--verbose');
     
@@ -482,26 +568,40 @@ async function main() {
     
     try {
         const allEffects = await harness.listEffects();
-        const matchedEffects = matchEffects(allEffects, pattern);
+        
+        // Match effects from all patterns
+        const matchedEffectsSet = new Set();
+        for (const pattern of patterns) {
+            const matches = matchEffects(allEffects, pattern);
+            if (matches.length === 0) {
+                console.log(`No effects matched pattern: ${pattern}`);
+                console.log(`Available: ${allEffects.slice(0, 10).join(', ')}...`);
+            }
+            for (const m of matches) {
+                matchedEffectsSet.add(m);
+            }
+        }
+        
+        const matchedEffects = Array.from(matchedEffectsSet).sort();
         
         if (matchedEffects.length === 0) {
-            console.log(`No effects matched pattern: ${pattern}`);
-            console.log(`Available: ${allEffects.slice(0, 10).join(', ')}...`);
             return;
         }
         
-        console.log(`\nTesting ${matchedEffects.length} effect(s) matching "${pattern}":\n`);
+        console.log(`\nTesting ${matchedEffects.length} effect(s) matching "${patterns.join(', ')}":\n`);
         
         const results = [];
         const startTime = Date.now();
         
         for (const effectId of matchedEffects) {
+            console.log(`\n────────────────────────────────────────────────────────────────────────────────`);
             console.log(`[${effectId}]`);
             const result = await testEffect(harness, effectId, { 
                 benchmark: runBenchmark, 
                 uniforms: runUniforms,
                 structure: runStructure,
                 algEquiv: runAlgEquiv,
+                passthrough: runPassthrough,
                 skipVision,
                 verbose,
                 backend
@@ -527,11 +627,12 @@ async function main() {
          * │    - Benchmark meets target FPS (if tested)                          │
          * │    - Vision analysis succeeded (if tested)                           │
          * │    - GLSL/WGSL are algorithmically equivalent (if tested)            │
+         * │    - Filter effects do NOT passthrough input unchanged (if tested)   │
          * │    - No naming convention violations (if structure tested)           │
          * │    - No unused shader files (if structure tested)                    │
          * │    - No leaked internal uniforms (if structure tested)               │
          * │    - No split shader issues (if structure tested)                    │
-         * │    - Multi-pass effects have compute passes (if structure tested)    │
+         * │    - GLSL ↔ WGSL structural parity (if structure tested)             │
          * │                                                                      │
          * │  If ANY check fails, the effect FAILS. Period.                       │
          * └─────────────────────────────────────────────────────────────────────┘
@@ -544,6 +645,7 @@ async function main() {
             if (r.isAllTransparent) return false;  // Fully transparent output = FAIL
             if (r.consoleErrors?.length > 0) return false;  // ANY console error = FAIL
             if (r.uniformsFailed) return false;  // Uniform responsiveness failed = FAIL
+            if (r.passthroughFailed) return false;  // Passthrough detected = FAIL
             if (r.benchmarkFailed) return false;  // Benchmark below target = FAIL  
             if (r.visionFailed) return false;  // Vision analysis failed = FAIL
             if (r.algEquivDivergent) return false;  // Algorithmic divergence = FAIL
@@ -551,7 +653,7 @@ async function main() {
             if (runStructure && r.structure?.unusedFiles?.length > 0) return false;  // Unused files = FAIL
             if (runStructure && r.structure?.leakedInternalUniforms?.length > 0) return false;  // Leaked internals = FAIL
             if (runStructure && r.structure?.splitShaderIssues?.length > 0) return false;  // Split shader issues = FAIL
-            if (runStructure && r.structure?.multiPassNoCompute) return false;  // Multi-pass without compute = FAIL
+            if (runStructure && r.structure?.structuralParityIssues?.length > 0) return false;  // GLSL/WGSL parity = FAIL
             return true;
         }).length;
         
@@ -566,9 +668,6 @@ async function main() {
         if (runStructure) {
             const withNamingIssues = results.filter(r => r.structure?.namingIssues?.length > 0);
             const withUnused = results.filter(r => r.structure?.unusedFiles?.length > 0);
-            const multiPassNoCompute = results.filter(r => 
-                r.structure?.multiPass && !r.structure?.hasComputePass && !r.structure?.computePassExempt
-            );
             
             // Naming issues summary (by type)
             if (withNamingIssues.length > 0) {
@@ -603,10 +702,15 @@ async function main() {
                 }
             }
             
-            if (multiPassNoCompute.length > 0) {
-                console.log(`\n⚠ Multi-pass effects missing compute passes: ${multiPassNoCompute.length}`);
-                for (const r of multiPassNoCompute) {
-                    console.log(`  ${r.effectId}: ${r.structure.passCount} passes (${r.structure.passTypes?.join(', ')})`);
+            // Structural parity summary
+            const withParityIssues = results.filter(r => r.structure?.structuralParityIssues?.length > 0);
+            if (withParityIssues.length > 0) {
+                console.log(`\n❌ EFFECTS WITH STRUCTURAL PARITY ISSUES: ${withParityIssues.length}`);
+                for (const r of withParityIssues) {
+                    console.log(`  ${r.effectId}:`);
+                    for (const issue of r.structure.structuralParityIssues) {
+                        console.log(`    ${issue.message}`);
+                    }
                 }
             }
         }
@@ -622,6 +726,24 @@ async function main() {
                 if (r.consoleErrors.length > 3) {
                     console.log(`    ... and ${r.consoleErrors.length - 3} more errors`);
                 }
+            }
+        }
+        
+        // Passthrough summary if run
+        if (runPassthrough) {
+            const passthroughEffects = results.filter(r => r.passthroughFailed);
+            const testedFilters = results.filter(r => r.passthrough === 'ok' || r.passthrough === 'passthrough');
+            
+            console.log(`\n=== Passthrough Test Summary ===`);
+            console.log(`${testedFilters.length} filter effects tested`);
+            
+            if (passthroughEffects.length > 0) {
+                console.log(`\n❌ PASSTHROUGH EFFECTS DETECTED: ${passthroughEffects.length}`);
+                for (const r of passthroughEffects) {
+                    console.log(`  ${r.effectId}: output identical to input - FORBIDDEN`);
+                }
+            } else if (testedFilters.length > 0) {
+                console.log(`✓ All filter effects modify their input`);
             }
         }
         
@@ -651,6 +773,8 @@ async function main() {
     } finally {
         await harness.close();
     }
+
+    console.log(nag);
 }
 
 main().catch(console.error);

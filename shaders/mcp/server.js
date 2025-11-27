@@ -208,6 +208,26 @@ const TOOLS = [
             },
             required: ['effect_id']
         }
+    },
+    {
+        name: 'test_no_passthrough',
+        description: 'Test that a filter effect does NOT pass through its input unchanged. Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN. This test captures both input and output textures on the same frame and computes their similarity. Fails if textures are >99% similar.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                effect_id: {
+                    type: 'string',
+                    description: 'Effect identifier (e.g., "nm/sobel", "nm/rotate")'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    default: 'webgl2',
+                    description: 'Rendering backend to use'
+                }
+            },
+            required: ['effect_id']
+        }
     }
 ];
 
@@ -300,6 +320,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             
             case 'check_alg_equiv': {
                 const result = await harness.checkShaderParity(args.effect_id);
+                return {
+                    content: [{
+                        type: 'text',
+                        text: JSON.stringify(result, null, 2)
+                    }]
+                };
+            }
+            
+            case 'test_no_passthrough': {
+                const result = await harness.testNoPassthrough(
+                    args.effect_id,
+                    { backend: args.backend }
+                );
                 return {
                     content: [{
                         type: 'text',

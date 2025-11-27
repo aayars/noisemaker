@@ -136,6 +136,61 @@ Response:
 Agent: All uniforms now affect the output correctly.
 ```
 
+### 6. Checking Shader Organization
+
+```
+Agent: Let me verify the effect structure follows conventions...
+→ checkEffectStructure({ effect_id: "nm/worms" })
+
+Response:
+{
+  "status": "ok",
+  "hasInlineShaders": false,
+  "namingIssues": [],
+  "unusedFiles": [],
+  "leakedInternalUniforms": []
+}
+
+Agent: Structure looks good - no inline shaders, proper naming, 
+       no unused files.
+```
+
+### 7. Verifying GLSL/WGSL Equivalence
+
+```
+Agent: Let me verify GLSL and WGSL produce equivalent results...
+→ check_alg_equiv({ effect_id: "nm/worms" })
+
+Response:
+{
+  "status": "ok",
+  "pairs": [
+    { "program": "agent", "parity": "equivalent" },
+    { "program": "deposit", "parity": "equivalent" }
+  ],
+  "summary": "2 shader pairs checked, all equivalent"
+}
+
+Agent: Both GLSL and WGSL implementations are algorithmically equivalent.
+```
+
+### 8. Verifying Filter Effects Modify Input
+
+```
+Agent: Let me verify this filter actually modifies its input...
+→ test_no_passthrough({ effect_id: "nm/sobel" })
+
+Response:
+{
+  "status": "ok",
+  "isFilterEffect": true,
+  "similarity": 0.23,
+  "details": "Filter modifies input: similarity=23.45%, diff=76.55%"
+}
+
+Agent: Good - the filter produces 76% difference from input.
+```
+
 ## Decision Tree
 
 ```
@@ -178,6 +233,10 @@ Start: Agent modifies a shader file
 | Output looks wrong, need diagnosis | `describe_effect_frame` |
 | Complex effect, need perf check | `benchmark_effect_fps` |
 | Controls not affecting output | `testUniformResponsiveness` |
+| Check file organization & naming | `checkEffectStructure` |
+| Verify GLSL/WGSL produce same results | `check_alg_equiv` |
+| Verify filter modifies input | `test_no_passthrough` |
+| Run ALL validation tests | Test harness with `--all` flag |
 | Quick sanity check | `compile_effect` only |
 
 ## Best Practices

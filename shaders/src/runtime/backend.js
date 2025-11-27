@@ -81,6 +81,16 @@ export class Backend {
     }
 
     /**
+     * Copy one texture to another (blit operation)
+     * Used for feedback surface ping-pong updates.
+     * @param {string} srcId - Source texture ID
+     * @param {string} dstId - Destination texture ID
+     */
+    copyTexture(_srcId, _dstId) {
+        throw new Error('Backend.copyTexture() must be implemented')
+    }
+
+    /**
      * Get backend name
      * @returns {string}
      */

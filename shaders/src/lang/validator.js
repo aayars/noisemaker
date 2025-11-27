@@ -67,6 +67,7 @@ function toBoolean(value) {
 function toSurface(arg) {
     if (!arg) return null
     if (arg.type === 'OutputRef') return {kind:'output', name:arg.name}
+    if (arg.type === 'FeedbackRef') return {kind:'feedback', name:arg.name}
     if (arg.type === 'SourceRef') return {kind:'source', name:arg.name}
     if (arg.type === 'Ident' && stateSurfaces.has(arg.name)) return {kind:'state', name:arg.name}
     return null
@@ -103,6 +104,11 @@ export function validate(ast) {
     const render = ast.render ? parseInt(ast.render.name.slice(1), 10) : null
     let tempIndex = 0
 
+    const programSearchOrder = ast.namespace?.searchOrder
+    if (!programSearchOrder || programSearchOrder.length === 0) {
+        throw new Error("Missing required 'search' directive. Every program must start with 'search <namespace>, ...' to specify namespace search order.")
+    }
+
     const symbols = new Map()
 
     function resolveEnum(path) {
@@ -130,6 +136,14 @@ export function validate(ast) {
 
     function clone(node) {
         return node && typeof node === 'object' ? JSON.parse(JSON.stringify(node)) : node
+    }
+
+    function canResolveOpName(name) {
+        // Check if a bare op name can resolve via the search order
+        for (const ns of programSearchOrder) {
+            if (ops[`${ns}.${name}`]) return true
+        }
+        return false
     }
 
     function resolveCall(call) {
@@ -256,7 +270,7 @@ export function validate(ast) {
                 pushDiag('S004', v)
                 continue
             }
-            if (expr.type === 'Ident' && !symbols.has(expr.name) && !stateValues.has(expr.name) && !ops[expr.name]) {
+            if (expr.type === 'Ident' && !symbols.has(expr.name) && !stateValues.has(expr.name) && !ops[expr.name] && !canResolveOpName(expr.name)) {
                 pushDiag('S003', expr)
                 continue
             }
@@ -344,7 +358,6 @@ export function validate(ast) {
                     name: typeof callNamespace.name === 'string' ? callNamespace.name : null,
                     resolved: typeof callNamespace.resolved === 'string' ? callNamespace.resolved : null,
                     explicit: !!callNamespace.explicit,
-                    defaulted: !!callNamespace.defaulted,
                     source: typeof callNamespace.source === 'string' ? callNamespace.source : null
                 }
                 if (Array.isArray(callNamespace.searchOrder)) {
@@ -377,10 +390,9 @@ export function validate(ast) {
             const allowStarterless = options.allowStarterless === true
             let current = input
             for (const original of calls) {
-                console.log('Processing call:', original.name);
                 const call = resolveCall({...original})
-                console.log('Resolved call:', call.name);
-                const resolution = resolveCallTarget(call.name, call.namespace)
+                const effectiveNamespace = call.namespace || { searchOrder: programSearchOrder }
+                const resolution = resolveCallTarget(call.name, effectiveNamespace)
                 let opName = null
                 let spec = null
 
@@ -391,10 +403,12 @@ export function validate(ast) {
                 if (call.namespace && call.namespace.resolved) {
                     candidateNames.push(`${call.namespace.resolved}.${call.name}`)
                 }
-                if (resolution.lookupName) {
-                    candidateNames.push(resolution.lookupName)
+                const searchOrder = effectiveNamespace.searchOrder
+                if (Array.isArray(searchOrder)) {
+                    for (const ns of searchOrder) {
+                        candidateNames.push(`${ns}.${call.name}`)
+                    }
                 }
-                candidateNames.push(call.name)
 
                 for (const candidate of candidateNames) {
                     if (candidate && ops[candidate]) {
@@ -404,7 +418,6 @@ export function validate(ast) {
                     }
                 }
                 if (!spec) {
-                    console.log('Spec not found for:', opName);
                     pushDiag('S001', original)
                     continue
                 }
@@ -711,7 +724,14 @@ export function validate(ast) {
         }
 
         const finalIndex = processChain(stmt.chain, null)
-        const outSurf = stmt.out ? {kind:'output', name: stmt.out.name} : null
+        let outSurf = null
+        if (stmt.out) {
+            if (stmt.out.type === 'FeedbackRef') {
+                outSurf = {kind:'feedback', name: stmt.out.name}
+            } else {
+                outSurf = {kind:'output', name: stmt.out.name}
+            }
+        }
         return {chain, out: outSurf, final: finalIndex, states}
     }
 

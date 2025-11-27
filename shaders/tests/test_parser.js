@@ -1,14 +1,30 @@
 import { lex } from '../src/lang/lexer.js';
 import { parse } from '../src/lang/parser.js';
 
-function test(name, code, check) {
+function test(name, code, check, expectError = null) {
     try {
         console.log(`Running test: ${name}`);
         const tokens = lex(code);
         const ast = parse(tokens);
+        if (expectError) {
+            console.error(`FAIL: ${name}`);
+            console.error('Expected error but parsing succeeded');
+            return;
+        }
         check(ast);
         console.log(`PASS: ${name}`);
     } catch (e) {
+        if (expectError) {
+            // Test expects an error - validate it
+            try {
+                expectError(e);
+                // expectError should have printed pass if successful
+            } catch (validationError) {
+                console.error(`FAIL: ${name}`);
+                console.error(validationError);
+            }
+            return;
+        }
         console.error(`FAIL: ${name}`);
         console.error(e);
         try {
@@ -21,7 +37,7 @@ function test(name, code, check) {
     }
 }
 
-test('Simple Chain', 'osc(10).out(o0)', (ast) => {
+test('Simple Chain', 'search basics\nosc(10).out(o0)', (ast) => {
     if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
     const plan = ast.plans[0];
     if (plan.chain.length !== 1) throw new Error('Expected 1 call in chain');
@@ -29,7 +45,7 @@ test('Simple Chain', 'osc(10).out(o0)', (ast) => {
     if (plan.out.name !== 'o0') throw new Error('Expected output o0');
 });
 
-test('Loop', 'loop 5 { osc(10).out(o0) }', (ast) => {
+test('Loop', 'search basics\nloop 5 { osc(10).out(o0) }', (ast) => {
     if (ast.plans.length !== 1) throw new Error('Expected 1 plan (LoopStmt)');
     const loop = ast.plans[0];
     if (loop.type !== 'LoopStmt') throw new Error('Expected LoopStmt');
@@ -37,7 +53,7 @@ test('Loop', 'loop 5 { osc(10).out(o0) }', (ast) => {
     if (loop.body.length !== 1) throw new Error('Expected 1 statement in body');
 });
 
-test('Variable Assignment', 'let x = osc(10)', (ast) => {
+test('Variable Assignment', 'search basics\nlet x = osc(10)', (ast) => {
     if (ast.vars.length !== 1) throw new Error('Expected 1 var');
     const v = ast.vars[0];
     if (v.name !== 'x') throw new Error('Expected var x');
@@ -46,13 +62,13 @@ test('Variable Assignment', 'let x = osc(10)', (ast) => {
     if (v.expr.name !== 'osc') throw new Error('Expected osc');
 });
 
-test('Arrow Function', 'let f = () => osc(10)', (ast) => {
+test('Arrow Function', 'search basics\nlet f = () => osc(10)', (ast) => {
     const v = ast.vars[0];
     if (v.expr.type !== 'Func') throw new Error('Expected Func type');
     if (v.expr.src !== 'osc(10)') throw new Error('Expected src osc(10)');
 });
 
-test('Arrow Function in Loop', `
+test('Arrow Function in Loop', `search basics
 loop 5 {
   let f = () => osc(10)
   f().out(o0)
@@ -68,4 +84,41 @@ loop 5 {
     if (assign.type !== 'VarAssign') throw new Error('Expected VarAssign first');
     const call = loop.body[1];
     if (call.chain[0].name !== 'f') throw new Error('Expected call to f second');
+});
+
+test('Search Directive - Single Namespace', 'search nd\nnoise(10).out(o0)', (ast) => {
+    if (!ast.namespace) throw new Error('Expected namespace metadata');
+    if (!ast.namespace.searchOrder) throw new Error('Expected searchOrder');
+    if (ast.namespace.searchOrder.length !== 1) throw new Error('Expected 1 namespace in searchOrder');
+    if (ast.namespace.searchOrder[0] !== 'nd') throw new Error('Expected nd in searchOrder');
+    if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
+});
+
+test('Search Directive - Multiple Namespaces', 'search nd, basics, nm\nnoise(10).out(o0)', (ast) => {
+    if (!ast.namespace) throw new Error('Expected namespace metadata');
+    if (!ast.namespace.searchOrder) throw new Error('Expected searchOrder');
+    if (ast.namespace.searchOrder.length !== 3) throw new Error('Expected 3 namespaces in searchOrder');
+    if (ast.namespace.searchOrder[0] !== 'nd') throw new Error('Expected nd first');
+    if (ast.namespace.searchOrder[1] !== 'basics') throw new Error('Expected basics second');
+    if (ast.namespace.searchOrder[2] !== 'nm') throw new Error('Expected nm third');
+});
+
+test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (ast) => {
+    throw new Error('Should have thrown SyntaxError for missing search directive');
+}, (e) => {
+    // This test expects an error
+    if (!(e instanceof SyntaxError)) throw new Error('Expected SyntaxError');
+    if (!e.message.includes("Missing required 'search' directive")) throw new Error('Expected missing search directive error message');
+    console.log('PASS: Missing Search Directive - Should Error (correctly caught)');
+    return true;
+});
+
+test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).out(o0)', (ast) => {
+    throw new Error('Should have thrown SyntaxError for inline namespace');
+}, (e) => {
+    // This test expects an error
+    if (!(e instanceof SyntaxError)) throw new Error('Expected SyntaxError');
+    if (!e.message.includes('Inline namespace syntax')) throw new Error('Expected inline namespace error message');
+    console.log('PASS: Inline Namespace - Should Error (correctly caught)');
+    return true;
 });

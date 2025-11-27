@@ -1,3 +1,0 @@
-# FeedbackMixer
-
-Effect description.

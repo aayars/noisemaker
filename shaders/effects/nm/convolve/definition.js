@@ -46,11 +46,15 @@ export default class Convolve extends Effect {
             control: "slider"
         }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  // Internal textures for convolution and min/max reduction
+  textures = {
+    _convolved: { width: 1024, height: 1024, format: "rgba32f" },
+    _minmax1: { width: 32, height: 32, format: "rgba32f" },
+    _minmaxGlobal: { width: 1, height: 1, format: "rgba32f" }
+  };
+
   passes = [
     {
       name: "convolve",
@@ -59,35 +63,37 @@ export default class Convolve extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "convolved"
+        fragColor: "_convolved"
       }
     },
     {
       name: "reduce1",
       program: "reduce1",
+      viewport: { width: 32, height: 32 },
       inputs: {
-        inputTex: "convolved"
+        inputTex: "_convolved"
       },
       outputs: {
-        fragColor: "minmax1"
+        fragColor: "_minmax1"
       }
     },
     {
       name: "reduce2",
       program: "reduce2",
+      viewport: { width: 1, height: 1 },
       inputs: {
-        inputTex: "minmax1"
+        inputTex: "_minmax1"
       },
       outputs: {
-        fragColor: "minmaxGlobal"
+        fragColor: "_minmaxGlobal"
       }
     },
     {
       name: "normalize",
       program: "normalizeRender",
       inputs: {
-        convolvedTexture: "convolved",
-        minmaxTexture: "minmaxGlobal",
+        convolvedTexture: "_convolved",
+        minmaxTexture: "_minmaxGlobal",
         inputTex: "inputTex"
       },
       outputs: {

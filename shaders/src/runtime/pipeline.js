@@ -12,7 +12,8 @@ export class Pipeline {
         this.backend = backend
         this.frameIndex = 0
         this.lastTime = 0
-        this.surfaces = new Map()
+        this.surfaces = new Map()        // Global surfaces (o0-o7)
+        this.feedbackSurfaces = new Map() // Feedback surfaces (f0-f3)
         this.globalUniforms = {}
         this.width = 0
         this.height = 0
@@ -118,25 +119,49 @@ export class Pipeline {
         return null
     }
 
+    /**
+     * Check if a texture ID is a feedback surface reference and extract the name.
+     * Supports "feedback_name" pattern (e.g., "feedback_f0").
+     * Returns null if not a feedback surface, otherwise returns the surface name.
+     */
+    parseFeedbackName(texId) {
+        if (typeof texId !== 'string') return null
+        
+        if (texId.startsWith('feedback_')) {
+            return texId.replace('feedback_', '')
+        }
+        
+        return null
+    }
+
     createSurfaces() {
         const surfaceNames = new Set(['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'])
+        const feedbackNames = new Set(['f0', 'f1', 'f2', 'f3'])
         
-        // Scan graph for other globals
+        // Scan graph for other globals and feedbacks
         if (this.graph && this.graph.passes) {
             for (const pass of this.graph.passes) {
                 if (pass.inputs) {
                     for (const texId of Object.values(pass.inputs)) {
-                        const name = this.parseGlobalName(texId)
-                        if (name) {
-                            surfaceNames.add(name)
+                        const globalName = this.parseGlobalName(texId)
+                        if (globalName) {
+                            surfaceNames.add(globalName)
+                        }
+                        const feedbackName = this.parseFeedbackName(texId)
+                        if (feedbackName) {
+                            feedbackNames.add(feedbackName)
                         }
                     }
                 }
                 if (pass.outputs) {
                     for (const texId of Object.values(pass.outputs)) {
-                        const name = this.parseGlobalName(texId)
-                        if (name) {
-                            surfaceNames.add(name)
+                        const globalName = this.parseGlobalName(texId)
+                        if (globalName) {
+                            surfaceNames.add(globalName)
+                        }
+                        const feedbackName = this.parseFeedbackName(texId)
+                        if (feedbackName) {
+                            feedbackNames.add(feedbackName)
                         }
                     }
                 }
@@ -147,6 +172,7 @@ export class Pipeline {
         const zoom = this.getGlobalZoom ? this.getGlobalZoom() : 1
         const effectiveZoom = (typeof zoom === 'number' && zoom > 0) ? zoom : 1
 
+        // Create global surfaces (o0-o7 and dynamic globals)
         for (const name of surfaceNames) {
             // Destroy old surface if exists
             const oldSurface = this.surfaces.get(name)
@@ -199,6 +225,56 @@ export class Pipeline {
                 write: `global_${name}_write`,
                 currentFrame: 0
             })
+        }
+
+        // Create feedback surfaces (f0-f3)
+        // Feedback surfaces use ping-pong blitting: reads always get previous frame,
+        // writes go to a separate buffer that is blitted to read buffer at frame end
+        for (const name of feedbackNames) {
+            // Destroy old surface if exists
+            const oldSurface = this.feedbackSurfaces.get(name)
+            if (oldSurface) {
+                this.backend.destroyTexture(`feedback_${name}_read`)
+                this.backend.destroyTexture(`feedback_${name}_write`)
+            }
+            
+            // Feedback surfaces are screen-sized rgba16f
+            const surfaceWidth = this.width
+            const surfaceHeight = this.height
+            const surfaceFormat = 'rgba16f'
+            
+            // Create double-buffered feedback surface
+            this.backend.createTexture(`feedback_${name}_read`, {
+                width: surfaceWidth,
+                height: surfaceHeight,
+                format: surfaceFormat,
+                usage: ['render', 'sample', 'copySrc', 'copyDst', 'storage']
+            })
+            
+            this.backend.createTexture(`feedback_${name}_write`, {
+                width: surfaceWidth,
+                height: surfaceHeight,
+                format: surfaceFormat,
+                usage: ['render', 'sample', 'copySrc', 'copyDst', 'storage']
+            })
+            
+            this.feedbackSurfaces.set(name, {
+                read: `feedback_${name}_read`,
+                write: `feedback_${name}_write`,
+                currentFrame: 0,
+                dirty: false  // Track if written to this frame
+            })
+        }
+    }
+
+    /**
+     * Mark a feedback surface as dirty (for testing and manual control).
+     * @param {string} name - Feedback surface name (e.g., 'f0')
+     */
+    markFeedbackDirty(name) {
+        const surface = this.feedbackSurfaces.get(name)
+        if (surface) {
+            surface.dirty = true
         }
     }
 
@@ -276,6 +352,10 @@ export class Pipeline {
         for (const [name, surface] of this.surfaces.entries()) {
             this.frameReadTextures.set(name, surface.read)
         }
+        
+        // Note: feedback surfaces always read from previous frame (no frameReadTextures update)
+        // We do NOT reset dirty flags here - they're set during pass execution
+        // and cleared after blitFeedbackSurfaces at frame end
 
         // Begin frame
         this.backend.beginFrame(this.getFrameState())
@@ -298,13 +378,17 @@ export class Pipeline {
         // End frame
         this.backend.endFrame()
         
+        // Blit feedback surface writes to reads (ping-pong)
+        // This preserves the written content for next frame's reads
+        this.blitFeedbackSurfaces()
+        
         // Present o0 to screen
         const o0 = this.surfaces.get('o0')
         if (o0 && this.backend.present) {
             this.backend.present(o0.write)
         }
         
-        // Swap double buffers
+        // Swap double buffers for global surfaces
         this.swapBuffers()
         
         // Clear per-frame bindings
@@ -396,6 +480,20 @@ export class Pipeline {
             writeSurfaceMap[name] = surface.write
         }
         
+        // Build feedback surfaces map
+        // Reads always come from 'read' buffer (previous frame's content)
+        // Writes go to 'write' buffer
+        const feedbackSurfaceMap = {}
+        const writeFeedbackMap = {}
+        
+        for (const [name, surface] of this.feedbackSurfaces.entries()) {
+            const tex = this.backend.textures.get(surface.read)
+            if (tex) {
+                feedbackSurfaceMap[name] = tex
+            }
+            writeFeedbackMap[name] = surface.write
+        }
+        
         const _o0 = this.surfaces.get('o0')
         
         return {
@@ -404,6 +502,8 @@ export class Pipeline {
             globalUniforms: this.globalUniforms,
             surfaces: surfaceMap,
             writeSurfaces: writeSurfaceMap,
+            feedbackSurfaces: feedbackSurfaceMap,
+            writeFeedbackSurfaces: writeFeedbackMap,
             graph: this.graph,
             screenWidth: this.width,
             screenHeight: this.height
@@ -422,21 +522,51 @@ export class Pipeline {
 
     /**
      * Update frame-local surface bindings after a pass writes to a global surface.
+     * For feedback surfaces, mark them as dirty (but don't update frameReadTextures).
      */
     updateFrameSurfaceBindings(pass, state) {
         if (!pass.outputs) return
-        if (!this.frameReadTextures) return
 
         for (const outputName of Object.values(pass.outputs)) {
             if (typeof outputName !== 'string') continue
-            if (!outputName.startsWith('global_')) continue
+            
+            // Handle global surface writes
+            if (outputName.startsWith('global_')) {
+                if (!this.frameReadTextures) continue
+                
+                const surfaceName = outputName.replace('global_', '')
+                const writeId = state.writeSurfaces?.[surfaceName]
+                if (!writeId) continue
 
-            const surfaceName = outputName.replace('global_', '')
-            const writeId = state.writeSurfaces?.[surfaceName]
-            if (!writeId) continue
+                // Subsequent passes in this frame should sample the freshly written texture
+                this.frameReadTextures.set(surfaceName, writeId)
+            }
+            
+            // Handle feedback surface writes
+            if (outputName.startsWith('feedback_')) {
+                const feedbackName = outputName.replace('feedback_', '')
+                const surface = this.feedbackSurfaces.get(feedbackName)
+                if (surface) {
+                    surface.dirty = true
+                }
+                // Note: We do NOT update frameReadTextures for feedback surfaces
+                // Reads always come from previous frame's content
+            }
+        }
+    }
 
-            // Subsequent passes in this frame should sample the freshly written texture
-            this.frameReadTextures.set(surfaceName, writeId)
+    /**
+     * Blit feedback surfaces from write buffer to read buffer.
+     * This is called at the end of each frame to persist written content
+     * for the next frame's reads.
+     */
+    blitFeedbackSurfaces() {
+        for (const [name, surface] of this.feedbackSurfaces.entries()) {
+            if (!surface.dirty) continue
+            
+            // Blit write → read using the backend's copy capability
+            this.backend.copyTexture(surface.write, surface.read)
+            surface.dirty = false
         }
     }
 
@@ -444,17 +574,24 @@ export class Pipeline {
      * Dispose of all pipeline resources
      */
     dispose() {
-        // Destroy all surfaces
+        // Destroy all global surfaces
         for (const [name] of this.surfaces) {
             this.backend.destroyTexture(`global_${name}_read`)
             this.backend.destroyTexture(`global_${name}_write`)
         }
         this.surfaces.clear()
+        
+        // Destroy all feedback surfaces
+        for (const [name] of this.feedbackSurfaces) {
+            this.backend.destroyTexture(`feedback_${name}_read`)
+            this.backend.destroyTexture(`feedback_${name}_write`)
+        }
+        this.feedbackSurfaces.clear()
 
         // Destroy all graph textures
         if (this.graph && this.graph.textures) {
             for (const texId of this.graph.textures.keys()) {
-                if (!texId.startsWith('global_')) {
+                if (!texId.startsWith('global_') && !texId.startsWith('feedback_')) {
                     this.backend.destroyTexture(texId)
                 }
             }

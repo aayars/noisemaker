@@ -97,7 +97,8 @@ This stage resolves symbols, validates types, and constructs a high-level graph 
 ^^^^^^^^^^^^^^^^^^^^^
 
 
-* **Namespace Lookup:** Resolves function names (e.g., ``osc``) to Effect Definitions using the search order (``basics``, ``nd``, etc.).
+* **Search Order Resolution:** The ``search`` directive (if present) defines the namespace search order for the program. If omitted, the default order ``['basics', 'nd']`` is used.
+* **Namespace Lookup:** Resolves function names (e.g., ``osc``) to Effect Definitions by walking the search order until a match is found.
 * **Variable Scope:** Tracks ``let`` assignments and resolves variable references.
 
 3.2 Chain Analysis

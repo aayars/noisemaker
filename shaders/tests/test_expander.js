@@ -5,19 +5,17 @@ import { registerOp } from '../src/lang/ops.js';
 import { registerEffect } from '../src/runtime/registry.js';
 import { expand } from '../src/runtime/expander.js';
 
-// Setup Validator
-registerOp('osc', {
+registerOp('basics.osc', {
     name: 'osc',
     args: [{ name: 'freq', type: 'float', default: 60 }]
 });
-registerOp('blend', {
+registerOp('basics.blend', {
     name: 'blend',
     args: [{ name: 'tex', type: 'surface' }]
 });
-registerStarterOps(['osc']);
+registerStarterOps(['basics.osc']);
 
-// Setup Registry
-registerEffect('osc', {
+registerEffect('basics.osc', {
     name: 'osc',
     passes: [
         {
@@ -27,7 +25,7 @@ registerEffect('osc', {
         }
     ]
 });
-registerEffect('blend', {
+registerEffect('basics.blend', {
     name: 'blend',
     passes: [{
         type: 'render',
@@ -62,7 +60,7 @@ function test(name, code, check) {
     }
 }
 
-test('Expand Simple Chain', 'osc(10).out(o0)', (result) => {
+test('Expand Simple Chain', 'search basics\nosc(10).out(o0)', (result) => {
     if (result.errors.length > 0) throw new Error(result.errors[0].message);
     if (result.passes.length !== 1) throw new Error(`Expected 1 pass, got ${result.passes.length}`);
     const pass = result.passes[0];
@@ -70,7 +68,7 @@ test('Expand Simple Chain', 'osc(10).out(o0)', (result) => {
     if (pass.outputs.color !== 'global_o0') throw new Error(`Expected output global_o0, got ${pass.outputs.color}`);
 });
 
-test('Expand Blend Chain', 'osc(10).blend(src(o0)).out(o1)', (result) => {
+test('Expand Blend Chain', 'search basics\nosc(10).blend(src(o0)).out(o1)', (result) => {
     if (result.errors.length > 0) throw new Error(result.errors[0].message);
     // osc -> blend
     // osc is node_0. blend is node_1.

@@ -130,7 +130,7 @@ export function expand(compilationResult) {
                         const isObjectArg = arg !== null && typeof arg === 'object';
 
                         // Skip texture arguments (handled in inputs)
-                        if (isObjectArg && (arg.kind === 'temp' || arg.kind === 'output' || arg.kind === 'source')) {
+                        if (isObjectArg && (arg.kind === 'temp' || arg.kind === 'output' || arg.kind === 'source' || arg.kind === 'feedback')) {
                             continue;
                         }
                         
@@ -185,6 +185,8 @@ export function expand(compilationResult) {
                                 pass.inputs[uniformName] = textureMap.get(`node_${arg.index}_out`);
                             } else if (arg.kind === 'output') {
                                 pass.inputs[uniformName] = `global_${arg.name}`; // e.g. global_o0
+                            } else if (arg.kind === 'feedback') {
+                                pass.inputs[uniformName] = `feedback_${arg.name}`; // e.g. feedback_f0
                             } else if (arg.kind === 'source') {
                                 pass.inputs[uniformName] = `global_${arg.name}`; // e.g. global_o0
                             } else if (typeof arg === 'string') {
@@ -193,6 +195,8 @@ export function expand(compilationResult) {
                                     pass.inputs[uniformName] = arg;
                                 } else if (/^o[0-7]$/.test(arg)) {
                                     pass.inputs[uniformName] = `global_${arg}`;
+                                } else if (/^f[0-3]$/.test(arg)) {
+                                    pass.inputs[uniformName] = `feedback_${arg}`;
                                 } else {
                                     pass.inputs[uniformName] = arg;
                                 }
@@ -204,13 +208,20 @@ export function expand(compilationResult) {
                                 pass.inputs[uniformName] = currentInput || defaultVal;
                             } else if (/^o[0-7]$/.test(defaultVal)) {
                                 pass.inputs[uniformName] = `global_${defaultVal}`;
+                            } else if (/^f[0-3]$/.test(defaultVal)) {
+                                pass.inputs[uniformName] = `feedback_${defaultVal}`;
                             } else if (defaultVal.startsWith('global_')) {
+                                pass.inputs[uniformName] = defaultVal;
+                            } else if (defaultVal.startsWith('feedback_')) {
                                 pass.inputs[uniformName] = defaultVal;
                             } else {
                                 pass.inputs[uniformName] = defaultVal;
                             }
                         } else if (texRef.startsWith('global_')) {
                             // Explicit global reference
+                            pass.inputs[uniformName] = texRef;
+                        } else if (texRef.startsWith('feedback_')) {
+                            // Explicit feedback reference
                             pass.inputs[uniformName] = texRef;
                         } else if (isGlobalTexture(texRef)) {
                             // Effect texture starting with 'global' - use global_ prefix for double-buffering
@@ -234,12 +245,16 @@ export function expand(compilationResult) {
                             
                             if (isLastStep && isLastPass && plan.out) {
                                 const outName = typeof plan.out === 'object' ? plan.out.name : plan.out;
-                                virtualTex = `global_${outName}`;
+                                const outKind = plan.out.kind || 'output';
+                                const prefix = outKind === 'feedback' ? 'feedback' : 'global';
+                                virtualTex = `${prefix}_${outName}`;
                             } else {
                                 virtualTex = `${nodeId}_out`;
                             }
                             textureMap.set(virtualTex, virtualTex); // Register
                         } else if (texRef.startsWith('global_')) {
+                            virtualTex = texRef;
+                        } else if (texRef.startsWith('feedback_')) {
                             virtualTex = texRef;
                         } else if (isGlobalTexture(texRef)) {
                             // Effect texture starting with 'global' - use global_ prefix for double-buffering
@@ -258,19 +273,21 @@ export function expand(compilationResult) {
             currentInput = textureMap.get(`${nodeId}_out`);
         }
 
-        // Handle the final output of the chain (.out(o0))
+        // Handle the final output of the chain (.out(o0) or .out(f0))
         if (plan.out && currentInput) {
             const outName = typeof plan.out === 'object' ? plan.out.name : plan.out;
-            const targetGlobal = `global_${outName}`;
+            const outKind = plan.out.kind || 'output';
+            const prefix = outKind === 'feedback' ? 'feedback' : 'global';
+            const targetSurface = `${prefix}_${outName}`;
 
-            // Only add blit if the current input is not already the target global
-            if (currentInput !== targetGlobal) {
+            // Only add blit if the current input is not already the target surface
+            if (currentInput !== targetSurface) {
                 const blitPass = {
                     id: `final_blit_${outName}`,
                     program: 'blit',
                     type: 'render',
                     inputs: { src: currentInput },
-                    outputs: { color: targetGlobal },
+                    outputs: { color: targetSurface },
                     uniforms: {}
                 };
                 passes.push(blitPass);

@@ -64,7 +64,7 @@ test('Verify 8 Outputs', async () => {
 })
 
 test('Parse o7 Output', () => {
-    const code = 'osc().out(o7)'
+    const code = 'search basics\nosc().out(o7)'
     const tokens = lex(code)
     const ast = parse(tokens)
     

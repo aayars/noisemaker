@@ -6,8 +6,9 @@ const float INV_UINT_RANGE = 1.0 / 4294967296.0;
 const float TAU = 6.283185307179586;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 timeSpeed;
+uniform vec2 resolution;
+uniform float time;
+uniform float speed;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -340,8 +341,8 @@ float overlay_value_at(
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width_u = as_u32(size.x);
-    uint height_u = as_u32(size.y);
+    uint width_u = uint(resolution.x);
+    uint height_u = uint(resolution.y);
     ivec2 textureDims = textureSize(inputTex, 0);
     if (width_u == 0u) {
         width_u = uint(max(textureDims.x, 1));
@@ -356,8 +357,8 @@ void main() {
     ivec2 coord = ivec2(int(global_id.x), int(global_id.y));
     ivec2 dims = ivec2(int(width_u), int(height_u));
     uint base_seed = compute_seed(width_u, height_u);
-    float overlay_value = clamp01(overlay_value_at(coord, dims, base_seed, timeSpeed.x, timeSpeed.y));
-    float alpha = mix(0.5, 0.75, clamp01(random_float(base_seed, 7u)));
+    float overlay_value = clamp01(overlay_value_at(coord, dims, base_seed, time, speed));
+    float alpha_val = mix(0.5, 0.75, clamp01(random_float(base_seed, 7u)));
 
     vec4 texSample = texelFetch(inputTex, coord, 0);
 
@@ -370,9 +371,9 @@ void main() {
     float highlight_g = max(base_g, overlay_value);
     float highlight_b = max(base_b, overlay_value);
 
-    float final_r = clamp01(mix(base_r, highlight_r, alpha));
-    float final_g = clamp01(mix(base_g, highlight_g, alpha));
-    float final_b = clamp01(mix(base_b, highlight_b, alpha));
+    float final_r = clamp01(mix(base_r, highlight_r, alpha_val));
+    float final_g = clamp01(mix(base_g, highlight_g, alpha_val));
+    float final_b = clamp01(mix(base_b, highlight_b, alpha_val));
 
     fragColor = vec4(final_r, final_g, final_b, base_a);
 }

@@ -3,7 +3,6 @@ precision highp float;
 precision highp int;
 
 uniform sampler2D inputTex;
-uniform vec4 size; // width, height, channelCount, 0
 
 out vec4 fragColor;
 
@@ -13,8 +12,9 @@ void main() {
         return;
     }
     
-    float width = size.x;
-    float height = size.y;
+    ivec2 texSize = textureSize(inputTex, 0);
+    float width = float(texSize.x);
+    float height = float(texSize.y);
     
     float block_w = width / 32.0;
     float block_h = height / 32.0;
@@ -25,33 +25,25 @@ void main() {
     int end_y = int(floor((gl_FragCoord.y + 1.0) * block_h));
     
     // Clamp to texture size
-    end_x = min(end_x, int(width));
-    end_y = min(end_y, int(height));
+    end_x = min(end_x, texSize.x);
+    end_y = min(end_y, texSize.y);
     
     float min_val = 1e30;
     float max_val = -1e30;
     
-    uint channelCount = uint(size.z);
+    // Always process RGB channels (textures are always RGBA per AGENTS.md)
     
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
             vec4 texel = texelFetch(inputTex, ivec2(x, y), 0);
             
+            // Process RGB channels
             min_val = min(min_val, texel.r);
             max_val = max(max_val, texel.r);
-            
-            if (channelCount >= 2u) {
-                min_val = min(min_val, texel.g);
-                max_val = max(max_val, texel.g);
-            }
-            if (channelCount >= 3u) {
-                min_val = min(min_val, texel.b);
-                max_val = max(max_val, texel.b);
-            }
-            if (channelCount >= 4u) {
-                min_val = min(min_val, texel.a);
-                max_val = max(max_val, texel.a);
-            }
+            min_val = min(min_val, texel.g);
+            max_val = max(max_val, texel.g);
+            min_val = min(min_val, texel.b);
+            max_val = max(max_val, texel.b);
         }
     }
     

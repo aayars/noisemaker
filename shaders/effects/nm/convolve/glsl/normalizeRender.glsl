@@ -5,8 +5,9 @@ precision highp int;
 uniform sampler2D convolvedTexture;
 uniform sampler2D minmaxTexture;
 uniform sampler2D inputTex;
-uniform vec4 control; // x: normalize (bool), y: alpha
-uniform vec4 size; // w: kernel_id
+uniform int kernel;
+uniform float withNormalize;
+uniform float alpha;
 
 out vec4 fragColor;
 
@@ -20,9 +21,9 @@ void main() {
     ivec2 coord = ivec2(gl_FragCoord.xy);
     vec4 processed = texelFetch(convolvedTexture, coord, 0);
     
-    bool do_normalize = control.x > 0.5;
-    float alpha = clamp(control.y, 0.0, 1.0);
-    int kernel_id = int(round(size.w));
+    bool do_normalize = withNormalize > 0.5;
+    float alpha_val = clamp(alpha, 0.0, 1.0);
+    int kernel_id = kernel;
     
     if (min_val > max_val) {
         min_val = 0.0;
@@ -40,7 +41,7 @@ void main() {
     }
     
     vec4 original = texelFetch(inputTex, coord, 0);
-    vec4 result = mix(original, processed, alpha);
+    vec4 result = mix(original, processed, alpha_val);
     result.a = original.a;
     
     fragColor = result;

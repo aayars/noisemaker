@@ -2,7 +2,8 @@
  * Recursive-descent parser for the Polymorphic DSL.
  *
  * Grammar (EBNF):
- * Program        ::= Statement* RenderDirective?
+ * Program        ::= SearchDirective? Statement* RenderDirective?
+ * SearchDirective::= 'search' Ident (',' Ident)*
  * Statement      ::= VarAssign | ChainStmt | IfStmt | LoopStmt | Break | Continue | Return
  * RenderDirective::= 'render' '(' OutputRef ')'
  * Block          ::= '{' Statement* '}'
@@ -12,16 +13,17 @@
  * Continue       ::= 'continue'
  * Return         ::= 'return' Expr?
  * VarAssign      ::= 'let' Ident '=' Expr
- * ChainStmt      ::= Chain ('.out(' OutputRef? ')')?
+ * ChainStmt      ::= Chain ('.out(' (OutputRef | FeedbackRef)? ')')?
  * Chain          ::= Call ('.' Call)*
- * Expr           ::= Chain | NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | SourceRef | Func | '(' Expr ')'
+ * Expr           ::= Chain | NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | FeedbackRef | SourceRef | Func | '(' Expr ')'
  * Call           ::= Ident '(' ArgList? ')'
  * ArgList        ::= Arg (',' Arg)* ','?
- * Arg            ::= NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | SourceRef | Func
+ * Arg            ::= NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | FeedbackRef | SourceRef | Func
  * NumberExpr     ::= Number | 'Math.PI' | '(' NumberExpr ')' | NumberExpr ( '+' | '-' | '*' | '/' ) NumberExpr
  * Member         ::= Ident ('.' Ident)+
  * Func           ::= '(' ')' '=>' Expr
- * OutputRef      ::= 'o' Digit
+ * OutputRef      ::= 'o' Digit         // Global surface (o0-o7)
+ * FeedbackRef    ::= 'f' Digit         // Feedback surface (f0-f3)
  * Ident          ::= Letter ( Letter | Digit | '_' )*
  * Number         ::= Digit+ ( '.' Digit+ )?
  * String         ::= '"' [^"\n]* '"'
@@ -37,37 +39,14 @@ export function parse(tokens) {
     let current = 0
     let loopDepth = 0
 
-    const DEFAULT_NAMESPACE_ORDER = Object.freeze(['basics', 'nd'])
+    // Track the search order for the program (set by search directive - REQUIRED)
+    let programSearchOrder = null
 
-    function buildNamespaceSearchOrder(primary = null) {
-        const order = []
-        const seen = new Set()
-        const append = (value) => {
-            if (typeof value !== 'string') { return }
-            const trimmed = value.trim()
-            if (!trimmed || seen.has(trimmed)) { return }
-            seen.add(trimmed)
-            order.push(trimmed)
-        }
-        append(primary)
-        DEFAULT_NAMESPACE_ORDER.forEach(append)
-        return order
-    }
-
-    const namespaceStack = [{
-        name: DEFAULT_NAMESPACE_ORDER[0],
-        source: 'implicit',
-        explicit: false
-    }]
+    // Program namespace starts empty - must be set by search directive
     const programNamespace = {
-        imports: DEFAULT_NAMESPACE_ORDER.map((name) => ({
-            name,
-            source: 'implicit',
-            explicit: false
-        })),
-        default: { name: DEFAULT_NAMESPACE_ORDER[0], source: 'implicit', explicit: false }
+        imports: [],
+        default: null
     }
-    let namespaceDeclaration = null
 
     const peek = () => tokens[current]
     const advance = () => tokens[current++]
@@ -79,12 +58,12 @@ export function parse(tokens) {
 
     const exprStartTokens = new Set([
         'PLUS', 'MINUS', 'NUMBER', 'STRING', 'HEX', 'FUNC',
-        'IDENT', 'OUTPUT_REF', 'SOURCE_REF', 'LPAREN',
+        'IDENT', 'OUTPUT_REF', 'FEEDBACK_REF', 'SOURCE_REF', 'LPAREN',
         'TRUE', 'FALSE'
     ])
 
     const memberTokenTypes = new Set([
-        'IDENT', 'SOURCE_REF', 'OUTPUT_REF',
+        'IDENT', 'SOURCE_REF', 'OUTPUT_REF', 'FEEDBACK_REF',
         'LET', 'RENDER', 'TRUE', 'FALSE', 'IF', 'ELIF', 'ELSE',
         'LOOP', 'BREAK', 'CONTINUE', 'RETURN', 'OUT'
     ])
@@ -102,51 +81,6 @@ export function parse(tokens) {
             return JSON.parse(JSON.stringify(meta))
         } catch {
             return null
-        }
-    }
-
-    const getActiveNamespace = () => namespaceStack[namespaceStack.length - 1] || null
-
-    function pushNamespaceContext(name, source = 'namespace') {
-        const active = getActiveNamespace()
-        const resolvedName = (typeof name === 'string' && name.trim()) || active?.name || DEFAULT_NAMESPACE_ORDER[0]
-        namespaceStack.push({
-            name: resolvedName,
-            source,
-            explicit: source === 'explicit'
-        })
-    }
-
-    function popNamespaceContext() {
-        if (namespaceStack.length <= 1) { return }
-        namespaceStack.pop()
-    }
-
-    function buildCallNamespace(prefixSegments) {
-        const segments = Array.isArray(prefixSegments) ? prefixSegments : []
-        if (segments.length > 0) {
-            const resolved = segments.join('.')
-            return {
-                name: resolved,
-                path: segments.slice(),
-                explicit: true,
-                source: 'qualified',
-                resolved,
-                defaulted: false
-            }
-        }
-        const active = getActiveNamespace()
-        if (!active || !active.name) { return null }
-        if (!active.source) {
-            throw new Error(`Parser bug: active namespace "${active.name}" has no source`)
-        }
-        return {
-            name: active.name,
-            path: [],
-            explicit: false,
-            source: active.source,
-            resolved: active.name,
-            defaulted: true
         }
     }
 
@@ -191,22 +125,17 @@ export function parse(tokens) {
         if (targetCall.kwargs) {
             replacement.kwargs = { ...targetCall.kwargs }
         }
-        const existingNamespace = targetCall.namespace && typeof targetCall.namespace === 'object'
-            ? targetCall.namespace
-            : null
+        // from() creates a namespace override that puts the specified namespace first
         const overrideNamespace = {
             name: namespaceName,
             path: [namespaceName],
             explicit: true,
             source: 'from',
             resolved: namespaceName,
-            defaulted: false,
-            searchOrder: buildNamespaceSearchOrder(namespaceName),
+            searchOrder: [namespaceName],
             fromOverride: true
         }
-        replacement.namespace = existingNamespace
-            ? { ...existingNamespace, ...overrideNamespace }
-            : overrideNamespace
+        replacement.namespace = overrideNamespace
         return replacement
     }
 
@@ -256,60 +185,42 @@ export function parse(tokens) {
             while (peek().type === 'SEMICOLON') advance()
         }
 
-        function parseNamespaceBlock() {
-            if (consumedNamespaceBlock) {
+        // Parse the search directive: search ns1, ns2, ns3
+        function parseSearchDirective() {
+            if (programSearchOrder !== null) {
                 const t = peek()
-                throw new SyntaxError(`Only one namespace block is allowed per program at line ${t.line} col ${t.col}`)
+                throw new SyntaxError(`Only one search directive is allowed per program at line ${t.line} col ${t.col}`)
             }
-            consumedNamespaceBlock = true
-            advance()
-            const nameToken = expect('IDENT', 'Expected namespace identifier')
-            const namespaceName = nameToken.lexeme
-            expect('LBRACE', "Expect '{' after namespace declaration")
-            pushNamespaceContext(namespaceName, 'namespace')
-            const blockVars = []
-            const blockPlans = []
-            let blockRender = null
-            while (peek().type !== 'RBRACE') {
-                if (peek().type === 'RENDER') {
-                    if (blockRender || render) {
-                        const t = peek()
-                        throw new SyntaxError(`Duplicate render() directive at line ${t.line} col ${t.col}`)
-                    }
-                    blockRender = parseRenderDirective()
-                } else {
-                    const stmt = parseStatement()
-                    if (stmt.type === 'VarAssign') blockVars.push(stmt)
-                    else blockPlans.push(stmt)
-                }
-                while (peek().type === 'SEMICOLON') advance()
+            advance() // consume 'search'
+            const namespaces = []
+            // Expect at least one namespace identifier
+            const firstToken = expect('IDENT', 'Expected namespace identifier after search')
+            namespaces.push(firstToken.lexeme)
+            // Parse additional comma-separated namespaces
+            while (peek().type === 'COMMA') {
+                advance() // consume ','
+                const nsToken = expect('IDENT', 'Expected namespace identifier after comma')
+                namespaces.push(nsToken.lexeme)
             }
-            expect('RBRACE', "Expect '}' after namespace block")
-            popNamespaceContext()
-            if (blockVars.length) { vars.push(...blockVars) }
-            if (blockPlans.length) { plans.push(...blockPlans) }
-            if (blockRender) { render = blockRender }
-            namespaceDeclaration = {
-                name: namespaceName,
-                explicit: true,
-                source: 'namespace',
-                default: {
-                    name: namespaceName,
-                    explicit: false,
-                    source: 'namespace'
-                }
-            }
+            programSearchOrder = namespaces
+            // Update the programNamespace to reflect the explicit search order
+            programNamespace.imports = namespaces.map((name) => ({
+                name,
+                source: 'search',
+                explicit: true
+            }))
+            programNamespace.default = { name: namespaces[0], source: 'search', explicit: true }
             while (peek().type === 'SEMICOLON') advance()
         }
 
         while (peek().type !== 'EOF') {
             if (peek().type === 'SEMICOLON') { advance(); continue }
-            if (peek().type === 'NAMESPACE') {
+            if (peek().type === 'SEARCH') {
                 if (plans.length || vars.length || render) {
                     const t = peek()
-                    throw new SyntaxError(`'namespace' block must appear before other statements at line ${t.line} col ${t.col}`)
+                    throw new SyntaxError(`'search' directive must appear before other statements at line ${t.line} col ${t.col}`)
                 }
-                parseNamespaceBlock()
+                parseSearchDirective()
                 continue
             }
             if (peek().type === 'RENDER') {
@@ -321,18 +232,23 @@ export function parse(tokens) {
             while (peek().type === 'SEMICOLON') advance()
         }
         expect('EOF', 'Expected end of input')
+        if (!programSearchOrder || programSearchOrder.length === 0) {
+            throw new SyntaxError("Missing required 'search' directive. Every program must start with 'search <namespace>, ...' to specify namespace search order.")
+        }
+        
         const program = { type: 'Program', plans, render }
         if (vars.length) { program.vars = vars }
+        
+        const searchOrder = programSearchOrder.slice()
         let namespaceMeta = cloneNamespaceMeta({
             imports: programNamespace.imports,
             default: programNamespace.default,
-            declaration: namespaceDeclaration ? { ...namespaceDeclaration } : null
+            searchOrder
         })
         if (!namespaceMeta) {
             const importsClone = programNamespace.imports.map((entry) => ({ ...entry }))
-            const defaultClone = { ...programNamespace.default }
-            const declarationClone = namespaceDeclaration ? { ...namespaceDeclaration } : null
-            namespaceMeta = { imports: importsClone, default: defaultClone, declaration: declarationClone }
+            const defaultClone = programNamespace.default ? { ...programNamespace.default } : null
+            namespaceMeta = { imports: importsClone, default: defaultClone, searchOrder: searchOrder.slice() }
         }
         program.namespace = namespaceMeta
         return program
@@ -351,9 +267,9 @@ export function parse(tokens) {
     }
 
     function parseStatement() {
-        if (peek().type === 'NAMESPACE') {
+        if (peek().type === 'SEARCH') {
             const t = peek()
-            throw new SyntaxError(`'namespace' blocks are only allowed at the top level at line ${t.line} col ${t.col}`)
+            throw new SyntaxError(`'search' directive is only allowed at the start of the program at line ${t.line} col ${t.col}`)
         }
         if (peek().type === 'LET') {
             advance()
@@ -437,6 +353,8 @@ export function parse(tokens) {
             expect('LPAREN', "Expect '('")
             if (peek().type === 'OUTPUT_REF') {
                 out = {type: 'OutputRef', name: advance().lexeme}
+            } else if (peek().type === 'FEEDBACK_REF') {
+                out = {type: 'FeedbackRef', name: advance().lexeme}
             }
             expect('RPAREN', "Expect ')'")
             // default to o0 when .out() has no argument
@@ -468,21 +386,20 @@ export function parse(tokens) {
 
     function parseCall() {
         const nameToken = expect('IDENT', 'Expected identifier')
-        const segments = [nameToken.lexeme]
-        while (peek().type === 'DOT') {
+        // Inline namespace syntax (e.g., nd.noise()) is forbidden
+        // If we see a DOT followed by an IDENT followed by LPAREN, that's an error
+        if (peek().type === 'DOT') {
             const next = tokens[current + 1]
-            if (!next || !memberTokenTypes.has(next.type)) { break }
-            
-            // Stop if we see .out( which indicates the end of the chain
-            if (next.type === 'OUT' && tokens[current + 2]?.type === 'LPAREN') {
-                break
+            if (next && next.type === 'IDENT') {
+                const after = tokens[current + 2]
+                if (after?.type === 'LPAREN') {
+                    throw new SyntaxError(
+                        `Inline namespace syntax '${nameToken.lexeme}.${next.lexeme}()' is not allowed. ` +
+                        `Use 'search ${nameToken.lexeme}' at the start of the program instead, ` +
+                        `at line ${nameToken.line} col ${nameToken.col}`
+                    )
+                }
             }
-
-            const after = tokens[current + 2]
-            if (after?.type !== 'LPAREN' && after?.type !== 'DOT') { break }
-            advance() // consume '.'
-            advance() // consume segment token stored in next
-            segments.push(next.lexeme)
         }
         expect('LPAREN', "Expect '('")
         const args = []
@@ -515,14 +432,11 @@ export function parse(tokens) {
             }
         }
         expect('RPAREN', "Expect ')'")
-        const callName = segments[segments.length - 1]
-        const namespaceInfo = buildCallNamespace(segments.slice(0, -1))
-        const call = {type: 'Call', name: callName, args}
+        const call = {type: 'Call', name: nameToken.lexeme, args}
         if (keyword) call.kwargs = kwargs
-        if (callName === 'from') {
+        if (nameToken.lexeme === 'from') {
             return transformFromInvocation(call, nameToken)
         }
-        if (namespaceInfo) { call.namespace = namespaceInfo }
         return call
     }
 
@@ -643,6 +557,9 @@ export function parse(tokens) {
             case 'OUTPUT_REF':
                 advance()
                 return {type: 'OutputRef', name: token.lexeme}
+            case 'FEEDBACK_REF':
+                advance()
+                return {type: 'FeedbackRef', name: token.lexeme}
             case 'SOURCE_REF':
                 advance()
                 return {type: 'SourceRef', name: token.lexeme}

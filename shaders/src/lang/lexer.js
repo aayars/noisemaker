@@ -29,7 +29,7 @@ export function lex(src) {
         break: 'BREAK',
         continue: 'CONTINUE',
         return: 'RETURN',
-        namespace: 'NAMESPACE'
+        search: 'SEARCH'
     }
 
     while (i < src.length) {
@@ -64,12 +64,13 @@ export function lex(src) {
             continue
         }
 
-        // output or source reference
-        if ((ch === 'o' || ch === 's') && isDigit(src[i + 1])) {
+        // output, source, or feedback reference
+        if ((ch === 'o' || ch === 's' || ch === 'f') && isDigit(src[i + 1])) {
             let j = i + 1
             while (j < src.length && isDigit(src[j])) j++
             const lexeme = src.slice(i, j)
-            add(ch === 'o' ? 'OUTPUT_REF' : 'SOURCE_REF', lexeme, startLine, startCol)
+            const tokenType = ch === 'o' ? 'OUTPUT_REF' : ch === 'f' ? 'FEEDBACK_REF' : 'SOURCE_REF'
+            add(tokenType, lexeme, startLine, startCol)
             col += j - i
             i = j
             continue

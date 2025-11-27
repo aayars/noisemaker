@@ -30,7 +30,8 @@ node shaders/mcp/test-harness.js basics/noise
 | `describe_effect_frame` | AI vision analysis of rendered output |
 | `benchmark_effect_fps` | Measure sustained framerate |
 | `testUniformResponsiveness` | Verify uniform controls affect output |
-| `checkEffectStructure` | Detect unused files and compute pass requirements |
+| `checkEffectStructure` | Detect unused files, naming issues, leaked uniforms |
+| `test_no_passthrough` | Verify filter effects modify input (not passthrough) |
 | `check_alg_equiv` | Compare GLSL/WGSL algorithmic equivalence |
 
 See [Tool Reference](docs/TOOL_REFERENCE.md) for complete input/output schemas.
@@ -73,29 +74,7 @@ Run the test harness to verify the setup:
 node test-harness.js [pattern] [flags]
 ```
 
-### Flags
-
-| Flag | Description |
-|------|-------------|
-| `--benchmark` | Run FPS test (~500ms per effect) |
-| `--vision` | Run AI vision analysis (requires .openai key) |
-| `--uniforms` | Test that uniform controls affect output |
-| `--structure` | Check for unused files, compute passes, and leaked internal uniforms |
-| `--alg-equiv` | Compare GLSL/WGSL algorithmic equivalence (requires .openai key) |
-| `--verbose` | Show additional diagnostic information |
-| `--webgpu` | Use WebGPU/WGSL backend instead of WebGL2/GLSL |
-
-### Examples
-
-```bash
-node test-harness.js basics/noise              # compile + render only
-node test-harness.js "basics/*" --benchmark    # all basics with FPS
-node test-harness.js basics/noise --vision     # with AI description
-node test-harness.js nm/worms --uniforms       # test uniform responsiveness
-node test-harness.js nm/worms --structure      # test shader organization
-node test-harness.js nm/normalize --webgpu     # test WGSL backend
-node test-harness.js "basics/*" --alg-equiv    # check GLSL/WGSL algorithmic equivalence
-```
+See [Tool Reference](docs/TOOL_REFERENCE.md) for complete flag documentation and examples.
 
 ## Development Notes
 

@@ -5,8 +5,10 @@ precision highp int;
 const float TAU = 6.28318530717958647692;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 alphaTimeSpeed;
+uniform vec2 resolution;
+uniform float alpha;
+uniform float time;
+uniform float speed;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -277,8 +279,8 @@ vec3 compute_vaseline_bloom(
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width = as_u32(size.x);
-    uint height = as_u32(size.y);
+    uint width = uint(resolution.x);
+    uint height = uint(resolution.y);
     ivec2 inputDims = textureSize(inputTex, 0);
     if (width == 0u) {
         width = uint(max(inputDims.x, 1));
@@ -295,9 +297,9 @@ void main() {
     int width_i = max(int(width_f), 1);
     int height_i = max(int(height_f), 1);
 
-    float alpha = clamp01(alphaTimeSpeed.x);
-    float time_value = alphaTimeSpeed.y;
-    float speed_value = alphaTimeSpeed.z;
+    float alpha_val = clamp01(alpha);
+    float time_value = time;
+    float speed_value = speed;
 
     uvec2 grid_layout = select_layout(time_value, speed_value);
     PointData point_data;
@@ -308,7 +310,7 @@ void main() {
 
     vec2 uv = (vec2(float(global_id.x), float(global_id.y)) + vec2(0.5, 0.5)) / vec2(width_f, height_f);
     vec3 leak_stage = compute_leak_stage(uv, point_data, width_f, height_f, time_value, speed_value);
-    vec3 blended = mix(base_sample.xyz, leak_stage, alpha);
+    vec3 blended = mix(base_sample.xyz, leak_stage, alpha_val);
 
     vec3 vaseline_bloom = compute_vaseline_bloom(
         uv,
@@ -317,14 +319,14 @@ void main() {
         height_f,
         time_value,
         speed_value,
-        alpha,
+        alpha_val,
         base_sample.xyz,
         leak_stage
     );
 
     float mask = pow(chebyshev_mask(uv, vec2(width_f, height_f)), 2.0);
     vec3 vaseline_color = mix(blended, vaseline_bloom, mask);
-    vec3 final_color = clamp_vec3(mix(blended, vaseline_color, alpha));
+    vec3 final_color = clamp_vec3(mix(blended, vaseline_color, alpha_val));
 
     fragColor = vec4(final_color, base_sample.w);
 }

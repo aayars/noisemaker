@@ -92,8 +92,8 @@ void main() {
     }
 
     uint channelCount = 4u;
-    float displacement = displacement;
-    bool horizontal = horizontal >= 0.5;
+    float displacementValue = displacement;
+    bool isHorizontal = horizontal >= 0.5;
 
     // Read stats from (0,0) of statsTex
     vec4 stats = texelFetch(statsTex, ivec2(0, 0), 0);
@@ -117,7 +117,7 @@ void main() {
         normalized = (reference_raw - min_value) / range;
     }
 
-    float reference = normalized * displacement;
+    float reference = normalized * displacementValue;
 
     int width_i = int(width);
     int height_i = int(height);
@@ -126,13 +126,13 @@ void main() {
 
     int offset_x = int(reference * max_x_offset);
     int offset_y = 0;
-    if (!horizontal) {
+    if (!isHorizontal) {
         offset_y = int(reference * max_y_offset);
     }
 
     int sample_x = wrap_coord(int(coord.x) + offset_x, width_i);
     int sample_y = int(coord.y);
-    if (!horizontal) {
+    if (!isHorizontal) {
         sample_y = wrap_coord(int(coord.y) + offset_y, height_i);
     }
 
