@@ -1020,12 +1020,6 @@ export async function checkEffectStructure(effectId, options = {}) {
         }
         
         // 6. Check texture/surface names in passes (inputs and outputs)
-        // Extract all texture references from passes section
-        const texturePatterns = [
-            // Input textures: inputName: "textureName"
-            /(\w+):\s*["']([^"']+)["']/g,
-        ];
-        
         // Parse inputs and outputs objects from passes
         const inputsMatches = passesSection.matchAll(/inputs:\s*\{([^}]+)\}/g);
         for (const inputsMatch of inputsMatches) {

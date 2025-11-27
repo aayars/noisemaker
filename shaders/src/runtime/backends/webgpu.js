@@ -7,9 +7,6 @@
  * [MODIFIED 2024-01-XX] Added GPGPU fallback and entry point detection
  */
 
-// Version marker for debugging - change if suspecting caching issues
-const WEBGPU_BACKEND_VERSION = '2024-01-XX-GPGPU-V2'
-
 import { Backend } from '../backend.js'
 import {
     DEFAULT_FRAGMENT_ENTRY_POINT,
@@ -366,9 +363,8 @@ export class WebGPUBackend extends Backend {
         // Parse binding declarations from the shader
         let bindings = this.parseShaderBindings(source)
         
-        // Check if source contains both @vertex and @fragment (combined shader)
+        // Check if source contains @vertex (combined shader)
         const hasVertex = /@vertex\s/.test(source)
-        const hasFragment = /@fragment\s/.test(source)
         
         // Compile module (will be used for both vertex and fragment if combined)
         const mainModule = this.device.createShaderModule({ code: source })
