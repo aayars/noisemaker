@@ -626,7 +626,7 @@ export class Pipeline {
      * for the next frame's reads.
      */
     blitFeedbackSurfaces() {
-        for (const [name, surface] of this.feedbackSurfaces.entries()) {
+        for (const [_name, surface] of this.feedbackSurfaces.entries()) {
             if (!surface.dirty) continue
             
             // Blit write → read using the backend's copy capability

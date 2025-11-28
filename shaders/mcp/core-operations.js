@@ -765,7 +765,7 @@ export async function testNoPassthrough(page, effectId, options = {}) {
     
     // Apply non-default uniform values to ensure the effect does something
     // Many effects have defaults that result in no-op (e.g., rotate angle=0)
-    const uniformSetResult = await page.evaluate(() => {
+    const _uniformSetResult = await page.evaluate(() => {
         const pipeline = window.__noisemakerRenderingPipeline;
         const effect = window.__noisemakerCurrentEffect;
         
@@ -774,7 +774,7 @@ export async function testNoPassthrough(page, effectId, options = {}) {
         const globals = effect.instance.globals;
         const uniformsSet = [];
         
-        for (const [key, spec] of Object.entries(globals)) {
+        for (const [_key, spec] of Object.entries(globals)) {
             if (!spec.uniform) continue;
             if (spec.type !== 'float' && spec.type !== 'int') continue;
             
@@ -914,7 +914,7 @@ export async function testNoPassthrough(page, effectId, options = {}) {
                     filterPass = pass;
                     // Find the first input that looks like a previous pass output or chain texture
                     // These typically look like: node_0_out, _chain_0, etc.
-                    for (const [key, value] of Object.entries(pass.inputs)) {
+                    for (const [_key, value] of Object.entries(pass.inputs)) {
                         if (typeof value === 'string' && (
                             value.includes('node_') ||
                             value.includes('_chain_') ||
@@ -1063,7 +1063,7 @@ export async function testNoPassthrough(page, effectId, options = {}) {
             if (pass === filterPass) break; // Stop before the filter pass
             
             if (pass.outputs) {
-                for (const [key, outputId] of Object.entries(pass.outputs)) {
+                for (const [_key, outputId] of Object.entries(pass.outputs)) {
                     // The output of a previous pass becomes the input of the filter
                     // Check if this matches our inputTex reference
                     if (outputId === inputTextureId) {
@@ -1191,7 +1191,7 @@ export async function testNoPassthrough(page, effectId, options = {}) {
         const globals = effect.instance.globals;
         
         // Reset all uniforms to their default values
-        for (const [key, spec] of Object.entries(globals)) {
+        for (const [_key, spec] of Object.entries(globals)) {
             if (!spec.uniform) continue;
             
             const defaultVal = spec.default ?? spec.min ?? 0;
@@ -1524,7 +1524,7 @@ export async function checkEffectStructure(effectId, options = {}) {
         } else {
             // Try to match multi-line globals block
             // The block ends with }; at the same indent level as globals (2 spaces for class properties)
-            const multiLineMatch = definitionSource.match(/globals\s*=\s*\{([\s\S]*?)\n  \};/);
+            const multiLineMatch = definitionSource.match(/globals\s*=\s*\{([\s\S]*?)\n {2}\};/);
             globalsSection = multiLineMatch ? multiLineMatch[1] : '';
         }
         

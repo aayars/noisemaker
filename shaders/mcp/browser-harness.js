@@ -127,7 +127,7 @@ export class BrowserHarness {
      * Start watching shader files for changes
      */
     startFileWatcher() {
-        const shadersDir = path.join(PROJECT_ROOT, 'shaders');
+        const _shadersDir = path.join(PROJECT_ROOT, 'shaders');
         const srcDir = path.join(PROJECT_ROOT, 'shaders/src');
         const effectsDir = path.join(PROJECT_ROOT, 'shaders/effects');
         
@@ -574,7 +574,7 @@ export class BrowserHarness {
             const globals = effect.instance.globals;
             
             // Reset all uniforms to their default values
-            for (const [key, spec] of Object.entries(globals)) {
+            for (const [_key, spec] of Object.entries(globals)) {
                 if (!spec.uniform) continue;
                 
                 const defaultVal = spec.default ?? spec.min ?? 0;

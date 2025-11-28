@@ -165,7 +165,7 @@ export function parse(tokens) {
         const plans = []
         const vars = []
         let render = null
-        let consumedNamespaceBlock = false
+        let _consumedNamespaceBlock = false
 
         const appendStatement = (stmt) => {
             if (!stmt || typeof stmt !== 'object') { return }

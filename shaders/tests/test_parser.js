@@ -103,7 +103,7 @@ test('Search Directive - Multiple Namespaces', 'search nd, basics, nm\nnoise(10)
     if (ast.namespace.searchOrder[2] !== 'nm') throw new Error('Expected nm third');
 });
 
-test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (ast) => {
+test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (_ast) => {
     throw new Error('Should have thrown SyntaxError for missing search directive');
 }, (e) => {
     // This test expects an error
@@ -113,7 +113,7 @@ test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (ast) => {
     return true;
 });
 
-test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).out(o0)', (ast) => {
+test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).out(o0)', (_ast) => {
     throw new Error('Should have thrown SyntaxError for inline namespace');
 }, (e) => {
     // This test expects an error
