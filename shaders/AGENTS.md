@@ -6,8 +6,6 @@ This guide is for AI coding agents working on the Noisemaker shader effects coll
 
 | Topic | Guideline |
 |-------|-----------|
-| Pass type for GPGPU work | Use `type: "compute"` for semantic correctness |
-| WebGL2 compute support | Automatic GPGPU fallback via render passes |
 | Multi-output passes | MRT via `gl.drawBuffers()` on WebGL2 |
 | Agent scatter | Use `drawMode: "points"` for deposit passes |
 | Reserved surfaces | `o0`..`o7` are USER-ONLY; effects use internal textures |

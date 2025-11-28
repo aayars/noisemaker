@@ -93,8 +93,8 @@ export default class Text extends Effect {
       }
     },
     color: {
-      type: "vec4",
-      default: [1.0, 1.0, 1.0, 1.0],
+      type: "vec3",
+      default: [1.0, 1.0, 1.0],
       uniform: "color",
       ui: {
         label: "text color",

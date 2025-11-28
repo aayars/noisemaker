@@ -1779,9 +1779,24 @@ export async function checkEffectStructure(effectId, options = {}) {
                         const localDeclPattern = isGLSL ? glslLocalDeclPattern : wgslLocalDeclPattern;
                         const hasLocalDecl = localDeclPattern.test(shaderSource);
                         
-                        // If there's a local variable with this name, it shadows any uniform
+                        // Check if there's a #define macro for this name (GLSL only)
+                        // e.g., #define aspectRatio resolution.x / resolution.y
+                        const hasDefine = isGLSL && new RegExp(`#define\\s+${uniformName}\\b`).test(shaderSource);
+                        
+                        // Check if there's a function declaration for this name (WGSL)
+                        // e.g., fn aspectRatio() -> f32 { ... }
+                        const hasFunction = !isGLSL && new RegExp(`fn\\s+${uniformName}\\s*\\(`).test(shaderSource);
+                        
+                        // Check if name is used as a function parameter (GLSL or WGSL)
+                        // GLSL: func(float speed) or func(vec2 resolution)
+                        // WGSL: func(speed: f32) or func(resolution: vec2f)
+                        const glslParamPattern = new RegExp(`\\(\\s*[^)]*\\b(float|int|vec[234]|mat[234]|ivec[234]|uvec[234])\\s+${uniformName}\\b`);
+                        const wgslParamPattern = new RegExp(`\\(\\s*[^)]*\\b${uniformName}\\s*:\\s*(f32|i32|u32|vec[234]f?|mat[234]x[234]f?)`);
+                        const hasFunctionParam = (isGLSL ? glslParamPattern : wgslParamPattern).test(shaderSource);
+                        
+                        // If there's a local variable, #define, function, or function param with this name, it shadows any uniform
                         // So we don't need to check for uniform declaration
-                        if (hasLocalDecl) {
+                        if (hasLocalDecl || hasDefine || hasFunction || hasFunctionParam) {
                             continue;
                         }
                         

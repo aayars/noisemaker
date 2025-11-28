@@ -693,11 +693,12 @@ async function main() {
             if (r.benchmarkFailed) return false;  // Benchmark below target = FAIL  
             if (r.visionFailed) return false;  // Vision analysis failed = FAIL
             if (r.algEquivDivergent) return false;  // Algorithmic divergence = FAIL
-            if (runStructure && r.structure?.namingIssues?.length > 0) return false;
+            if (runStructure && r.structure?.namingIssues?.length > 0) return false;  // Naming issues = FAIL
             if (runStructure && r.structure?.unusedFiles?.length > 0) return false;  // Unused files = FAIL
             if (runStructure && r.structure?.leakedInternalUniforms?.length > 0) return false;  // Leaked internals = FAIL
             if (runStructure && r.structure?.splitShaderIssues?.length > 0) return false;  // Split shader issues = FAIL
             if (runStructure && r.structure?.structuralParityIssues?.length > 0) return false;  // GLSL/WGSL parity = FAIL
+            if (runStructure && r.structure?.requiredUniformIssues?.length > 0) return false;  // Required uniform issues = FAIL
             return true;
         }).length;
         
@@ -754,6 +755,18 @@ async function main() {
                     console.log(`  ${r.effectId}:`);
                     for (const issue of r.structure.structuralParityIssues) {
                         console.log(`    ${issue.message}`);
+                    }
+                }
+            }
+            
+            // Required uniform issues summary
+            const withRequiredUniformIssues = results.filter(r => r.structure?.requiredUniformIssues?.length > 0);
+            if (withRequiredUniformIssues.length > 0) {
+                console.log(`\n❌ EFFECTS WITH REQUIRED UNIFORM ISSUES: ${withRequiredUniformIssues.length}`);
+                for (const r of withRequiredUniformIssues) {
+                    console.log(`  ${r.effectId}:`);
+                    for (const issue of r.structure.requiredUniformIssues) {
+                        console.log(`    ${issue.file}: ${issue.message}`);
                     }
                 }
             }

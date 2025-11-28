@@ -259,8 +259,8 @@ fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
 
     // The speed knob expresses human-friendly BPM-style values; remapping keeps
     // the integration step numerically stable across refresh rates.
-    let animSpeed: f32 = map(speed, 1.0, 100.0, 0.001, 0.01);
+    let animSpeed: f32 = map(speed, 1.0, 100.0, 0.1, 100.0);
     let currentState: vec4<f32> = vec4<f32>(state, state, state, 1.0);
     let nextState: vec4<f32> = vec4<f32>(newState, newState, newState, 1.0);
-    return mix(currentState, nextState, deltaTime * animSpeed);
+    return mix(currentState, nextState, min(1.0, deltaTime * animSpeed));
 }

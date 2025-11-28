@@ -123,7 +123,8 @@ fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     let prevFrame: vec3<f32> = textureSample(seedTex, samp, uv).rgb;
     let prevLum: f32 = lum(prevFrame);
 
-    let base: vec2<i32> = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
+    // Use UV-derived coordinates (not fragCoord) to handle resolution mismatch between output and feedback texture
+    let base: vec2<i32> = vec2<i32>(i32(uv.x * texSize.x), i32(uv.y * texSize.y));
     let bufState: vec4<f32> = textureLoad(bufTex, clampCoord(base, texSizeI), 0);
     let state: f32 = bufState.r;
     let bufferIsEmpty: bool = (bufState.r == 0.0 && bufState.g == 0.0 && bufState.b == 0.0 && bufState.a == 0.0);
