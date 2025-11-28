@@ -1027,7 +1027,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                                         name: instance.func,
                                         args: args
                                     };
-                                    registerOp(instance.func, opSpec);
+                                    // Only register namespaced names - bare names cause conflicts
+                                    // (e.g., nm/voronoi vs basics/voronoi both registering 'voronoi')
                                     registerOp(`${dir.namespace}.${instance.func}`, opSpec);
                                 }
                             }
@@ -1059,8 +1060,13 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 .filter(e => isStarterEffect(e))
                 .forEach(e => {
                     const func = e.instance.func || e.name;
+                    const namespace = e.namespace;
                     if (func) {
+                        // Register both bare name and namespaced name
                         starterNames.push(func);
+                        if (namespace) {
+                            starterNames.push(`${namespace}.${func}`);
+                        }
                     }
                 });
 

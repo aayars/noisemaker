@@ -78,6 +78,13 @@ export default class Warp extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        frequency: "frequency",
+        octaves: "octaves",
+        displacement: "displacement",
+        speed: "speed",
+        splineOrder: "splineOrder"
+      },
       outputs: {
         color: "outputColor"
       }

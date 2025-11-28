@@ -37,8 +37,8 @@ const DERIVATIVE_KERNEL_Y : array<f32, 9> = array<f32, 9>(
 );
 
 struct DerivativeParams {
-    size : vec4<f32>,      // width, height, channels, distMetric
-    options : vec4<f32>,   // with_normalize, alpha, time, speed
+    size : vec4<f32>,      // (width, height, channels, distMetric)
+    options : vec4<f32>,   // (withNormalize, alpha, time, speed)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Kaleido
- * /shaders/effects/kaleido/kaleido.wgsl
+ * Creates a kaleidoscope mirror effect by reflecting the source texture into wedge slices.
  */
 export default class Kaleido extends Effect {
   name = "Kaleido";
@@ -11,7 +11,7 @@ export default class Kaleido extends Effect {
 
   globals = {
     sides: {
-        type: "int",
+        type: "float",
         default: 6,
         uniform: "sides",
         min: 2,
@@ -23,7 +23,7 @@ export default class Kaleido extends Effect {
         }
     },
     sdfSides: {
-        type: "int",
+        type: "float",
         default: 5,
         uniform: "sdfSides",
         min: 0,
@@ -44,7 +44,7 @@ export default class Kaleido extends Effect {
         }
     },
     pointFreq: {
-        type: "int",
+        type: "float",
         default: 1,
         uniform: "pointFreq",
         min: 1,
@@ -56,7 +56,7 @@ export default class Kaleido extends Effect {
         }
     },
     pointGenerations: {
-        type: "int",
+        type: "float",
         default: 1,
         uniform: "pointGenerations",
         min: 1,
@@ -96,11 +96,8 @@ export default class Kaleido extends Effect {
             control: "checkbox"
         }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
@@ -109,7 +106,7 @@ export default class Kaleido extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        color: "outputColor"
       }
     }
   ];

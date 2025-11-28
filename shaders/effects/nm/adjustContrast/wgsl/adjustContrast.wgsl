@@ -5,10 +5,6 @@ struct AdjustContrastParams {
     height : f32,
     channelCount : f32,
     amount : f32,
-    time : f32,
-    speed : f32,
-    _pad0 : f32,
-    _pad1 : f32,
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

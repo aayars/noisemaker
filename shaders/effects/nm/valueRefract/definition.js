@@ -42,6 +42,10 @@ export default class ValueRefract extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        frequency: "frequency"
+      },
       outputs: {
         color: "outputColor"
       }

@@ -40,7 +40,7 @@ export default class Sobel extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

@@ -7,8 +7,11 @@ const float NORMAL_Z_SCALE = 1.6;
 
 uniform sampler2D inputTex;
 uniform vec4 dims;
-uniform vec4 distribFreqTimeSpeed;
-uniform vec4 distMetricPad;
+uniform float distrib;
+uniform float freq;
+uniform float time;
+uniform float speed;
+uniform float distMetric;
 uniform sampler2D voronoiColorTexture;
 uniform sampler2D voronoiRangeTexture;
 

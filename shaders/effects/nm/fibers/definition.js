@@ -75,6 +75,11 @@ export default class Fibers extends Effect {
         agentTex: "globalAgentState",
         inputTex: "inputTex"
       },
+      uniforms: {
+        density: "density",
+        stride: "stride",
+        wormLifetime: "wormLifetime"
+      },
       outputs: {
         outAgents: "globalAgentState"
       }
@@ -109,6 +114,11 @@ export default class Fibers extends Effect {
       inputs: {
         inputTex: "inputTex",
         wormTexture: "globalTrailState"
+      },
+      uniforms: {
+        speed: "speed",
+        seed: "seed",
+        maskScale: "maskScale"
       },
       outputs: {
         fragColor: "outputColor"

@@ -34,8 +34,11 @@ export default class SimpleFrame extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        brightness: "brightness"
+      },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

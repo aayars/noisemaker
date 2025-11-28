@@ -55,6 +55,11 @@ export default class Grime extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        strength: "strength",
+        debugMode: "debugMode",
+        speed: "speed"
+      },
       outputs: {
         fragColor: "outputColor"
       }

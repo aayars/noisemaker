@@ -184,8 +184,19 @@ export default class Voronoi extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        diagramType: "diagramType",
+        nth: "nth",
+        distMetric: "distMetric",
+        sdfSides: "sdfSides",
+        alpha: "alpha",
+        withRefract: "withRefract",
+        pointFreq: "pointFreq",
+        pointDistrib: "pointDistrib",
+        pointDrift: "pointDrift"
+      },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

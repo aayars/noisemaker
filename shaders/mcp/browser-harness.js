@@ -94,6 +94,10 @@ export class BrowserHarness {
                 text.includes('[bindTextures]') || text.includes('DSL') ||
                 text.includes('[WebGPU') || text.includes('GPGPU') ||
                 text.includes('[passthrough]') || text.includes('[DEBUG]') ||
+                text.includes('[executePass]') || text.includes('[executeComputePass]') || text.includes('[copyBufferToTexture]') ||
+                text.includes('[createBindGroup]') || text.includes('[createUniformBuffer]') ||
+                text.includes('[compileEffect]') || text.includes('[expand]') || text.includes('[EXPANDER') ||
+                text.includes('[Pipeline') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }

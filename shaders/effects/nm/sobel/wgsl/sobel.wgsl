@@ -6,10 +6,6 @@ struct SobelParams {
     height : f32,
     distMetric : f32,
     alpha : f32,
-    time : f32,
-    _pad0 : f32,
-    _pad1 : f32,
-    _pad2 : f32,
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;
@@ -89,8 +85,9 @@ fn fs_main(@location(0) texCoord : vec2<f32>) -> @location(0) vec4<f32> {
     result.b = distance_metric(gx.b, gy.b, metric);
     result.a = 1.0;
     
-    // Normalize to reasonable range (Sobel max is about 4*sqrt(2) ≈ 5.66 per channel)
-    result = vec4<f32>(clamp(result.rgb / 4.0, vec3<f32>(0.0), vec3<f32>(1.0)), result.a);
+    // Boost edge visibility - multiply by 4 to make edges more visible on smooth inputs
+    // For high-contrast inputs this may clip, but clamp handles that
+    result = vec4<f32>(clamp(result.rgb * 4.0, vec3<f32>(0.0), vec3<f32>(1.0)), result.a);
     
     return result;
 }

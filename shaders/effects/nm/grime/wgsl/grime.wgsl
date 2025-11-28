@@ -4,8 +4,8 @@
 const CHANNEL_COUNT : u32 = 4u;
 
 struct GrimeParams {
-    size : vec4<f32>,        // width, height, channels, unused
-    timeSpeed : vec4<f32>,  // time, speed, strength, debug_mode
+    size : vec4<f32>,        // (width, height, channels, _)
+    timeSpeed : vec4<f32>,   // (time, speed, strength, debugMode)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

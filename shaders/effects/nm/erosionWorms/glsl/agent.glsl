@@ -78,14 +78,13 @@ float luminance_at(int x, int y, int width, int height) {
 }
 
 float blurred_luminance_at(int x, int y, int width, int height) {
-    const int kernelRadius = 2;
-    const int kernelSize = 5;
-    const float kernel[25] = float[25](
-        1.0, 4.0, 6.0, 4.0, 1.0,
-        4.0, 16.0, 24.0, 16.0, 4.0,
-        6.0, 24.0, 36.0, 24.0, 6.0,
-        4.0, 16.0, 24.0, 16.0, 4.0,
-        1.0, 4.0, 6.0, 4.0, 1.0
+    // 3x3 Gaussian blur for better performance
+    const int kernelRadius = 1;
+    const int kernelSize = 3;
+    const float kernel[9] = float[9](
+        1.0, 2.0, 1.0,
+        2.0, 4.0, 2.0,
+        1.0, 2.0, 1.0
     );
     float total = 0.0;
     float weight_sum = 0.0;

@@ -1,7 +1,8 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Vaseline - soft blur/glow toward edges using Chebyshev mask
+ * Vaseline - intense bloom at edges, blending to original toward center
+ * Uses same N-tap bloom approach as bloom effect, with edge mask
  */
 export default class Vaseline extends Effect {
   name = "Vaseline";
@@ -23,15 +24,35 @@ export default class Vaseline extends Effect {
     }
   };
 
+  // Internal texture for downsampled bloom data
+  textures = {
+    _vaselineDownsample: {
+      width: 64,
+      height: 64,
+      format: "rgba16float"
+    }
+  };
+
   passes = [
     {
-      name: "main",
-      program: "vaseline",
+      name: "downsample",
+      program: "downsample",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        fragColor: "_vaselineDownsample"
+      }
+    },
+    {
+      name: "upsample",
+      program: "upsample",
+      inputs: {
+        inputTex: "inputTex",
+        downsampleBuffer: "_vaselineDownsample"
+      },
+      outputs: {
+        fragColor: "outputColor"
       }
     }
   ];

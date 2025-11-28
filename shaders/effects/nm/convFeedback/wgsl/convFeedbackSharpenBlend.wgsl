@@ -7,12 +7,8 @@ struct VertexOutput {
 }
 
 @group(0) @binding(0) var blurredTex: texture_2d<f32>;
-@group(0) @binding(1) var blurredSampler: sampler;
-@group(0) @binding(2) var inputTex: texture_2d<f32>;
-@group(0) @binding(3) var inputSampler: sampler;
-@group(0) @binding(4) var selfTex: texture_2d<f32>;
-@group(0) @binding(5) var selfSampler: sampler;
-@group(0) @binding(6) var<uniform> alpha: f32;
+@group(0) @binding(1) var inputTex: texture_2d<f32>;
+@group(0) @binding(2) var<uniform> alpha: f32;
 
 const SHARPEN_KERNEL: array<f32, 9> = array<f32, 9>(
     0.0, -1.0, 0.0,
@@ -26,16 +22,6 @@ fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     let coord = vec2<i32>(in.position.xy);
     
     let input_val = textureLoad(inputTex, coord, 0);
-    let self_val = textureLoad(selfTex, coord, 0);
-    
-    // Check if self (previous frame) is empty - use input as base
-    let self_luma = dot(self_val.rgb, vec3<f32>(0.299, 0.587, 0.114));
-    let is_first_frame = self_luma < 0.001 && self_val.a < 0.001;
-    
-    if (is_first_frame) {
-        // First frame: just output the input
-        return input_val;
-    }
     
     // Apply 3x3 sharpen to blurred texture
     var sum = vec3<f32>(0.0);

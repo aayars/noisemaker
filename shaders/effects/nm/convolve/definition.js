@@ -50,7 +50,7 @@ export default class Convolve extends Effect {
 
   // Internal textures for convolution and min/max reduction
   textures = {
-    _convolved: { width: 1024, height: 1024, format: "rgba32f" },
+    _convolved: { format: "rgba32f" },
     _minmax1: { width: 32, height: 32, format: "rgba32f" },
     _minmaxGlobal: { width: 1, height: 1, format: "rgba32f" }
   };
@@ -61,6 +61,9 @@ export default class Convolve extends Effect {
       program: "convolveRender",
       inputs: {
         inputTex: "inputTex"
+      },
+      uniforms: {
+        kernel: "kernel"
       },
       outputs: {
         fragColor: "_convolved"
@@ -95,6 +98,11 @@ export default class Convolve extends Effect {
         convolvedTexture: "_convolved",
         minmaxTexture: "_minmaxGlobal",
         inputTex: "inputTex"
+      },
+      uniforms: {
+        kernel: "kernel",
+        withNormalize: "withNormalize",
+        alpha: "alpha"
       },
       outputs: {
         fragColor: "outputColor"

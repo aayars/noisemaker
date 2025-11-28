@@ -86,6 +86,13 @@ export default class Dla extends Effect {
       inputs: {
         gridTex: "globalGridState"
       },
+      uniforms: {
+        padding: "padding",
+        seedDensity: "seedDensity",
+        density: "density",
+        frame: "frame",
+        alpha: "alpha"
+      },
       outputs: {
         dlaOutColor: "globalGridState"
       }
@@ -96,6 +103,13 @@ export default class Dla extends Effect {
       inputs: {
         agentTex: "globalAgentState",
         gridTex: "globalGridState"
+      },
+      uniforms: {
+        padding: "padding",
+        speed: "speed",
+        frame: "frame",
+        density: "density",
+        seedDensity: "seedDensity"
       },
       outputs: {
         dlaOutColor: "globalAgentState"
@@ -110,6 +124,9 @@ export default class Dla extends Effect {
       inputs: {
         agentTex: "globalAgentState"
       },
+      uniforms: {
+        alpha: "alpha"
+      },
       outputs: {
         dlaOutColor: "globalGridState"
       }
@@ -120,6 +137,9 @@ export default class Dla extends Effect {
       inputs: {
         gridTex: "globalGridState",
         inputTex: "inputTex"
+      },
+      uniforms: {
+        alpha: "alpha"
       },
       outputs: {
         dlaOutColor: "outputColor"

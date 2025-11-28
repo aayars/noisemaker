@@ -70,6 +70,10 @@ export default class ColorMap extends Effect {
         clutTexture: "tex",
         statsTex: "statsTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        horizontal: "horizontal"
+      },
       outputs: {
         fragColor: "outputColor"
       }

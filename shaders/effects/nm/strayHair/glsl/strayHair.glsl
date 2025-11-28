@@ -78,7 +78,10 @@ void main() {
     float hairMask = 0.0;
     float brightness = 0.0;
     
-    float baseSeed = seed + floor(time * 0.1) * 100.0;
+    // Use seed to vary hair generation
+    // Add seed directly to hash inputs to ensure different outputs
+    float seedOffset = seed * 7.919;  // Prime multiplier for better distribution
+    float baseSeed = seedOffset + floor(time * 0.1) * 13.37;
     
     // Number of hairs based on image size
     int numHairs = 15;

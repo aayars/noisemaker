@@ -2,10 +2,10 @@
 precision highp float;
 precision highp int;
 
-// GPGPU Pass 2: Find brightest pixel x-coordinate per row
+// GPGPU Pass 2: Find brightest pixel x-coordinate per row (optimized)
 // Input: luminance texture (R = luminance)
 // Output: R = brightest x (normalized), G = max luminance, B = 0, A = 1
-// This pass uses horizontal reduction - each pixel outputs info about its row
+// Uses sparse sampling for O(1) approximate result
 
 uniform sampler2D lumTex;
 
@@ -17,15 +17,17 @@ void main() {
     int y = coord.y;
     int width = size.x;
     
-    // Find brightest pixel in this row
+    // Use sparse sampling to find approximate brightest pixel
+    const int NUM_SAMPLES = 32;
     float maxLum = -1.0;
     int brightestX = 0;
     
-    for (int i = 0; i < width; i++) {
-        float lum = texelFetch(lumTex, ivec2(i, y), 0).r;
+    for (int s = 0; s < NUM_SAMPLES; s++) {
+        int sampleX = (s * width) / NUM_SAMPLES;
+        float lum = texelFetch(lumTex, ivec2(sampleX, y), 0).r;
         if (lum > maxLum) {
             maxLum = lum;
-            brightestX = i;
+            brightestX = sampleX;
         }
     }
     

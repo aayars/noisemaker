@@ -22,10 +22,8 @@ const KEY_MAX_VALUE : f32 = 16777215.0;
 const INTERNAL_ITERATIONS : u32 = 12u;
 
 struct JpegDecimateParams {
-    // Width, height, channel count, unused.
-    size : vec4<f32>,
-    // time, speed, unused, unused.
-    timeSpeed : vec4<f32>,
+    size : vec4<f32>,      // (width, height, channels, _)
+    timeSpeed : vec4<f32>, // (time, speed, _, _)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

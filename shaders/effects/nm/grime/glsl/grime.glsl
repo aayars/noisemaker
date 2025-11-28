@@ -91,9 +91,12 @@ float simple_multires(
     float total_weight = 0.0;
     float accum = 0.0;
     uint octave = 0u;
+    
+    // Cap octaves to 4 for performance
+    uint max_octaves = min(octaves, 4u);
 
-    for (uint i = 0u; i < 100u; i++) { // Safety break
-        if (octave >= octaves) {
+    for (uint i = 0u; i < 4u; i++) {
+        if (octave >= max_octaves) {
             break;
         }
 

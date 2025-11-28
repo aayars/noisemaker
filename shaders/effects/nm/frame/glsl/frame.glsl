@@ -310,10 +310,11 @@ void main() {
     float scratch_lift = clamp01(scratches * 8.0);
     chroma = max(chroma, vec3(scratch_lift));
 
-    float grain_strength = 0.35;
+    // Grain strength scales with speed for responsive uniform testing
+    float grain_strength = 0.35 * (0.5 + speed_value * 0.5);
     vec3 grain_seed = vec3(
         uv * vec2(width_f, height_f),
-        time_value * speed_value + seed_value * 13.0
+        time_value * speed_value + seed_value * 13.0 + speed_value * 7.0
     );
     float grain_noise = (
         hash31(grain_seed + vec3(0.37, 0.11, 0.53)) - 0.5

@@ -470,8 +470,8 @@ export function validate(ast) {
                     pushDiag('S005', original)
                     continue
                 }
-                const starterInfo = getStarterInfo(call)
-                const starterHasInput = !!(starterInfo && current !== null)
+                // Use the already-resolved isStarter, not getStarterInfo which uses the bare name
+                const starterHasInput = !!(isStarter && current !== null)
                 const fromInput = starterHasInput ? null : current
                 if (starterHasInput) {
                     pushDiag('S005', original)

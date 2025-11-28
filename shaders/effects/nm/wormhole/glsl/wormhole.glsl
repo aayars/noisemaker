@@ -31,8 +31,9 @@ void main() {
     // Calculate flow angle based on luminance
     float angle = lum * TAU * kink + time * speed;
     
-    // Calculate offset
-    float stridePixels = stride * 0.1;
+    // Calculate offset - stride controls displacement in pixels
+    // With default stride=0.5, this gives roughly 5-10 pixel offset
+    float stridePixels = stride * 10.0;
     float offsetX = (cos(angle) + 1.0) * stridePixels;
     float offsetY = (sin(angle) + 1.0) * stridePixels;
     

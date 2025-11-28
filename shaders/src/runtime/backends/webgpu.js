@@ -153,7 +153,8 @@ export class WebGPUBackend extends Backend {
 
     createTexture(id, spec) {
         const format = this.resolveFormat(spec.format)
-        const usage = this.resolveUsage(spec.usage || ['render', 'sample'])
+        // Include copySrc in default usage to allow readback for testing/debugging
+        const usage = this.resolveUsage(spec.usage || ['render', 'sample', 'copySrc'])
         
         const texture = this.device.createTexture({
             size: {
@@ -173,7 +174,8 @@ export class WebGPUBackend extends Backend {
             width: spec.width,
             height: spec.height,
             format: spec.format,
-            gpuFormat: format
+            gpuFormat: format,
+            usage  // Store the usage flags for later checks
         })
         
         return texture
@@ -600,6 +602,10 @@ export class WebGPUBackend extends Backend {
      * Handles structs where fields are accessed as u.fieldName (not u.field.component).
      * Calculates proper WGSL alignment for each field.
      * 
+     * NOTE: This function skips structs that have comment annotations with component names
+     * like `// (width, height, channels, frequency)` - those should be handled by
+     * parseNamedStructLayout instead which maps individual uniform names to struct components.
+     * 
      * @param {string} source - WGSL shader source
      * @returns {Array<{name: string, offset: number, size: number, type: string}>|null}
      */
@@ -616,6 +622,14 @@ export class WebGPUBackend extends Backend {
         
         // Skip structs that contain array fields - they use different packing
         if (/\barray\s*</.test(structBody)) {
+            return null
+        }
+        
+        // Skip structs that have comment annotations with component names
+        // These should be handled by parseNamedStructLayout which properly maps
+        // individual uniform names (width, height, time, etc.) to struct field components
+        // Pattern: // (name1, name2, name3, name4)
+        if (/\/\/\s*\([^)]+\)/.test(structBody)) {
             return null
         }
         
@@ -955,6 +969,7 @@ export class WebGPUBackend extends Backend {
 
     executePass(pass, state) {
         const program = this.programs.get(pass.program)
+        
         
         if (!program) {
             throw {
@@ -1347,6 +1362,19 @@ export class WebGPUBackend extends Backend {
         passEncoder.setBindGroup(0, bindGroup)
         passEncoder.dispatchWorkgroups(workgroups[0], workgroups[1], workgroups[2])
         passEncoder.end()
+        
+        // Check if this compute pass writes to an output buffer and needs a buffer-to-texture copy
+        // Support both naming conventions: output_buffer (snake_case) and outputBuffer (camelCase)
+        const outputBufferBinding = program.bindings?.find(b => 
+            (b.name === 'output_buffer' || b.name === 'outputBuffer') && b.type === 'storage'
+        )
+        if (outputBufferBinding && pass.outputs) {
+            // Get the output texture to copy to
+            const outputId = pass.outputs.color || pass.outputs.fragColor || Object.values(pass.outputs)[0]
+            if (outputId) {
+                this.copyBufferToTexture(state, outputId, outputBufferBinding.name)
+            }
+        }
     }
 
     resolveWorkgroups(pass, state) {
@@ -1409,6 +1437,7 @@ export class WebGPUBackend extends Backend {
         // Use the passed pipeline or fall back to program's default pipeline
         const targetPipeline = pipeline || program.pipeline
         
+        
         // For multi-entry-point compute shaders, filter bindings based on pass inputs/outputs
         // This prevents including bindings that are optimized out by WebGPU for this entry point
         if (pass.entryPoint && program.isCompute) {
@@ -1430,6 +1459,13 @@ export class WebGPUBackend extends Backend {
             
             // Always include uniform buffer (params) - it's always needed
             neededBindingNames.add('params')
+            
+            // Always include storage buffers - they're used for compute output
+            for (const binding of bindings) {
+                if (binding.type === 'storage') {
+                    neededBindingNames.add(binding.name)
+                }
+            }
             
             // Filter bindings to only those explicitly used by this pass
             bindings = bindings.filter(b => neededBindingNames.has(b.name))
@@ -1458,7 +1494,8 @@ export class WebGPUBackend extends Backend {
                     const feedbackObj = state.feedbackSurfaces?.[feedbackName]
                     textureView = feedbackObj?.view
                 } else {
-                    textureView = this.textures.get(texId)?.view
+                    const tex = this.textures.get(texId)
+                    textureView = tex?.view
                 }
                 
                 if (textureView) {
@@ -1517,6 +1554,7 @@ export class WebGPUBackend extends Backend {
                     binding.typeDecl !== 'u32' && binding.typeDecl !== 'bool' &&
                     !binding.typeDecl.startsWith('vec') && !binding.typeDecl.startsWith('mat')
 
+                
                 if (isStruct) {
                     // This looks like a struct - create full uniform buffer
                     // Pass program to access packedUniformLayout
@@ -1575,53 +1613,45 @@ export class WebGPUBackend extends Backend {
             return this.createLegacyBindGroup(pass, program, state)
         }
         
+        
         // Create bind group using the target pipeline's layout
         // Handle multi-entry-point shaders where some bindings may be optimized out
-        try {
-            const bindGroup = this.device.createBindGroup({
-                layout: targetPipeline.getBindGroupLayout(0),
-                entries
-            })
-            return bindGroup
-        } catch (err) {
-            // Check if error is about binding index not present in layout
-            const errStr = err.message || String(err)
-            const bindingMatch = /binding index (\d+) not present/.exec(errStr)
-            
-            if (bindingMatch) {
-                // Remove the problematic binding and retry
-                const problemBinding = parseInt(bindingMatch[1], 10)
-                const filteredEntries = entries.filter(e => e.binding !== problemBinding)
+        // Use a loop to remove all problematic bindings
+        let currentEntries = entries.slice()  // Copy entries array
+        const maxRetries = 10
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const bindGroup = this.device.createBindGroup({
+                    layout: targetPipeline.getBindGroupLayout(0),
+                    entries: currentEntries
+                })
+                return bindGroup
+            } catch (err) {
+                const errStr = err.message || String(err)
+                const bindingMatch = /binding index (\d+) not present/.exec(errStr)
                 
-                if (filteredEntries.length < entries.length) {
-                    // Recursively retry with filtered entries
-                    try {
-                        return this.device.createBindGroup({
-                            layout: targetPipeline.getBindGroupLayout(0),
-                            entries: filteredEntries
-                        })
-                    } catch (retryErr) {
-                        // If still failing, try removing more bindings
-                        const retryStr = retryErr.message || String(retryErr)
-                        const retryMatch = /binding index (\d+) not present/.exec(retryStr)
-                        if (retryMatch) {
-                            const nextProblem = parseInt(retryMatch[1], 10)
-                            const moreFiltered = filteredEntries.filter(e => e.binding !== nextProblem)
-                            return this.device.createBindGroup({
-                                layout: targetPipeline.getBindGroupLayout(0),
-                                entries: moreFiltered
-                            })
-                        }
-                        throw retryErr
+                if (bindingMatch) {
+                    const problemBinding = parseInt(bindingMatch[1], 10)
+                    const beforeLength = currentEntries.length
+                    currentEntries = currentEntries.filter(e => e.binding !== problemBinding)
+                    
+                    // If we removed an entry, try again
+                    if (currentEntries.length < beforeLength) {
+                        continue
                     }
                 }
+                
+                // If we can't fix the error, throw it
+                console.error('Failed to create bind group:', err)
+                console.log('Entries:', currentEntries)
+                console.log('Bindings:', bindings)
+                throw err
             }
-            
-            console.error('Failed to create bind group:', err)
-            console.log('Entries:', entries)
-            console.log('Bindings:', bindings)
-            throw err
         }
+        
+        // If we exhausted retries, throw an error
+        throw new Error('Failed to create bind group after multiple retries')
     }
 
     /**
@@ -1681,8 +1711,8 @@ export class WebGPUBackend extends Backend {
         // Determine buffer size based on binding type and context
         let byteSize = 0
         
-        // For output_buffer: 4 floats per pixel (RGBA) * width * height
-        if (bufferName === 'output_buffer') {
+        // For output buffers (both naming conventions): 4 floats per pixel (RGBA) * width * height
+        if (bufferName === 'output_buffer' || bufferName === 'outputBuffer') {
             const width = state?.screenWidth || 1280
             const height = state?.screenHeight || 720
             byteSize = width * height * 4 * 4 // 4 channels * 4 bytes per float
@@ -2084,8 +2114,31 @@ export class WebGPUBackend extends Backend {
         // Component offset mapping
         const componentOffset = { x: 0, y: 4, z: 8, w: 12 }
         
+        // Helper to resolve uniform value with built-in aliases
+        const resolveUniformValue = (name, uniforms) => {
+            // Direct lookup first
+            if (uniforms[name] !== undefined) {
+                return uniforms[name]
+            }
+            
+            // Built-in aliases for common uniforms
+            // Many shader structs use width/height but pipeline provides resolution array
+            if (name === 'width' && uniforms.resolution) {
+                return uniforms.resolution[0]
+            }
+            if (name === 'height' && uniforms.resolution) {
+                return uniforms.resolution[1]
+            }
+            // Channels is typically 4 for RGBA
+            if (name === 'channels') {
+                return 4.0
+            }
+            
+            return undefined
+        }
+        
         for (const entry of layoutArray) {
-            const value = uniforms[entry.name]
+            const value = resolveUniformValue(entry.name, uniforms)
             if (value === undefined || value === null) {
                 continue
             }
@@ -2165,8 +2218,31 @@ export class WebGPUBackend extends Backend {
         const buffer = new ArrayBuffer(Math.max(bufferSize, 16))
         const view = new DataView(buffer)
         
+        // Helper to resolve uniform value with built-in aliases
+        const resolveUniformValue = (name, uniforms) => {
+            // Direct lookup first
+            if (uniforms[name] !== undefined) {
+                return uniforms[name]
+            }
+            
+            // Built-in aliases for common uniforms
+            // Many shader structs use width/height but pipeline provides resolution array
+            if (name === 'width' && uniforms.resolution) {
+                return uniforms.resolution[0]
+            }
+            if (name === 'height' && uniforms.resolution) {
+                return uniforms.resolution[1]
+            }
+            // Channels/channelCount is typically 4 for RGBA
+            if (name === 'channels' || name === 'channelCount') {
+                return 4.0
+            }
+            
+            return undefined
+        }
+        
         for (const entry of layout) {
-            const value = uniforms[entry.name]
+            const value = resolveUniformValue(entry.name, uniforms)
             if (value === undefined || value === null) {
                 continue
             }
@@ -2379,6 +2455,178 @@ export class WebGPUBackend extends Backend {
                 { binding: 1, resource: sampler }
             ]
         })
+    }
+
+    /**
+     * Get or create the buffer-to-texture compute pipeline.
+     * This copies data from a storage buffer (output_buffer) to a storage texture.
+     */
+    /**
+     * Get the render pipeline for copying storage buffer data to a texture.
+     * Uses a fullscreen quad with a fragment shader that reads from the buffer.
+     * @param {string} format - The target texture format
+     */
+    getBufferToTextureRenderPipeline(format) {
+        const cacheKey = `bufferToTexture_${format}`
+        if (this._bufferToTextureRenderPipelines?.has(cacheKey)) {
+            return this._bufferToTextureRenderPipelines.get(cacheKey)
+        }
+        
+        if (!this._bufferToTextureRenderPipelines) {
+            this._bufferToTextureRenderPipelines = new Map()
+        }
+        
+        const shaderSource = `
+            struct BufferToTextureParams {
+                width: u32,
+                height: u32,
+                _pad0: u32,
+                _pad1: u32,
+            }
+            
+            @group(0) @binding(0) var<storage, read> input_buffer: array<f32>;
+            @group(0) @binding(1) var<uniform> params: BufferToTextureParams;
+            
+            struct VertexOutput {
+                @builtin(position) position: vec4<f32>,
+            }
+            
+            @vertex
+            fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+                // Fullscreen triangle
+                var pos = array<vec2<f32>, 3>(
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>(3.0, -1.0),
+                    vec2<f32>(-1.0, 3.0)
+                );
+                
+                var output: VertexOutput;
+                output.position = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
+                return output;
+            }
+            
+            @fragment
+            fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+                // Use fragment position directly (in pixels)
+                let x = u32(input.position.x);
+                let y = u32(input.position.y);
+                
+                if (x >= params.width || y >= params.height) {
+                    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+                }
+                
+                let pixel_idx = y * params.width + x;
+                let base = pixel_idx * 4u;
+                
+                return vec4<f32>(
+                    input_buffer[base + 0u],
+                    input_buffer[base + 1u],
+                    input_buffer[base + 2u],
+                    input_buffer[base + 3u]
+                );
+            }
+        `
+        
+        const module = this.device.createShaderModule({ code: shaderSource })
+        
+        const pipeline = this.device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module,
+                entryPoint: 'vs_main'
+            },
+            fragment: {
+                module,
+                entryPoint: 'fs_main',
+                targets: [{ format }]
+            },
+            primitive: {
+                topology: 'triangle-list'
+            }
+        })
+        
+        this._bufferToTextureRenderPipelines.set(cacheKey, pipeline)
+        return pipeline
+    }
+    
+    /**
+     * Copy data from output_buffer storage buffer to a texture.
+     * Uses a render pass with a fullscreen triangle to read from the buffer
+     * and write to the texture via fragment shader output.
+     */
+    copyBufferToTexture(state, outputId, bufferName = 'output_buffer') {
+        // Get the output storage buffer by name
+        const outputBuffer = this.storageBuffers.get(bufferName)
+        if (!outputBuffer) {
+            console.warn(`[copyBufferToTexture] ${bufferName} not found`)
+            return
+        }
+        
+        // Resolve the output texture
+        let outputTex = null
+        const surfaceName = this.parseGlobalName(outputId)
+        if (surfaceName) {
+            const writeTexId = state.writeSurfaces?.[surfaceName]
+            if (writeTexId) {
+                outputTex = this.textures.get(writeTexId)
+            }
+        }
+        if (!outputTex && outputId === 'outputColor') {
+            // Try to get o0's write texture
+            const writeTexId = state.writeSurfaces?.['o0']
+            if (writeTexId) {
+                outputTex = this.textures.get(writeTexId)
+            }
+        }
+        if (!outputTex) {
+            outputTex = this.textures.get(outputId)
+        }
+        
+        if (!outputTex) {
+            console.warn(`[copyBufferToTexture] Output texture not found: ${outputId}`)
+            return
+        }
+        
+        const width = state.screenWidth || outputTex.width
+        const height = state.screenHeight || outputTex.height
+        
+        // Create params uniform buffer
+        const paramsData = new Uint32Array([width, height, 0, 0])
+        const paramsBuffer = this.device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        })
+        this.queue.writeBuffer(paramsBuffer, 0, paramsData)
+        
+        // Get the pipeline for this texture format
+        const format = outputTex.gpuFormat || 'rgba8unorm'
+        const pipeline = this.getBufferToTextureRenderPipeline(format)
+        
+        // Create bind group
+        const bindGroup = this.device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: outputBuffer } },
+                { binding: 1, resource: { buffer: paramsBuffer } }
+            ]
+        })
+        
+        // Execute the render pass
+        const passEncoder = this.commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: outputTex.view,
+                loadOp: 'clear',
+                storeOp: 'store',
+                clearValue: { r: 0, g: 0, b: 0, a: 1 }
+            }]
+        })
+        passEncoder.setPipeline(pipeline)
+        passEncoder.setBindGroup(0, bindGroup)
+        passEncoder.draw(3, 1, 0, 0)  // Fullscreen triangle
+        passEncoder.end()
+        
+        // Clean up params buffer
+        this.activeUniformBuffers.push(paramsBuffer)
     }
 
     resize(_width, _height) {

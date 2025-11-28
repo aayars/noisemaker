@@ -92,14 +92,16 @@ function extractTextureSpecs(passes, options, textureSpecs = {}) {
                             width: effectSpec.width || defaultWidth,
                             height: effectSpec.height || defaultHeight,
                             format: effectSpec.format || 'rgba16f',
-                            usage: ['render', 'sample']
+                            // Include copySrc to allow readback for testing/debugging
+                            usage: ['render', 'sample', 'copySrc']
                         })
                     } else {
                         textures.set(texId, {
                             width: defaultWidth,
                             height: defaultHeight,
                             format: 'rgba16f',
-                            usage: ['render', 'sample']
+                            // Include copySrc to allow readback for testing/debugging
+                            usage: ['render', 'sample', 'copySrc']
                         })
                     }
                 }

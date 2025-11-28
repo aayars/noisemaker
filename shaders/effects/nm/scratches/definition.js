@@ -56,8 +56,12 @@ export default class Scratches extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        speed: "speed",
+        seed: "seed"
+      },
       outputs: {
-        color: "scratchMask"
+        fragColor: "scratchMask"
       }
     },
     {
@@ -67,8 +71,13 @@ export default class Scratches extends Effect {
         inputTex: "inputTex",
         maskTexture: "scratchMask"
       },
+      uniforms: {
+        speed: "speed",
+        seed: "seed",
+        enabled: "enabled"
+      },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

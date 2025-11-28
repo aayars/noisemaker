@@ -52,8 +52,14 @@ export default class ScanlineError extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        speed: "speed",
+        timeOffset: "timeOffset",
+        enabled: "enabled",
+        time: "time"
+      },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

@@ -66,8 +66,14 @@ export default class Wormhole extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        kink: "kink",
+        stride: "stride",
+        alpha: "alpha",
+        speed: "speed"
+      },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

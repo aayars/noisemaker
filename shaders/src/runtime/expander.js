@@ -1,12 +1,15 @@
 import { getEffect } from './registry.js';
 import { stdEnums } from '../lang/std_enums.js';
 
+console.log('[EXPANDER MODULE LOADED]');
+
 /**
  * Expands the Logical Graph (plans) into a Render Graph (passes).
  * @param {object} compilationResult { plans, diagnostics }
  * @returns {object} { passes, errors, programs, textureSpecs }
  */
 export function expand(compilationResult) {
+    console.log('[expand] called with', compilationResult?.plans?.length, 'plans');
     const passes = [];
     const errors = [];
     const programs = {};
@@ -33,10 +36,14 @@ export function expand(compilationResult) {
         // We need to track the "current" output texture as we traverse the chain
         let currentInput = null;
 
+        console.log('[expand] plan chain:', plan.chain.map(s => s.op).join(' -> '));
+        
         for (const step of plan.chain) {
             const effectName = step.op;
             const effectDef = getEffect(effectName);
 
+            console.log('[expand] step:', effectName, 'effectDef:', effectDef ? 'found' : 'NOT FOUND');
+            
             if (!effectDef) {
                 errors.push({ message: `Effect '${effectName}' not found`, step });
                 continue;

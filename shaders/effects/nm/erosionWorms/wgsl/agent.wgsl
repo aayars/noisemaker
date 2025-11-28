@@ -85,19 +85,18 @@ fn luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
 }
 
 fn blurred_luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
-    let kernel = array<array<f32, 5>, 5>(
-        array<f32, 5>(1.0, 4.0, 6.0, 4.0, 1.0),
-        array<f32, 5>(4.0, 16.0, 24.0, 16.0, 4.0),
-        array<f32, 5>(6.0, 24.0, 36.0, 24.0, 6.0),
-        array<f32, 5>(4.0, 16.0, 24.0, 16.0, 4.0),
-        array<f32, 5>(1.0, 4.0, 6.0, 4.0, 1.0),
+    // 3x3 Gaussian blur for better performance (matches GLSL)
+    let kernel = array<array<f32, 3>, 3>(
+        array<f32, 3>(1.0, 2.0, 1.0),
+        array<f32, 3>(2.0, 4.0, 2.0),
+        array<f32, 3>(1.0, 2.0, 1.0),
     );
     var total: f32 = 0.0;
     var weight_sum: f32 = 0.0;
-    for (var offset_y: i32 = -2; offset_y <= 2; offset_y = offset_y + 1) {
-        for (var offset_x: i32 = -2; offset_x <= 2; offset_x = offset_x + 1) {
+    for (var offset_y: i32 = -1; offset_y <= 1; offset_y = offset_y + 1) {
+        for (var offset_x: i32 = -1; offset_x <= 1; offset_x = offset_x + 1) {
             let sample_val = luminance_at(x + offset_x, y + offset_y, width, height);
-            let weight = kernel[offset_y + 2][offset_x + 2];
+            let weight = kernel[offset_y + 1][offset_x + 1];
             total = total + sample_val * weight;
             weight_sum = weight_sum + weight;
         }

@@ -13,8 +13,6 @@ struct FinalParams {
     channelCount : f32,
     alpha : f32,
     sobel_metric : f32,
-    time : f32,
-    speed : f32,
 };
 
 @group(0) @binding(0) var baseTex : texture_2d<f32>;

@@ -89,8 +89,16 @@ void main() {
 
     vec4 srcSample = texture(inputTex, v_texCoord);
 
-    vec3 brightness_vec = vec3(brightness);
-    vec3 blended_rgb = mix(srcSample.xyz, brightness_vec, vec3(mask));
+    // Brightness affects both the frame color and blends into the image
+    // Scale brightness from [-1,1] to usable range, affecting the blend more directly
+    float brightnessScaled = brightness * 0.5 + 0.5;  // Map to [0,1]
+    vec3 frameColor = vec3(brightnessScaled);
+    
+    // Apply frame blend - mask determines how much frame shows
+    // Also apply subtle brightness influence to non-frame area
+    vec3 blended_rgb = mix(srcSample.xyz, frameColor, mask);
+    blended_rgb = blended_rgb + vec3(brightness * 0.1 * (1.0 - mask));  // Subtle brightness effect on image
+    blended_rgb = clamp(blended_rgb, 0.0, 1.0);
 
-    fragColor = vec4(blended_rgb.x, blended_rgb.y, blended_rgb.z, srcSample.w);
+    fragColor = vec4(blended_rgb, srcSample.w);
 }

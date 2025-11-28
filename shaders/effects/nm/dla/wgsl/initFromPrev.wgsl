@@ -1,54 +1,67 @@
-// DLA - Init Pass
-// Copy previous frame texture to output buffer, preserving the cluster
+// DLA - Init From Prev Pass (decay grid)
+// Fragment shader matching GLSL initFromPrev.glsl
 
-struct DlaParams {
-    size_padding : vec4<f32>,
-    density_time : vec4<f32>,
-    speed_padding : vec4<f32>,
-};
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
 
-@group(0) @binding(1) var<storage, read_write> output_buffer : array<f32>;
-@group(0) @binding(2) var<uniform> params : DlaParams;
-@group(0) @binding(3) var prev_texture : texture_2d<f32>;
-@group(0) @binding(4) var<storage, read_write> glider_buffer : array<f32>;
+@group(0) @binding(0) var gridTex: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> padding: f32;
+@group(0) @binding(2) var<uniform> seedDensity: f32;
+@group(0) @binding(3) var<uniform> density: f32;
+@group(0) @binding(4) var<uniform> frame: i32;
+@group(0) @binding(5) var<uniform> alpha: f32;
 
-@compute @workgroup_size(8, 8, 1)
-fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-    // Get dimensions from params, NOT from texture (they may differ)
-    let width : u32 = u32(params.size_padding.x);
-    let height : u32 = u32(params.size_padding.y);
+fn hash11(p_in: f32) -> f32 {
+    var p = fract(p_in * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+}
+
+fn hash21(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+    p3 += dot(p3, vec3<f32>(p3.z, p3.y, p3.x) + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+fn seedTint(t: f32) -> vec3<f32> {
+    return vec3<f32>(1.0, mix(0.12, 0.35, t), mix(0.75, 0.95, t));
+}
+
+@fragment
+fn main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let dims = vec2<f32>(textureDimensions(gridTex));
+    let coord = vec2<i32>(in.position.xy);
+    let uv = (vec2<f32>(coord) + 0.5) / dims;
     
-    if (gid.x >= width || gid.y >= height) {
-        return;
+    let prev = textureLoad(gridTex, coord, 0);
+    
+    // Controlled decay to keep the structure alive
+    let padBias = clamp(padding / 8.0, 0.0, 1.0);
+    let decay = mix(0.90, 0.988, clamp(alpha + padBias * 0.35, 0.0, 1.0));
+    var color = prev.rgb * decay;
+    var energy = prev.a * decay;
+    
+    let rng = hash21(vec2<f32>(coord) + f32(frame) * 17.0);
+    let radial = smoothstep(0.18, 0.02, length(uv - 0.5));
+    var seedWeight = 0.0;
+    
+    if (frame <= 1) {
+        let densityScale = clamp(seedDensity * 900.0, 0.0, 0.98);
+        seedWeight = step(1.0 - densityScale, rng) * radial;
+    } else if (energy < 0.015) {
+        let dripChance = clamp(seedDensity * (3.0 + density * 2.5), 0.0, 0.4);
+        seedWeight = step(1.0 - dripChance, rng * 0.82) * radial * 0.6;
     }
     
-    let x : u32 = gid.x;
-    let y : u32 = gid.y;
-    let p : u32 = y * width + x;
-    let base : u32 = p * 4u;
-    
-    // Copy ONLY cluster pixels (magenta) from prev_texture to output_buffer
-    // Filter out everything else (gliders, input texture, etc.)
-    let c : vec4<f32> = textureLoad(prev_texture, vec2<u32>(x, y), 0);
-    
-    // Check for pure magenta: R high, G low, B high
-    let is_magenta : bool = (c.r > 0.5) && (c.g < 0.5) && (c.b > 0.5);
-    
-    if (is_magenta) {
-        output_buffer[base + 0u] = 1.0;
-        output_buffer[base + 1u] = 0.0;
-        output_buffer[base + 2u] = 1.0;
-        output_buffer[base + 3u] = 1.0;
-    } else {
-        output_buffer[base + 0u] = 0.0;
-        output_buffer[base + 1u] = 0.0;
-        output_buffer[base + 2u] = 0.0;
-        output_buffer[base + 3u] = 0.0;
+    if (seedWeight > 0.0) {
+        let tint = seedTint(hash11(rng * 19.31));
+        let strength = mix(0.25, 0.85, seedWeight);
+        color = max(color, tint * strength);
+        energy = max(energy, strength);
     }
-
-    // Clear glider overlay buffer each frame
-    glider_buffer[base + 0u] = 0.0;
-    glider_buffer[base + 1u] = 0.0;
-    glider_buffer[base + 2u] = 0.0;
-    glider_buffer[base + 3u] = 0.0;
+    
+    return vec4<f32>(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), clamp(energy, 0.0, 1.0));
 }

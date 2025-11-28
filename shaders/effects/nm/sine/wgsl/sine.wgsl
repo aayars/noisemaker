@@ -6,10 +6,7 @@ struct SineParams {
     height : f32,
     channelCount : f32,
     amount : f32,
-    time : f32,
-    speed : f32,
     rgb : f32,
-    _pad0 : f32,
 };
 
 const CHANNEL_COUNT : u32 = 4u;

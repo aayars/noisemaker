@@ -46,6 +46,10 @@ export default class Snow extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        alpha: "alpha",
+        speed: "speed"
+      },
       outputs: {
         fragColor: "outputColor"
       }

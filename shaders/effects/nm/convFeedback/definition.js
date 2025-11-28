@@ -58,6 +58,9 @@ export default class ConvFeedback extends Effect {
         blurredTex: "_blurred",
         inputTex: "inputTex"    // Original input for blending
       },
+      uniforms: {
+        alpha: "alpha"
+      },
       outputs: {
         fragColor: "outputColor"
       }

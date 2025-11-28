@@ -43,6 +43,10 @@ export default class Grain extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        alpha: "alpha",
+        speed: "speed"
+      },
       outputs: {
         fragColor: "outputColor"
       }

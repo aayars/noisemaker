@@ -5,11 +5,6 @@ struct RidgeParams {
     width : f32,
     height : f32,
     channels : f32,
-    time : f32,
-    speed : f32,
-    _pad0 : f32,
-    _pad1 : f32,
-    _pad2 : f32,
 };
 
 const CHANNEL_COUNT : u32 = 4u;

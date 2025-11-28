@@ -7,8 +7,8 @@ const TAU : f32 = 6.28318530717958647692;
 const CHANNEL_COUNT : u32 = 4u;
 
 struct VortexParams {
-    size_displacement : vec4<f32>,  // width, height, channels, displacement
-    timeSpeed : vec4<f32>,         // time, speed, _pad0, _pad1
+    size_displacement : vec4<f32>,  // (width, height, channels, displacement)
+    timeSpeed : vec4<f32>,          // (time, speed, _, _)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

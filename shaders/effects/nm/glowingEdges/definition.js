@@ -42,6 +42,10 @@ export default class GlowingEdges extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        sobelMetric: "sobelMetric",
+        alpha: "alpha"
+      },
       outputs: {
         fragColor: "outputColor"
       }

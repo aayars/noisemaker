@@ -43,6 +43,12 @@ export default class FalseColor extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        horizontal: "horizontal",
+        time: "time",
+        speed: "speed"
+      },
       outputs: {
         outputBuffer: "outputColor"
       }

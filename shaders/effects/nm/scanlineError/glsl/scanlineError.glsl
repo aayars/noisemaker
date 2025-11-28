@@ -253,7 +253,8 @@ void main() {
         BASE_SEED_LINE,
         TIME_SEED_LINE
     );
-    line_noise = max(line_noise - 0.5, 0.0);
+    // Threshold noise - reduce from 0.5 to 0.25 to make effect more visible
+    line_noise = max(line_noise - 0.25, 0.0) * 2.0;
 
     float swerve_noise = compute_exponential_noise(
         swerve_coord,
@@ -263,7 +264,8 @@ void main() {
         BASE_SEED_SWERVE,
         TIME_SEED_SWERVE
     );
-    swerve_noise = max(swerve_noise - 0.5, 0.0);
+    // Threshold noise - reduce from 0.5 to 0.25 to make effect more visible
+    swerve_noise = max(swerve_noise - 0.25, 0.0) * 2.0;
 
     float line_weighted = line_noise * swerve_noise;
     float swerve_weight = swerve_noise * 2.0;

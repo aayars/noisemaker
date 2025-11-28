@@ -6,9 +6,6 @@ struct VignetteParams {
     channelCount : f32,
     brightness : f32,
     alpha : f32,
-    time : f32,
-    speed : f32,
-    _pad0 : f32,
 };
 
 const CHANNEL_COUNT : u32 = 4u;

@@ -62,8 +62,11 @@ void main() {
     result.b = distance_metric(gx.b, gy.b, metric);
     result.a = 1.0;
     
-    // Normalize to reasonable range (Sobel max is about 4*sqrt(2) ≈ 5.66 per channel)
-    result.rgb = clamp(result.rgb / 4.0, 0.0, 1.0);
+    // Boost edge visibility - multiply by 4 to make edges more visible on smooth inputs
+    // For high-contrast inputs this may clip, but clamp handles that
+    result.rgb = clamp(result.rgb * 4.0, 0.0, 1.0);
     
-    fragColor = result;
+    // Blend with original input based on alpha
+    vec4 original = texture(inputTex, v_texCoord);
+    fragColor = mix(original, result, alpha);
 }

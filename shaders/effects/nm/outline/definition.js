@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Outline
- * /shaders/effects/outline/outline.wgsl
+ * Multi-pass edge detection that darkens the base image where edges are detected
  */
 export default class Outline extends Effect {
   name = "Outline";
@@ -27,20 +27,43 @@ export default class Outline extends Effect {
             control: "checkbox"
         }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
+  textures = {
+    outlineValueMap: { width: "100%", height: "100%", format: "rgba16f" },
+    outlineEdges: { width: "100%", height: "100%", format: "rgba16f" }
+  };
+
   passes = [
     {
-      name: "main",
-      program: "outline",
+      name: "valueMap",
+      program: "outlineValueMap",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        color: "outlineValueMap"
+      }
+    },
+    {
+      name: "sobel",
+      program: "outlineSobel",
+      inputs: {
+        valueTexture: "outlineValueMap"
+      },
+      outputs: {
+        color: "outlineEdges"
+      }
+    },
+    {
+      name: "blend",
+      program: "outlineBlend",
+      inputs: {
+        inputTex: "inputTex",
+        edgesTexture: "outlineEdges"
+      },
+      outputs: {
+        color: "outputColor"
       }
     }
   ];

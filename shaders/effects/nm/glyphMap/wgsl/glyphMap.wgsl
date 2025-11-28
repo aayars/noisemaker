@@ -5,10 +5,10 @@
 const PI : f32 = 3.141592653589793;
 
 struct GlyphMapParams {
-    size : vec4<f32>,      // width, height, channels, glyph width
-    grid_layout : vec4<f32>,    // glyph height, glyph count, mask, colorize flag
-    curve : vec4<f32>,     // zoom, alpha, spline order, time
-    tempo : vec4<f32>,     // speed, _pad0, _pad1, _pad2
+    size : vec4<f32>,        // (width, height, channels, glyphWidth)
+    grid_layout : vec4<f32>, // (glyphHeight, glyphCount, mask, colorize)
+    curve : vec4<f32>,       // (zoom, alpha, splineOrder, time)
+    tempo : vec4<f32>,       // (speed, _, _, _)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

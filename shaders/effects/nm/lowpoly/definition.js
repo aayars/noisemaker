@@ -40,9 +40,6 @@ export default class Lowpoly extends Effect {
     }
 };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
@@ -50,8 +47,13 @@ export default class Lowpoly extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        distrib: "distrib",
+        freq: "freq",
+        distMetric: "distMetric"
+      },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

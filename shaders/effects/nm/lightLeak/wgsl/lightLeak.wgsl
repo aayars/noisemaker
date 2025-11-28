@@ -7,10 +7,8 @@
 const TAU : f32 = 6.28318530717958647692;
 
 struct LightLeakParams {
-    // size packs the render target dimensions and blend alpha in .w.
-    size : vec4<f32>,
-    // alpha_timeSpeed mirrors the Python signature (alpha, time, speed).
-    alpha_timeSpeed : vec4<f32>,
+    size : vec4<f32>,           // (width, height, channels, _)
+    alpha_timeSpeed : vec4<f32>, // (alpha, time, speed, _)
 };
 
 const POINT_COUNT : u32 = 6u;

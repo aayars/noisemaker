@@ -111,6 +111,7 @@ export async function compileEffect(page, effectId, options = {}) {
                         id: pass.id || pass.program,
                         status: 'ok'
                     }));
+                    console.log('[compileEffect] compiled, passes:', JSON.stringify(passes));
                     return { state: 'ok', message: status.textContent || '', passes };
                 }
             }
@@ -1794,9 +1795,15 @@ export async function checkEffectStructure(effectId, options = {}) {
                         const wgslParamPattern = new RegExp(`\\(\\s*[^)]*\\b${uniformName}\\s*:\\s*(f32|i32|u32|vec[234]f?|mat[234]x[234]f?)`);
                         const hasFunctionParam = (isGLSL ? glslParamPattern : wgslParamPattern).test(shaderSource);
                         
-                        // If there's a local variable, #define, function, or function param with this name, it shadows any uniform
-                        // So we don't need to check for uniform declaration
-                        if (hasLocalDecl || hasDefine || hasFunction || hasFunctionParam) {
+                        // Check if name appears as a struct field (WGSL)
+                        // e.g., "time : f32," or "resolution: vec2<f32>," inside a struct
+                        // This covers uniforms passed via uniform structs
+                        const wgslStructFieldPattern = new RegExp(`\\b${uniformName}\\s*:\\s*(f32|i32|u32|vec[234]<f32>|vec[234]f)\\s*,`);
+                        const hasStructField = !isGLSL && wgslStructFieldPattern.test(shaderSource);
+                        
+                        // If there's a local variable, #define, function, function param, or struct field with this name,
+                        // it shadows any uniform so we don't need to check for uniform declaration
+                        if (hasLocalDecl || hasDefine || hasFunction || hasFunctionParam || hasStructField) {
                             continue;
                         }
                         

@@ -80,6 +80,13 @@ export default class Ripple extends Effect {
         inputTex: "inputTex",
         referenceTexture: "inputTex"
       },
+      uniforms: {
+        freq: "freq",
+        displacement: "displacement",
+        kink: "kink",
+        splineOrder: "splineOrder",
+        speed: "speed"
+      },
       outputs: {
         color: "outputColor"
       }

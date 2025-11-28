@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Reverb
- * /shaders/effects/reverb/reverb.wgsl
+ * Simple multi-pass reverb: each iteration blends image with 50% scaled version
  */
 export default class Reverb extends Effect {
   name = "Reverb";
@@ -10,21 +10,9 @@ export default class Reverb extends Effect {
   func = "reverb";
 
   globals = {
-    octaves: {
-        type: "int",
-        default: 3,
-        uniform: "octaves",
-        min: 1,
-        max: 8,
-        step: 1,
-        ui: {
-            label: "Octaves",
-            control: "slider"
-        }
-    },
     iterations: {
         type: "int",
-        default: 2,
+        default: 3,
         uniform: "iterations",
         min: 1,
         max: 8,
@@ -51,6 +39,10 @@ export default class Reverb extends Effect {
       program: "reverb",
       inputs: {
         inputTex: "inputTex"
+      },
+      uniforms: {
+        iterations: "iterations",
+        ridges: "ridges"
       },
       outputs: {
         color: "outputColor"

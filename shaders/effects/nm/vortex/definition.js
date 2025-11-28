@@ -42,6 +42,10 @@ export default class Vortex extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        speed: "speed"
+      },
       outputs: {
         color: "outputColor"
       }

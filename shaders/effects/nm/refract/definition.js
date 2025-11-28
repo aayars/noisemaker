@@ -88,6 +88,14 @@ export default class Refract extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        warp: "warp",
+        splineOrder: "splineOrder",
+        derivative: "derivative",
+        range: "range",
+        speed: "speed"
+      },
       outputs: {
         color: "outputColor"
       }

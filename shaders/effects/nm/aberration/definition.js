@@ -43,6 +43,10 @@ export default class Aberration extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        displacement: "displacement",
+        speed: "speed"
+      },
       outputs: {
         fragColor: "outputColor"
       }

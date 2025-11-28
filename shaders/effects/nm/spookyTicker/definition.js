@@ -9,7 +9,20 @@ export default class SpookyTicker extends Effect {
   namespace = "nm";
   func = "spookyTicker";
 
-  globals = {};
+  globals = {
+    speed: {
+      type: "float",
+      default: 1,
+      uniform: "speed",
+      min: 0,
+      max: 5,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
+    }
+  };
 
   passes = [
     {
@@ -17,6 +30,9 @@ export default class SpookyTicker extends Effect {
       program: "spookyTicker",
       inputs: {
         inputTex: "inputTex"
+      },
+      uniforms: {
+        speed: "speed"
       },
       outputs: {
         color: "outputColor"

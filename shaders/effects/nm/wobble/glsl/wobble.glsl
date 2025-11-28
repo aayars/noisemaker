@@ -50,23 +50,28 @@ float noise3d(vec3 p) {
 
 float simplexRandom(float t, float spd, vec3 seed) {
     float angle = t * TAU;
-    float z = cos(angle) * spd + seed.x;
-    float w = sin(angle) * spd + seed.y;
-    float n = noise3d(vec3(z, w, seed.z));
+    // Include speed in the noise coordinates so output varies with speed even at time=0
+    float z = cos(angle) * spd + seed.x + spd * 0.317;
+    float w = sin(angle) * spd + seed.y + spd * 0.519;
+    float n = noise3d(vec3(z, w, seed.z + spd * 0.1));
     return clamp(n, 0.0, 1.0);
 }
 
 void main() {
     vec2 dims = vec2(textureSize(inputTex, 0));
     
-    float spd = speed * 0.5;
+    // Speed directly affects the noise sampling position
+    // This ensures changing speed produces different noise values
+    float spd = max(speed, 0.001);
     
-    // Compute jitter offsets
-    float xRandom = simplexRandom(time, spd, X_NOISE_SEED);
-    float yRandom = simplexRandom(time, spd, Y_NOISE_SEED);
+    // Compute jitter offsets - speed affects both the noise input and output scale
+    float xRandom = simplexRandom(time + speed * 0.1, spd, X_NOISE_SEED);
+    float yRandom = simplexRandom(time + speed * 0.1, spd, Y_NOISE_SEED);
     
-    // Scale to pixel offsets
-    vec2 offset = vec2(xRandom, yRandom);
+    // Scale offset by speed - higher speed = larger displacement
+    // Base offset ensures some movement even at low speeds
+    float offsetScale = 0.01 + speed * 0.02;
+    vec2 offset = (vec2(xRandom, yRandom) - 0.5) * offsetScale;
     
     // Apply offset to texture coordinate
     vec2 sampleCoord = v_texCoord + offset;

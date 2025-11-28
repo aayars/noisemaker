@@ -1,12 +1,8 @@
 const TAU : f32 = 6.28318530717958647692;
 
 struct LensWarpParams {
-    // ``size`` mirrors the ``shape`` argument from the Python reference. The
-    // final lane is padding for alignment.
-    size : vec4<f32>,
-    // ``options`` packs the remaining Python parameters in call order:
-    // displacement, time, speed. The final lane is padding.
-    options : vec4<f32>,
+    size : vec4<f32>,    // (width, height, channels, _)
+    options : vec4<f32>, // (displacement, time, speed, _)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

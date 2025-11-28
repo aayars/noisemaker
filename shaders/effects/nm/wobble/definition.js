@@ -30,8 +30,12 @@ export default class Wobble extends Effect {
       inputs: {
         inputTex: "inputTex"
       },
+      uniforms: {
+        speed: "speed",
+        time: "time"
+      },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

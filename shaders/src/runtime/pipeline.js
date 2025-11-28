@@ -362,26 +362,37 @@ export class Pipeline {
         
         // Execute passes
         if (this.graph && this.graph.passes) {
-            for (const pass of this.graph.passes) {
-                // Check pass conditions
-                if (this.shouldSkipPass(pass)) {
-                    continue
-                }
-                
-                // Determine iteration count (repeat N times per frame)
-                const repeatCount = this.resolveRepeatCount(pass)
-                
-                for (let iter = 0; iter < repeatCount; iter++) {
-                    // Execute pass
-                    const state = this.getFrameState()
-                    this.backend.executePass(pass, state)
-                    this.updateFrameSurfaceBindings(pass, state)
+            try {
+                for (let i = 0; i < this.graph.passes.length; i++) {
+                    const pass = this.graph.passes[i];
+                    // Check pass conditions
+                    if (this.shouldSkipPass(pass)) {
+                        continue
+                    }
                     
-                    // Swap global surface read/write pointers for ping-pong between iterations
-                    if (repeatCount > 1) {
-                        this.swapIterationBuffers(pass)
+                    // Determine iteration count (repeat N times per frame)
+                    const repeatCount = this.resolveRepeatCount(pass)
+                    
+                    for (let iter = 0; iter < repeatCount; iter++) {
+                        // Execute pass
+                        try {
+                            const state = this.getFrameState()
+                            this.backend.executePass(pass, state)
+                            this.updateFrameSurfaceBindings(pass, state)
+                        } catch (err) {
+                            console.error('[Pipeline.render] ERROR executing pass:', pass.id, err);
+                            throw err;
+                        }
+                        
+                        // Swap global surface read/write pointers for ping-pong between iterations
+                        if (repeatCount > 1) {
+                            this.swapIterationBuffers(pass)
+                        }
                     }
                 }
+            } catch (loopErr) {
+                console.error('[Pipeline.render] LOOP ERROR:', loopErr);
+                throw loopErr;
             }
         }
         

@@ -142,6 +142,15 @@ export default class Worms extends Effect {
         stateTex3: "globalWormsState3",
         mixerTex: "inputTex"
       },
+      uniforms: {
+        behavior: "behavior",
+        density: "density",
+        stride: "stride",
+        strideDeviation: "strideDeviation",
+        kink: "kink",
+        quantize: "quantize",
+        lifetime: "lifetime"
+      },
       outputs: {
         outState1: "globalWormsState1",
         outState2: "globalWormsState2",
@@ -153,6 +162,9 @@ export default class Worms extends Effect {
       program: "diffuse",
       inputs: {
         sourceTex: "globalWormsTrail"
+      },
+      uniforms: {
+        intensity: "intensity"
       },
       outputs: {
         fragColor: "globalWormsTrail"
@@ -178,6 +190,9 @@ export default class Worms extends Effect {
       inputs: {
         mixerTex: "inputTex",
         trailTex: "globalWormsTrail"
+      },
+      uniforms: {
+        inputIntensity: "inputIntensity"
       },
       outputs: {
         fragColor: "outputColor"

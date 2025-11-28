@@ -11,11 +11,8 @@ struct TintParams {
     width : f32,
     height : f32,
     channels : f32,
-    time : f32,
-    speed : f32,
     alpha : f32,
     seed : f32,
-    _pad0 : f32,
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;
