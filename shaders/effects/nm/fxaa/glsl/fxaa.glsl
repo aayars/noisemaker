@@ -12,8 +12,7 @@ const float EPSILON = 1e-10;
 const vec3 LUMA_WEIGHTS = vec3(0.299, 0.587, 0.114);
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 timeSpeed;
+uniform vec2 resolution;
 
 uint as_u32(float value) {
     return uint(max(round(value), 0.0));
@@ -68,13 +67,13 @@ out vec4 fragColor;
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width_u = max(as_u32(size.x), 1u);
-    uint height_u = max(as_u32(size.y), 1u);
+    uint width_u = max(as_u32(resolution.x), 1u);
+    uint height_u = max(as_u32(resolution.y), 1u);
     if (global_id.x >= width_u || global_id.y >= height_u) {
         return;
     }
 
-    uint channelCount = sanitized_channelCount(size.z);
+    uint channelCount = 4u;  // Always RGBA
 
     ivec2 image_size = ivec2(int(width_u), int(height_u));
     ivec2 pixel_coord = ivec2(int(global_id.x), int(global_id.y));

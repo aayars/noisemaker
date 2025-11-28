@@ -5,9 +5,9 @@ const PI : f32 = 3.14159265358979323846;
 const TAU : f32 = 6.28318530717958647692;
 
 struct WarpParams {
-    dims_freq : vec4<f32>,             // (width, height, channels, freq)
-    octave_disp_spline_map : vec4<f32>,  // (octaves, displacement, spline_order, warp_map_flag)
-    signed_timeSpeed_pad : vec4<f32>,   // (signed_range, time, speed, padding)
+    dims_freq : vec4<f32>,             // (width, height, channels, frequency)
+    octave_disp_spline_map : vec4<f32>,  // (octaves, displacement, splineOrder, _)
+    signed_timeSpeed_pad : vec4<f32>,   // (_, time, speed, _)
 };
 
 @group(0) @binding(0) var inputTex : texture_2d<f32>;

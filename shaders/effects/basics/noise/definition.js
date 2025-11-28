@@ -47,7 +47,7 @@ export default class Noise extends Effect {
         "max": 100,
         "uniform": "hueRange"
     },
-    "ridged": {
+    "ridges": {
         "type": "boolean",
         "default": false,
         "uniform": "ridged"

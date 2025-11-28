@@ -368,10 +368,20 @@ export class Pipeline {
                     continue
                 }
                 
-                // Execute pass
-                const state = this.getFrameState()
-                this.backend.executePass(pass, state)
-                this.updateFrameSurfaceBindings(pass, state)
+                // Determine iteration count (repeat N times per frame)
+                const repeatCount = this.resolveRepeatCount(pass)
+                
+                for (let iter = 0; iter < repeatCount; iter++) {
+                    // Execute pass
+                    const state = this.getFrameState()
+                    this.backend.executePass(pass, state)
+                    this.updateFrameSurfaceBindings(pass, state)
+                    
+                    // Swap global surface read/write pointers for ping-pong between iterations
+                    if (repeatCount > 1) {
+                        this.swapIterationBuffers(pass)
+                    }
+                }
             }
         }
         
@@ -447,6 +457,61 @@ export class Pipeline {
         }
         
         return false
+    }
+
+    /**
+     * Resolve the repeat count for a pass.
+     * Supports static values or uniform-driven iteration counts.
+     * @param {Object} pass - The pass definition
+     * @returns {number} - Number of times to execute the pass
+     */
+    resolveRepeatCount(pass) {
+        if (!pass.repeat) return 1
+        
+        // If repeat is a number, use it directly
+        if (typeof pass.repeat === 'number') {
+            return Math.max(1, Math.floor(pass.repeat))
+        }
+        
+        // If repeat is a string, treat it as a uniform name
+        if (typeof pass.repeat === 'string') {
+            const value = this.globalUniforms[pass.repeat] ?? pass.uniforms?.[pass.repeat]
+            if (typeof value === 'number') {
+                return Math.max(1, Math.floor(value))
+            }
+        }
+        
+        return 1
+    }
+
+    /**
+     * Swap read/write pointers for global surfaces written by a pass.
+     * Used for ping-pong between iterations of a repeated pass.
+     * @param {Object} pass - The pass that just executed
+     */
+    swapIterationBuffers(pass) {
+        if (!pass.outputs) return
+
+        for (const outputName of Object.values(pass.outputs)) {
+            if (typeof outputName !== 'string') continue
+            
+            // Only swap global surfaces (not feedback surfaces)
+            const globalName = this.parseGlobalName(outputName)
+            if (!globalName) continue
+            
+            const surface = this.surfaces.get(globalName)
+            if (!surface) continue
+            
+            // Swap read/write pointers
+            const temp = surface.read
+            surface.read = surface.write
+            surface.write = temp
+            
+            // Update frameReadTextures to match
+            if (this.frameReadTextures) {
+                this.frameReadTextures.set(globalName, surface.read)
+            }
+        }
     }
 
     /**

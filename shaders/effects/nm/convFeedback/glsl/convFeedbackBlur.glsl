@@ -3,7 +3,6 @@ precision highp float;
 precision highp int;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
 
 out vec4 fragColor;
 

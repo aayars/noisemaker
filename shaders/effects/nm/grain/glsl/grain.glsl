@@ -18,9 +18,7 @@ const uint INTERPOLATION_BICUBIC = 3u;
 const uint BASE_SEED = 0x1234u;
 
 uniform sampler2D inputTex;
-uniform float width;
-uniform float height;
-uniform float channels;
+uniform vec2 resolution;
 uniform float alpha;
 uniform float time;
 uniform float speed;
@@ -226,8 +224,8 @@ float sample_grain_noise(
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint u_width = max(as_u32(width), 1u);
-    uint u_height = max(as_u32(height), 1u);
+    uint u_width = max(as_u32(resolution.x), 1u);
+    uint u_height = max(as_u32(resolution.y), 1u);
     if (global_id.x >= u_width || global_id.y >= u_height) {
         return;
     }

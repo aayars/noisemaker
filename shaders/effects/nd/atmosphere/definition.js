@@ -5,6 +5,28 @@ export default class Atmosphere extends Effect {
   namespace = "nd";
   func = "atmosphere";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    noiseType: { slot: 1, components: 'x' },
+    interp: { slot: 1, components: 'y' },
+    noiseScale: { slot: 1, components: 'z' },
+    loopAmp: { slot: 1, components: 'w' },
+    refractAmt: { slot: 2, components: 'x' },
+    ridges: { slot: 2, components: 'y' },
+    wrap: { slot: 2, components: 'z' },
+    colorMode: { slot: 2, components: 'w' },
+    hueRotation: { slot: 3, components: 'x' },
+    hueRange: { slot: 3, components: 'y' },
+    intensity: { slot: 3, components: 'z' },
+    color1: { slot: 4, components: 'xyzw' },
+    color2: { slot: 5, components: 'xyzw' },
+    color3: { slot: 6, components: 'xyzw' },
+    color4: { slot: 7, components: 'xyzw' }
+  };
   globals = {
     noiseType: {
       type: "int",

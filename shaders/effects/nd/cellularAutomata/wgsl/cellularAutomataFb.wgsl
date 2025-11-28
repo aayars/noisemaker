@@ -25,6 +25,10 @@ fn lum(color: vec3<f32>) -> f32 {
     return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
 }
 
+fn random(st: vec2<f32>) -> f32 {
+    return fract(sin(dot(st, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
+}
+
 /*
 Rulesets
 
@@ -192,11 +196,13 @@ fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     // the framebuffer layout in uniforms.json. Slots 0-2 mirror the runtime's
     // timing metadata, slot 1 stores the primary CA controls, and slots 2-6
     // pack the custom rule masks alongside the input source selector.
+    let deltaTime: f32 = uniforms.data[0].y;
+    let seed: f32 = uniforms.data[0].z;
+    let resetState: bool = uniforms.data[0].w > 0.5;
     let ruleIndex: i32 = i32(uniforms.data[1].x);
     let speed: f32 = uniforms.data[1].y;
     let weight: f32 = uniforms.data[1].z;
     let useCustom: bool = uniforms.data[1].w > 0.5;
-    let deltaTime: f32 = uniforms.data[0].y;
 
     let bornMask0: vec4<f32> = uniforms.data[2];
     let bornMask1: vec4<f32> = uniforms.data[3];
@@ -206,14 +212,25 @@ fn main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     let surviveMask2: vec2<f32> = uniforms.data[6].xy;
     let source: i32 = i32(uniforms.data[6].z);
 
-    let prevFrameCoord: vec2<f32> = vec2<f32>(fragCoord.x / texSize.x, 1.0 - fragCoord.y / texSize.y);
+    // Sample all 4 channels to check if buffer is truly empty
+    let base: vec2<i32> = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
+    let bufState: vec4<f32> = textureLoad(bufTex, clampCoord(base, texSizeI), 0);
+    let state: f32 = bufState.r;
+    let bufferIsEmpty: bool = (bufState.r == 0.0 && bufState.g == 0.0 && bufState.b == 0.0 && bufState.a == 0.0);
 
-    // Sample previous frame for luminance-based perturbation
+    // Sample previous frame for luminance-based perturbation (must be before early return for uniform control flow)
     let prevFrame: vec3<f32> = textureSample(seedTex, samp, uv).rgb;
     let prevLum: f32 = lum(prevFrame);
 
-    let base: vec2<i32> = vec2<i32>(i32(fragCoord.x), i32(fragCoord.y));
-    let state: f32 = cellAt(base, texSizeI);
+    // Initialize when reset button pressed or when buffer is completely empty (first load)
+    if (resetState || bufferIsEmpty) {
+        let r: f32 = random(uv + vec2<f32>(seed, seed));
+        let alive: f32 = step(0.5, r);
+        return vec4<f32>(alive, alive, alive, 1.0);
+    }
+
+    let prevFrameCoord: vec2<f32> = vec2<f32>(fragCoord.x / texSize.x, 1.0 - fragCoord.y / texSize.y);
+
     let neighbors: i32 = countNeighbors(base, texSizeI);
 
     var newState: f32 = state;

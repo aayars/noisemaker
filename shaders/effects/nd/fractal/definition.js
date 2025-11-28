@@ -11,6 +11,38 @@ export default class Fractal extends Effect {
   namespace = "nd";
   func = "fractal";
 
+  // WGSL uniform packing layout - contiguous vec3/vec4 layout
+  uniformLayout = {
+    resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    fractalType: { slot: 1, components: 'x' },
+    symmetry: { slot: 1, components: 'y' },
+    offsetX: { slot: 1, components: 'z' },
+    offsetY: { slot: 1, components: 'w' },
+    centerX: { slot: 2, components: 'x' },
+    centerY: { slot: 2, components: 'y' },
+    zoomAmt: { slot: 2, components: 'z' },
+    speed: { slot: 2, components: 'w' },
+    rotation: { slot: 3, components: 'x' },
+    iterations: { slot: 3, components: 'y' },
+    mode: { slot: 3, components: 'z' },
+    colorMode: { slot: 3, components: 'w' },
+    paletteMode: { slot: 4, components: 'x' },
+    cyclePalette: { slot: 4, components: 'y' },
+    rotatePalette: { slot: 4, components: 'z' },
+    repeatPalette: { slot: 4, components: 'w' },
+    paletteOffset: { slot: 5, components: 'xyz' },
+    hueRange: { slot: 5, components: 'w' },
+    paletteAmp: { slot: 6, components: 'xyz' },
+    levels: { slot: 6, components: 'w' },
+    paletteFreq: { slot: 7, components: 'xyz' },
+    backgroundOpacity: { slot: 7, components: 'w' },
+    palettePhase: { slot: 8, components: 'xyz' },
+    cutoff: { slot: 8, components: 'w' },
+    backgroundColor: { slot: 9, components: 'xyz' }
+  };
+
   globals = {
     seed: {
       type: "int",

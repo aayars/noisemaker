@@ -5,17 +5,35 @@ import { Effect } from '../../../src/runtime/effect.js';
  * 
  * Architecture (GPGPU via render passes):
  * - Uses fragment shaders with MRT for agent simulation
- * - Global surfaces for agent state (position/dir, color/inertia, age) with ping-pong
+ * - `global`-prefixed textures get automatic ping-pong (read previous, write current)
  * - Trail accumulation via point-sprite deposit pass
- * - Multi-pass: agent_move -> deposit -> diffuse -> blend
+ * - Multi-pass: init -> agent -> deposit -> diffuse -> blend
  * 
  * Agent format: [x, y, x_dir, y_dir] [r, g, b, inertia] [age, 0, 0, 0]
  * Stored across 3 state textures using MRT
+ * Agent count: 256x256 = 65536 agents
+ * 
+ * Trail flow: 
+ *   init: copy previous TrailA with decay → TrailB (preserves accumulation)
+ *   deposit: add agent points to TrailB (additive)
+ *   diffuse: blur TrailB → TrailA (swaps for next frame)
+ *   blend: combine TrailA with input
  */
 export default class ErosionWorms extends Effect {
   name = "ErosionWorms";
   namespace = "nm";
   func = "erosionWorms";
+  
+  // State textures with `global` prefix for automatic ping-pong
+  // Agent state: 256x256 = 65536 agents
+  // Trail: Two textures for proper ping-pong within frame
+  textures = {
+    globalErosionState1: { width: 256, height: 256, format: "rgba16f" },
+    globalErosionState2: { width: 256, height: 256, format: "rgba16f" },
+    globalErosionState3: { width: 256, height: 256, format: "rgba16f" },
+    globalErosionTrailA: { width: "100%", height: "100%", format: "rgba16f" },
+    globalErosionTrailB: { width: "100%", height: "100%", format: "rgba16f" }
+  };
 
   globals = {
     density: {
@@ -108,6 +126,20 @@ export default class ErosionWorms extends Effect {
   };
 
   passes = [
+    // Pass 0: Copy previous trail with decay to preserve accumulation
+    // TrailA (previous frame via ping-pong) → TrailB
+    {
+      name: "initFromPrev",
+      program: "initFromPrev",
+      inputs: {
+        prevTrailTex: "globalErosionTrailA"
+      },
+      outputs: {
+        fragColor: "globalErosionTrailB"
+      }
+    },
+    // Pass 1: Update agent state (position, direction, color, age)
+    // MRT outputs to 3 state textures simultaneously
     {
       name: "agent",
       program: "agent",
@@ -124,36 +156,39 @@ export default class ErosionWorms extends Effect {
         outState3: "globalErosionState3"
       }
     },
-    {
-      name: "diffuse",
-      program: "diffuse",
-      inputs: {
-        sourceTex: "globalErosionTrail"
-      },
-      outputs: {
-        fragColor: "globalErosionTrail"
-      }
-    },
+    // Pass 2: Deposit agent trails as point sprites onto TrailB (additive)
     {
       name: "deposit",
       program: "deposit",
       drawMode: "points",
-      count: 262144,
-      blend: true,
+      count: 65536,  // 256x256 agents
+      blend: ["one", "one"],  // Additive blending onto faded trail
       inputs: {
         stateTex1: "globalErosionState1",
         stateTex2: "globalErosionState2"
       },
       outputs: {
-        fragColor: "globalErosionTrail"
+        fragColor: "globalErosionTrailB"
       }
     },
+    // Pass 3: Diffuse/blur TrailB → TrailA (sets up next frame's ping-pong)
+    {
+      name: "diffuse",
+      program: "diffuse",
+      inputs: {
+        sourceTex: "globalErosionTrailB"
+      },
+      outputs: {
+        fragColor: "globalErosionTrailA"
+      }
+    },
+    // Pass 4: Final composite with input
     {
       name: "blend",
       program: "blend",
       inputs: {
-        mixerTex: "inputTex",
-        trailTex: "globalErosionTrail"
+        inputTex: "inputTex",
+        trailTex: "globalErosionTrailA"
       },
       outputs: {
         fragColor: "outputColor"

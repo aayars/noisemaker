@@ -11,6 +11,40 @@ export default class CellularAutomata extends Effect {
   namespace = "nd";
   func = "cellularAutomata";
 
+
+  // WGSL uniform packing layouts (per-program for multi-pass effects)
+  uniformLayouts = {
+    cellularAutomata: {
+      resolution: { slot: 0, components: 'xy' },
+      time: { slot: 0, components: 'z' },
+      smoothing: { slot: 1, components: 'y' },
+      colorMode: { slot: 1, components: 'z' },
+      paletteMode: { slot: 1, components: 'w' },
+      cyclePalette: { slot: 2, components: 'x' },
+      rotatePalette: { slot: 2, components: 'y' },
+      repeatPalette: { slot: 2, components: 'z' },
+      offset: { slot: 4, components: 'xyz' },
+      amp: { slot: 5, components: 'xyz' },
+      freq: { slot: 6, components: 'xyz' },
+      phase: { slot: 7, components: 'xyz' }
+    },
+    cellularAutomataFb: {
+      deltaTime: { slot: 0, components: 'y' },
+      seed: { slot: 0, components: 'z' },
+      resetState: { slot: 0, components: 'w' },
+      ruleIndex: { slot: 1, components: 'x' },
+      speed: { slot: 1, components: 'y' },
+      weight: { slot: 1, components: 'z' },
+      useCustom: { slot: 1, components: 'w' },
+      bornMask0: { slot: 2, components: 'xyzw' },
+      bornMask1: { slot: 3, components: 'xyzw' },
+      bornMask2: { slot: 4, components: 'x' },
+      surviveMask0: { slot: 4, components: 'yzw' },
+      surviveMask1: { slot: 5, components: 'xyzw' },
+      surviveMask2: { slot: 6, components: 'xy' },
+      source: { slot: 6, components: 'z' }
+    }
+  };
   textures = {};
 
   globals = {

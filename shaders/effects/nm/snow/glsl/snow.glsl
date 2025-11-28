@@ -13,12 +13,12 @@ const vec3 LIMITER_SEED = vec3(113.0, 71.0, 193.0);
 
 
 uniform sampler2D inputTex;
-uniform float width;
-uniform float height;
-uniform float channels;
+uniform vec2 resolution;
 uniform float alpha;
 uniform float time;
 uniform float speed;
+
+out vec4 fragColor;
 
 uint as_u32(float value) {
     return uint(max(round(value), 0.0));
@@ -71,37 +71,25 @@ float snow_noise(vec2 coord, float time, float speed, vec3 seed) {
     return clamp(periodic, 0.0, 1.0);
 }
 
-
-out vec4 fragColor;
-
 void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
+    ivec2 coords = ivec2(int(gl_FragCoord.x), int(gl_FragCoord.y));
+    vec4 texel = texelFetch(inputTex, coords, 0);
 
-    uint width = max(as_u32(width), 1u);
-    uint height = max(as_u32(height), 1u);
-    if (global_id.x >= width || global_id.y >= height) {
+    float alphaVal = clamp(alpha, 0.0, 1.0);
+    if (alphaVal <= 0.0) {
+        fragColor = texel;
         return;
     }
 
-    float alpha = clamp(alpha, 0.0, 1.0);
-    uint base_index = (global_id.y * width + global_id.x) * CHANNEL_COUNT;
-    vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 texel = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
+    vec2 pixelCoord = vec2(gl_FragCoord.x, gl_FragCoord.y);
+    float timeVal = time;
+    float speedVal = speed * 100.0;
 
-    if (alpha <= 0.0) {
-        fragColor = vec4(texel.xyz, texel.w);
-        return;
-    }
-
-    vec2 coord = vec2(float(global_id.x), float(global_id.y));
-    float time = time;
-    float speed = speed * 100.0;
-
-    float static_value = snow_noise(coord, time, speed, STATIC_SEED);
-    float limiter_value = snow_noise(coord, time, speed, LIMITER_SEED);
+    float static_value = snow_noise(pixelCoord, timeVal, speedVal, STATIC_SEED);
+    float limiter_value = snow_noise(pixelCoord, timeVal, speedVal, LIMITER_SEED);
     float limiter_sq = limiter_value * limiter_value;
     float limiter_pow4 = limiter_sq * limiter_sq;
-    float limiter_mask = clamp(limiter_pow4 * alpha, 0.0, 1.0);
+    float limiter_mask = clamp(limiter_pow4 * alphaVal, 0.0, 1.0);
 
     vec3 static_color = vec3(static_value);
     vec3 mixed_rgb = mix(texel.xyz, static_color, vec3(limiter_mask));

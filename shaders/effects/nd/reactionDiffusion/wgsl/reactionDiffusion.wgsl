@@ -8,7 +8,7 @@ struct Uniforms {
     // data[0] = (resolution.x, resolution.y, time, zoom)
     // data[1] = (feed, kill, rate1, rate2)
     // data[2] = (speed, inputWeight, feedSource, killSource)
-    // data[3] = (rate1Source, rate2Source, paletteMode, smoothingMode)
+    // data[3] = (rate1Source, rate2Source, paletteMode, smoothing)
     // data[4] = (inputSource, cyclePalette, rotatePalette, repeatPalette)
     // data[5] = (paletteOffset.x, paletteOffset.y, paletteOffset.z, colorMode)
     // data[6] = (paletteAmp.x, paletteAmp.y, paletteAmp.z, unused)
@@ -276,7 +276,7 @@ fn pal(
 fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z;
-    let smoothingMode = i32(uniforms.data[3].w);
+    let smoothing = i32(uniforms.data[3].w);
     let paletteMode = i32(uniforms.data[3].z);
     let cyclePalette = i32(uniforms.data[4].y);
     let rotatePalette = uniforms.data[4].z;
@@ -289,13 +289,13 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
 
     var intensity = 1.0;
 
-    if (smoothingMode == 0) {
+    if (smoothing == 0) {
         let texSizeI = vec2<i32>(textureDimensions(fbTex, 0));
         let texSizeF = vec2<f32>(f32(texSizeI.x), f32(texSizeI.y));
         let coord = vec2<i32>(floor(pos.xy * texSizeF / resolution));
         let clamped = clamp(coord, vec2<i32>(0), texSizeI - vec2<i32>(1));
         intensity = clamp(textureLoad(fbTex, clamped, 0).g, 0.0, 1.0);
-    } else if (smoothingMode == 2) {
+    } else if (smoothing == 2) {
         // hermite (smoothstep)
         let texSize = vec2<f32>(textureDimensions(fbTex, 0));
         let texelPos = (pos.xy * texSize / resolution) - vec2<f32>(0.5);
@@ -319,7 +319,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         let v0 = mix(v00, v10, smoothWeights.x);
         let v1 = mix(v01, v11, smoothWeights.x);
         intensity = clamp(mix(v0, v1, smoothWeights.y), 0.0, 1.0);
-    } else if (smoothingMode == 3) {
+    } else if (smoothing == 3) {
         // quadratic B-spline (3x3, 9 taps)
         let texSize = vec2<f32>(textureDimensions(fbTex, 0));
         let texelSize = 1.0 / texSize;
@@ -327,7 +327,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         let uv = (pos.xy - scaling * 0.5) / resolution;
         let sample = quadratic(fbTex, uv, texelSize);
         intensity = clamp(sample.g, 0.0, 1.0);
-    } else if (smoothingMode == 4) {
+    } else if (smoothing == 4) {
         // cubic B-spline (4×4, 16 taps)
         let texSize = vec2<f32>(textureDimensions(fbTex, 0));
         let texelSize = 1.0 / texSize;
@@ -335,7 +335,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         let uv = (pos.xy - scaling * 0.5) / resolution;
         let sample = bicubic(fbTex, uv, texelSize);
         intensity = clamp(sample.g, 0.0, 1.0);
-    } else if (smoothingMode == 5) {
+    } else if (smoothing == 5) {
         // catmull-rom 3x3 (9 taps, interpolating)
         let texSize = vec2<f32>(textureDimensions(fbTex, 0));
         let texelSize = 1.0 / texSize;
@@ -343,7 +343,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         let uv = (pos.xy - scaling * 0.5) / resolution;
         let sample = catmullRom3x3(fbTex, uv, texelSize);
         intensity = clamp(sample.g, 0.0, 1.0);
-    } else if (smoothingMode == 6) {
+    } else if (smoothing == 6) {
         // catmull-rom 4x4 (16 taps, interpolating)
         let texSize = vec2<f32>(textureDimensions(fbTex, 0));
         let texelSize = 1.0 / texSize;
@@ -369,7 +369,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         let v01 = textureLoad(fbTex, vec2<i32>(baseI.x, nextI.y), 0).g;
         let v11 = textureLoad(fbTex, nextI, 0).g;
 
-        if (smoothingMode == 1) {
+        if (smoothing == 1) {
             let v0 = mix(v00, v10, weights.x);
             let v1 = mix(v01, v11, weights.x);
             intensity = clamp(mix(v0, v1, weights.y), 0.0, 1.0);

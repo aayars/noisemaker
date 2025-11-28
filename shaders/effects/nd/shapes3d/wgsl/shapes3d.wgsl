@@ -5,6 +5,18 @@
  */
 
 struct Uniforms {
+    // Contiguous vec4 packing:
+    // 0: resolution.xy, time, seed
+    // 1: shapeA, shapeB, shapeAScale, shapeBScale
+    // 2: shapeAThickness, shapeBThickness, blendMode, smoothness
+    // 3: spin, flip, spinSpeed, flipSpeed
+    // 4: repetition, animation, flythroughSpeed, spacing
+    // 5: cameraDist, backgroundOpacity, colorMode, source
+    // 6: backgroundColor.xyz, paletteMode
+    // 7: paletteOffset.xyz, cyclePalette
+    // 8: paletteAmp.xyz, rotatePalette
+    // 9: paletteFreq.xyz, repeatPalette
+    // 10: palettePhase.xyz, (unused)
     data : array<vec4<f32>, 11>,
 };
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
@@ -303,20 +315,19 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     spacing = uniforms.data[4].w;
 
     cameraDist = uniforms.data[5].x;
-    backgroundColor = uniforms.data[5].yzw;
+    backgroundOpacity = uniforms.data[5].y;
+    colorMode = i32(uniforms.data[5].z);
+    let source = i32(uniforms.data[5].w);
 
-    backgroundOpacity = uniforms.data[6].x;
-    colorMode = i32(uniforms.data[6].y);
-    let source = i32(uniforms.data[6].z);
-
-    paletteMode = i32(uniforms.data[7].x);
-    paletteOffset = uniforms.data[7].yzw;
+    backgroundColor = uniforms.data[6].xyz;
+    paletteMode = i32(uniforms.data[6].w);
+    paletteOffset = uniforms.data[7].xyz;
+    cyclePalette = i32(uniforms.data[7].w);
     paletteAmp = uniforms.data[8].xyz;
-    paletteFreq = vec3<f32>(uniforms.data[8].w, uniforms.data[9].x, uniforms.data[9].y);
-    palettePhase = vec3<f32>(uniforms.data[9].z, uniforms.data[9].w, uniforms.data[10].x);
-    cyclePalette = i32(uniforms.data[10].y);
-    rotatePalette = uniforms.data[10].z;
-    repeatPalette = uniforms.data[10].w;
+    rotatePalette = uniforms.data[8].w;
+    paletteFreq = uniforms.data[9].xyz;
+    repeatPalette = uniforms.data[9].w;
+    palettePhase = uniforms.data[10].xyz;
 
     var color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
     var st = (pos.xy - 0.5 * resolution) / resolution.y;

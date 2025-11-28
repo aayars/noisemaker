@@ -46,8 +46,12 @@ export function expand(compilationResult) {
             if (effectDef.shaders) {
                 for (const [progName, shaders] of Object.entries(effectDef.shaders)) {
                     if (!programs[progName]) {
+                        // Support both per-program layouts (uniformLayouts) and legacy single layout (uniformLayout)
+                        // Per-program layouts take precedence
+                        const programLayout = effectDef.uniformLayouts?.[progName] || effectDef.uniformLayout;
                         programs[progName] = {
-                            ...shaders
+                            ...shaders,
+                            uniformLayout: programLayout
                         };
                     }
                 }
@@ -95,6 +99,7 @@ export function expand(compilationResult) {
                     entryPoint: passDef.entryPoint,  // For multi-entry-point compute shaders
                     drawMode: passDef.drawMode,
                     count: passDef.count,
+                    repeat: passDef.repeat,  // Number of iterations per frame
                     blend: passDef.blend,
                     workgroups: passDef.workgroups,
                     storageBuffers: passDef.storageBuffers,

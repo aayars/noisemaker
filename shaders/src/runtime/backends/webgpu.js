@@ -395,7 +395,9 @@ export class WebGPUBackend extends Backend {
             entryPoint: defaultEntryPoint,
             entryPoints,  // All available entry points
             entryPointBindings,  // Map of entry point -> Set of used binding indices
-            bindings  // Store parsed bindings for bind group creation
+            bindings,  // Store parsed bindings for bind group creation
+            // Use definition-provided uniformLayout if available, fall back to shader parsing
+            packedUniformLayout: spec.uniformLayout || this.parsePackedUniformLayout(source)
         }
 
         this.programs.set(id, programInfo)
@@ -514,7 +516,8 @@ export class WebGPUBackend extends Backend {
             outputFormat,
             pipelineCache,
             bindings, // Store parsed bindings for bind group creation
-            packedUniformLayout: this.parsePackedUniformLayout(source) // Store packed uniform layout if present
+            // Use definition-provided uniformLayout if available, fall back to shader parsing
+            packedUniformLayout: spec.uniformLayout || this.parsePackedUniformLayout(source)
         }
 
         this.programs.set(id, programInfo)
@@ -522,15 +525,38 @@ export class WebGPUBackend extends Backend {
     }
 
     /**
-     * Parse WGSL shader to extract packed uniform layout from unpacking statements.
-     * Looks for patterns like: varName = uniforms.data[N].xyz;
+     * Parse WGSL shader to extract packed uniform layout.
+     * 
+     * Supports multiple patterns:
+     * 1. Array-based: uniforms.data[N].xyz unpacking statements
+     * 2. Named struct with comments: struct FooParams { field : vec4<f32>, // (name1, name2, name3, name4) }
+     * 3. Named struct with params. prefix: let x = params.field.x; patterns
+     * 
      * Returns an array of {name, slot, components} sorted by slot then component offset.
      * 
      * @param {string} source - WGSL shader source
      * @returns {Array<{name: string, slot: number, components: string}>|null}
      */
     parsePackedUniformLayout(source) {
-        // Check if shader uses packed uniforms struct
+        // Try byte-based struct layout for direct field access (u.field pattern)
+        const byteLayout = this.parseWgslStructByteLayout(source)
+        if (byteLayout && byteLayout.length > 0) {
+            return { type: 'byte', layout: byteLayout }
+        }
+        
+        // Try to parse named struct with comment annotations
+        const namedStructLayout = this.parseNamedStructLayout(source)
+        if (namedStructLayout && namedStructLayout.length > 0) {
+            return namedStructLayout
+        }
+        
+        // Try to parse params.field.component access patterns
+        const paramsAccessLayout = this.parseParamsAccessLayout(source)
+        if (paramsAccessLayout && paramsAccessLayout.length > 0) {
+            return paramsAccessLayout
+        }
+        
+        // Fall back to array-based pattern (uniforms.data[N])
         if (!source.includes('uniforms.data[')) {
             return null
         }
@@ -567,6 +593,271 @@ export class WebGPUBackend extends Backend {
         })
         
         return layout
+    }
+
+    /**
+     * Parse WGSL struct layout with byte offsets for direct field access patterns.
+     * Handles structs where fields are accessed as u.fieldName (not u.field.component).
+     * Calculates proper WGSL alignment for each field.
+     * 
+     * @param {string} source - WGSL shader source
+     * @returns {Array<{name: string, offset: number, size: number, type: string}>|null}
+     */
+    parseWgslStructByteLayout(source) {
+        // Find struct definitions named Uniforms, Params, etc.
+        const structRegex = /struct\s+(\w*(?:Params|Uniforms|Config|Settings))\s*\{([^}]+)\}/gi
+        const structMatch = structRegex.exec(source)
+        
+        if (!structMatch) {
+            return null
+        }
+        
+        const structBody = structMatch[2]
+        
+        // Skip structs that contain array fields - they use different packing
+        if (/\barray\s*</.test(structBody)) {
+            return null
+        }
+        
+        // Check if this struct is used as a uniform binding with a simple variable name
+        // Pattern: var<uniform> u: Uniforms; or var<uniform> params: SomeParams;
+        const structName = structMatch[1]
+        const bindingRegex = new RegExp(`var<uniform>\\s+(\\w+)\\s*:\\s*${structName}\\s*;`)
+        const bindingMatch = bindingRegex.exec(source)
+        
+        if (!bindingMatch) {
+            return null
+        }
+        
+        const uniformVarName = bindingMatch[1]
+        
+        // Parse fields with WGSL type syntax
+        // Handles: fieldName: f32, fieldName: vec2f, fieldName: vec3<f32>, etc.
+        const fieldRegex = /(\w+)\s*:\s*(f32|i32|u32|vec2f|vec3f|vec4f|vec2<f32>|vec3<f32>|vec4<f32>|vec2i|vec3i|vec4i|vec2<i32>|vec3<i32>|vec4<i32>|vec2u|vec3u|vec4u|vec2<u32>|vec3<u32>|vec4<u32>)/gi
+        
+        const layout = []
+        let offset = 0
+        let maxAlign = 4  // Track max alignment for struct size rounding
+        
+        let fieldMatch
+        while ((fieldMatch = fieldRegex.exec(structBody)) !== null) {
+            const fieldName = fieldMatch[1]
+            const fieldType = fieldMatch[2].toLowerCase()
+            
+            const { size, align, baseType, components } = this.getWgslTypeInfo(fieldType)
+            maxAlign = Math.max(maxAlign, align)
+            
+            // Apply alignment
+            offset = Math.ceil(offset / align) * align
+            
+            // Skip padding/internal fields from the layout, but still advance offset
+            if (fieldName.startsWith('_') || fieldName.toLowerCase().startsWith('pad')) {
+                offset += size
+                continue
+            }
+            
+            layout.push({
+                name: fieldName,
+                offset,
+                size,
+                type: baseType,
+                components
+            })
+            
+            offset += size
+        }
+        
+        // WGSL struct size must be multiple of largest member alignment
+        const structSize = Math.ceil(offset / maxAlign) * maxAlign
+        
+        // Verify that the struct variable is used in shader code
+        // Check for patterns like: u.fieldName
+        const usageRegex = new RegExp(`${uniformVarName}\\.(\\w+)`)
+        if (!usageRegex.test(source)) {
+            return null
+        }
+        
+        // Return layout with structSize metadata
+        if (layout.length > 0) {
+            layout.structSize = structSize
+            return layout
+        }
+        return null
+    }
+
+    /**
+     * Get size, alignment, and type info for WGSL types.
+     */
+    getWgslTypeInfo(type) {
+        const typeMap = {
+            'f32': { size: 4, align: 4, baseType: 'float', components: 1 },
+            'i32': { size: 4, align: 4, baseType: 'int', components: 1 },
+            'u32': { size: 4, align: 4, baseType: 'uint', components: 1 },
+            'vec2f': { size: 8, align: 8, baseType: 'float', components: 2 },
+            'vec2<f32>': { size: 8, align: 8, baseType: 'float', components: 2 },
+            'vec3f': { size: 12, align: 16, baseType: 'float', components: 3 },
+            'vec3<f32>': { size: 12, align: 16, baseType: 'float', components: 3 },
+            'vec4f': { size: 16, align: 16, baseType: 'float', components: 4 },
+            'vec4<f32>': { size: 16, align: 16, baseType: 'float', components: 4 },
+            'vec2i': { size: 8, align: 8, baseType: 'int', components: 2 },
+            'vec2<i32>': { size: 8, align: 8, baseType: 'int', components: 2 },
+            'vec3i': { size: 12, align: 16, baseType: 'int', components: 3 },
+            'vec3<i32>': { size: 12, align: 16, baseType: 'int', components: 3 },
+            'vec4i': { size: 16, align: 16, baseType: 'int', components: 4 },
+            'vec4<i32>': { size: 16, align: 16, baseType: 'int', components: 4 },
+            'vec2u': { size: 8, align: 8, baseType: 'uint', components: 2 },
+            'vec2<u32>': { size: 8, align: 8, baseType: 'uint', components: 2 },
+            'vec3u': { size: 12, align: 16, baseType: 'uint', components: 3 },
+            'vec3<u32>': { size: 12, align: 16, baseType: 'uint', components: 3 },
+            'vec4u': { size: 16, align: 16, baseType: 'uint', components: 4 },
+            'vec4<u32>': { size: 16, align: 16, baseType: 'uint', components: 4 },
+        }
+        return typeMap[type.toLowerCase()] || { size: 4, align: 4, baseType: 'float', components: 1 }
+    }
+
+    /**
+     * Parse WGSL struct definition with comment annotations to extract uniform layout.
+     * Looks for patterns like:
+     *   struct FooParams {
+     *       dims_freq : vec4<f32>,  // (width, height, channels, frequency)
+     *       settings : vec4<f32>,   // (octaves, displacement, splineOrder, _)
+     *   }
+     * 
+     * @param {string} source - WGSL shader source
+     * @returns {Array<{name: string, slot: number, components: string}>|null}
+     */
+    parseNamedStructLayout(source) {
+        const layout = []
+        const componentNames = ['x', 'y', 'z', 'w']
+        
+        // Find struct definitions that look like param structs (name ends with Params, Uniforms, etc.)
+        const structRegex = /struct\s+(\w*(?:Params|Uniforms|Config|Settings))\s*\{([^}]+)\}/gi
+        
+        let structMatch
+        while ((structMatch = structRegex.exec(source)) !== null) {
+            const structBody = structMatch[2]
+            let slot = 0
+            
+            // Parse each field in the struct
+            // Pattern: fieldName : type, // (name1, name2, name3, name4)
+            // Also handles fields without comments
+            const fieldRegex = /(\w+)\s*:\s*(vec[234]<f32>|f32|i32|u32|array<[^>]+>)[^,;\n]*(?:,|;)?\s*(?:\/\/\s*\(([^)]+)\))?/gi
+            
+            let fieldMatch
+            while ((fieldMatch = fieldRegex.exec(structBody)) !== null) {
+                const fieldName = fieldMatch[1]
+                const fieldType = fieldMatch[2]
+                const commentNames = fieldMatch[3]
+                
+                // Determine field size in vec4 slots
+                let numComponents = 4 // Default to vec4
+                if (fieldType === 'f32' || fieldType === 'i32' || fieldType === 'u32') {
+                    numComponents = 1
+                } else if (fieldType.startsWith('vec2')) {
+                    numComponents = 2
+                } else if (fieldType.startsWith('vec3')) {
+                    numComponents = 3
+                } else if (fieldType.startsWith('vec4')) {
+                    numComponents = 4
+                }
+                
+                if (commentNames) {
+                    // Parse comment: (name1, name2, name3, name4) or (name1, name2, _, _)
+                    const names = commentNames.split(',').map(n => n.trim())
+                    
+                    for (let i = 0; i < Math.min(names.length, numComponents); i++) {
+                        const name = names[i]
+                        // Skip placeholders like '_', 'pad', 'unused', 'padding', '_pad0', etc.
+                        if (name && name !== '_' && !name.toLowerCase().startsWith('pad') && 
+                            !name.toLowerCase().startsWith('unused') && !name.startsWith('_')) {
+                            layout.push({
+                                name,
+                                slot,
+                                components: componentNames[i]
+                            })
+                        }
+                    }
+                } else {
+                    // No comment - use the field name as the uniform name for single-component fields
+                    // or skip for vec4 fields (they're typically packed internal storage)
+                    if (numComponents === 1) {
+                        layout.push({
+                            name: fieldName,
+                            slot,
+                            components: 'x'
+                        })
+                    }
+                }
+                
+                // Advance slot counter (each vec4 is one slot, smaller types also take one slot due to WGSL padding)
+                slot++
+            }
+        }
+        
+        return layout.length > 0 ? layout : null
+    }
+
+    /**
+     * Parse WGSL shader for params.field.component access patterns.
+     * Looks for patterns like:
+     *   let frequency = params.dims_freq.w;
+     *   let time = params.settings.y;
+     * 
+     * This works with named structs by analyzing how fields are accessed.
+     * 
+     * @param {string} source - WGSL shader source
+     * @returns {Array<{name: string, slot: number, components: string}>|null}
+     */
+    parseParamsAccessLayout(source) {
+        const layout = []
+        const fieldSlots = new Map() // Map field name to slot index
+        
+        // First, parse the struct to get field order
+        const structRegex = /struct\s+\w*(?:Params|Uniforms|Config|Settings)\s*\{([^}]+)\}/gi
+        const structMatch = structRegex.exec(source)
+        
+        if (!structMatch) {
+            return null
+        }
+        
+        const structBody = structMatch[1]
+        const fieldOrderRegex = /(\w+)\s*:\s*(?:vec[234]<f32>|f32|i32|u32|array<[^>]+>)/gi
+        
+        let slot = 0
+        let fieldMatch
+        while ((fieldMatch = fieldOrderRegex.exec(structBody)) !== null) {
+            fieldSlots.set(fieldMatch[1], slot)
+            slot++
+        }
+        
+        // Now parse access patterns: let varName = params.fieldName.component;
+        // or: varName = params.fieldName.component;
+        const accessRegex = /(?:let\s+)?(\w+)(?:\s*:\s*[^=\n]+)?\s*=\s*(?:i32\s*\(\s*)?params\.(\w+)\.([xyzw]+)/g
+        
+        let accessMatch
+        while ((accessMatch = accessRegex.exec(source)) !== null) {
+            const varName = accessMatch[1]
+            const fieldName = accessMatch[2]
+            const components = accessMatch[3]
+            
+            const fieldSlot = fieldSlots.get(fieldName)
+            if (fieldSlot !== undefined) {
+                layout.push({
+                    name: varName,
+                    slot: fieldSlot,
+                    components
+                })
+            }
+        }
+        
+        // Sort by slot, then by component offset
+        const componentOrder = { x: 0, y: 1, z: 2, w: 3 }
+        layout.sort((a, b) => {
+            if (a.slot !== b.slot) return a.slot - b.slot
+            return componentOrder[a.components[0]] - componentOrder[b.components[0]]
+        })
+        
+        return layout.length > 0 ? layout : null
     }
 
     /**
@@ -1236,9 +1527,12 @@ export class WebGPUBackend extends Backend {
                     }
                 } else {
                     // Individual uniform - create small buffer for this value
-                    // Use 0 as default for missing uniforms to ensure bind group completeness
+                    // Use 0 as default for missing/invalid uniforms to ensure bind group completeness
                     let value = uniforms[binding.name]
-                    if (value === undefined) {
+                    
+                    // Handle missing, null, or invalid values by providing sensible defaults
+                    if (value === undefined || value === null || 
+                        (typeof value !== 'number' && typeof value !== 'boolean' && !Array.isArray(value))) {
                         // Provide sensible defaults based on type
                         if (binding.typeDecl === 'i32' || binding.typeDecl === 'u32') {
                             value = 0
@@ -1751,14 +2045,34 @@ export class WebGPUBackend extends Backend {
      * Pack uniforms into an ArrayBuffer according to a parsed layout.
      * The layout specifies where each uniform should be placed in the array<vec4<f32>, N> struct.
      * 
+     * Supports three layout formats:
+     * 1. Byte layout (from parseWgslStructByteLayout): { type: 'byte', layout: [...] }
+     * 2. Array format (from shader parsing): [{ name: 'time', slot: 0, components: 'z' }, ...]
+     * 3. Object format (from effect definition): { time: { slot: 0, components: 'z' }, ... }
+     * 
      * @param {Object} uniforms - Map of uniform names to values
-     * @param {Array<{name: string, slot: number, components: string}>} layout - Parsed layout
+     * @param {Array|Object} layout - Layout specification
      * @returns {Uint8Array}
      */
     packUniformsWithLayout(uniforms, layout) {
+        // Check for byte-based layout format
+        if (layout && layout.type === 'byte' && Array.isArray(layout.layout)) {
+            return this.packUniformsWithByteLayout(uniforms, layout.layout)
+        }
+        
+        // Normalize layout to array format
+        let layoutArray = layout
+        if (!Array.isArray(layout)) {
+            // Convert object format to array format
+            layoutArray = []
+            for (const [name, spec] of Object.entries(layout)) {
+                layoutArray.push({ name, slot: spec.slot, components: spec.components })
+            }
+        }
+        
         // Find the maximum slot index to determine buffer size
         let maxSlot = 0
-        for (const entry of layout) {
+        for (const entry of layoutArray) {
             maxSlot = Math.max(maxSlot, entry.slot)
         }
         
@@ -1770,7 +2084,7 @@ export class WebGPUBackend extends Backend {
         // Component offset mapping
         const componentOffset = { x: 0, y: 4, z: 8, w: 12 }
         
-        for (const entry of layout) {
+        for (const entry of layoutArray) {
             const value = uniforms[entry.name]
             if (value === undefined || value === null) {
                 continue
@@ -1821,6 +2135,80 @@ export class WebGPUBackend extends Backend {
                         view.setFloat32(offset + i * 4, value[i], true)
                     }
                 } else if (typeof value === 'number') {
+                    view.setFloat32(offset, value, true)
+                }
+            }
+        }
+        
+        return new Uint8Array(buffer)
+    }
+
+    /**
+     * Pack uniforms into an ArrayBuffer using byte-based layout.
+     * Each entry specifies exact byte offset and type for the uniform.
+     * 
+     * @param {Object} uniforms - Map of uniform names to values
+     * @param {Array<{name: string, offset: number, size: number, type: string, components: number}>} layout
+     * @returns {Uint8Array}
+     */
+    packUniformsWithByteLayout(uniforms, layout) {
+        // Use structSize if available, otherwise calculate from entries
+        let totalSize = layout.structSize || 0
+        if (!totalSize) {
+            for (const entry of layout) {
+                totalSize = Math.max(totalSize, entry.offset + entry.size)
+            }
+        }
+        
+        // Round up to 16-byte alignment for uniform buffer
+        const bufferSize = Math.ceil(totalSize / 16) * 16
+        const buffer = new ArrayBuffer(Math.max(bufferSize, 16))
+        const view = new DataView(buffer)
+        
+        for (const entry of layout) {
+            const value = uniforms[entry.name]
+            if (value === undefined || value === null) {
+                continue
+            }
+            
+            const { offset, type, components } = entry
+            
+            if (components === 1) {
+                // Scalar value
+                if (typeof value === 'boolean') {
+                    if (type === 'int' || type === 'uint') {
+                        view.setInt32(offset, value ? 1 : 0, true)
+                    } else {
+                        view.setFloat32(offset, value ? 1.0 : 0.0, true)
+                    }
+                } else if (typeof value === 'number') {
+                    if (type === 'int') {
+                        view.setInt32(offset, Math.round(value), true)
+                    } else if (type === 'uint') {
+                        view.setUint32(offset, Math.round(value), true)
+                    } else {
+                        view.setFloat32(offset, value, true)
+                    }
+                }
+            } else if (Array.isArray(value)) {
+                // Vector value
+                for (let i = 0; i < Math.min(value.length, components); i++) {
+                    const compOffset = offset + i * 4
+                    if (type === 'int') {
+                        view.setInt32(compOffset, Math.round(value[i]), true)
+                    } else if (type === 'uint') {
+                        view.setUint32(compOffset, Math.round(value[i]), true)
+                    } else {
+                        view.setFloat32(compOffset, value[i], true)
+                    }
+                }
+            } else if (typeof value === 'number') {
+                // Scalar assigned to vector - fill first component
+                if (type === 'int') {
+                    view.setInt32(offset, Math.round(value), true)
+                } else if (type === 'uint') {
+                    view.setUint32(offset, Math.round(value), true)
+                } else {
                     view.setFloat32(offset, value, true)
                 }
             }

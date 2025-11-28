@@ -2,11 +2,10 @@
 precision highp float;
 precision highp int;
 
-// Blur upsample pass - reads from downsampled texture and interpolates to full resolution
-// The downsample size is computed based on amount, matching the downsample pass
+// Blur upsample pass - reads from 64x64 downsampled texture and interpolates to full resolution
 
 uniform sampler2D downsampleTex;
-uniform sampler2D inputTex;  // Need original input to get actual resolution
+uniform sampler2D inputTex;
 uniform float amount;
 uniform float splineOrder;
 uniform vec2 resolution;
@@ -34,33 +33,24 @@ float cubicWeight(float t, int index) {
 }
 
 vec4 readDownsample(ivec2 coord, ivec2 downSize) {
-    int safeX = coord.x % downSize.x;
-    if (safeX < 0) safeX += downSize.x;
-    int safeY = coord.y % downSize.y;
-    if (safeY < 0) safeY += downSize.y;
+    int safeX = clamp(coord.x, 0, downSize.x - 1);
+    int safeY = clamp(coord.y, 0, downSize.y - 1);
     return texelFetch(downsampleTex, ivec2(safeX, safeY), 0);
 }
 
 void main() {
-    // Get the actual input size
-    ivec2 inputSize = textureSize(inputTex, 0);
-    ivec2 outSize = inputSize;
-    
-    // Compute downsample size based on amount (matching downsample pass)
-    float blurAmount = max(amount, 1.0);
-    ivec2 downSize = ivec2(
-        max(1, int(float(inputSize.x) / blurAmount)),
-        max(1, int(float(inputSize.y) / blurAmount))
-    );
+    // Output is full resolution, input is 64x64 downsample buffer
+    ivec2 outputSize = ivec2(resolution);
+    ivec2 downSize = ivec2(64, 64);
     
     ivec2 coord = ivec2(gl_FragCoord.xy);
     
     // Map output coordinate to downsample space
-    float scaleX = float(downSize.x) / float(outSize.x);
-    float scaleY = float(downSize.y) / float(outSize.y);
+    float scaleX = float(downSize.x) / float(outputSize.x);
+    float scaleY = float(downSize.y) / float(outputSize.y);
     
-    float srcX = float(coord.x) * scaleX;
-    float srcY = float(coord.y) * scaleY;
+    float srcX = (float(coord.x) + 0.5) * scaleX - 0.5;
+    float srcY = (float(coord.y) + 0.5) * scaleY - 0.5;
     
     int baseX = int(floor(srcX));
     int baseY = int(floor(srcY));
@@ -72,15 +62,15 @@ void main() {
     
     if (order == 0) {
         // Constant - nearest neighbor
-        fragColor = readDownsample(ivec2(baseX, baseY), downSize);
+        fragColor = readDownsample(ivec2(int(srcX + 0.5), int(srcY + 0.5)), downSize);
     } else if (order == 3) {
         // Bicubic interpolation (Catmull-Rom)
         vec4 result = vec4(0.0);
         for (int j = 0; j < 4; j++) {
             for (int i = 0; i < 4; i++) {
-                vec4 sample = readDownsample(ivec2(baseX + i - 1, baseY + j - 1), downSize);
+                vec4 sampleVal = readDownsample(ivec2(baseX + i - 1, baseY + j - 1), downSize);
                 float weight = cubicWeight(fracX, i) * cubicWeight(fracY, j);
-                result += sample * weight;
+                result += sampleVal * weight;
             }
         }
         fragColor = result;

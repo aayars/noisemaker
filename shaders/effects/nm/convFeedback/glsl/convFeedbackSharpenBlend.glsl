@@ -20,17 +20,6 @@ void main() {
     ivec2 coord = ivec2(gl_FragCoord.xy);
     
     vec4 input_val = texelFetch(inputTex, coord, 0);
-    vec4 self_val = texelFetch(selfTex, coord, 0);
-    
-    // Check if self (previous frame) is empty - use input as base
-    float self_luma = dot(self_val.rgb, vec3(0.299, 0.587, 0.114));
-    bool is_first_frame = self_luma < 0.001 && self_val.a < 0.001;
-    
-    if (is_first_frame) {
-        // First frame: just output the input
-        fragColor = input_val;
-        return;
-    }
     
     // Apply 3x3 sharpen to blurred texture
     vec3 sum = vec3(0.0);

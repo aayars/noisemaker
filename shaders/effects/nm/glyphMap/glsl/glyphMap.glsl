@@ -12,10 +12,17 @@ const float PI = 3.141592653589793;
 
 uniform sampler2D inputTex;
 uniform sampler2D glyphTexture;
-uniform vec4 size;
-uniform vec4 gridLayout;
-uniform vec4 curve;
-uniform vec4 tempo;
+uniform vec2 resolution;
+
+// Effect-specific uniforms (individual, not packed)
+uniform float glyphWidth;
+uniform float glyphHeight;
+uniform float glyphCount;
+uniform float maskValue;
+uniform bool colorize;
+uniform float zoom;
+uniform float alpha;
+uniform float splineOrder;
 
 float clamp01(float value) {
     return clamp(value, 0.0, 1.0);
@@ -91,13 +98,13 @@ layout(location = 0) out vec4 fragColor;
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width = max(round_to_u32(size.x), 1u);
-    uint height = max(round_to_u32(size.y), 1u);
+    uint width = max(uint(resolution.x), 1u);
+    uint height = max(uint(resolution.y), 1u);
     if (global_id.x >= width || global_id.y >= height) {
         return;
     }
 
-    uint channelCount = sanitized_channelCount(size.z);
+    uint channelCount = 4u;  // Always RGBA
     vec2 src_coords = vec2(int(global_id.x), int(global_id.y));
     vec4 src_texel = texture(inputTex, (vec2(src_coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
 
@@ -108,28 +115,27 @@ void main() {
         return;
     }
 
-    uint glyph_width_raw = max(round_to_u32(size.w), 1u);
-    uint glyph_height_raw = max(round_to_u32(gridLayout.x), 1u);
+    uint glyph_width_raw = max(uint(glyphWidth), 1u);
+    uint glyph_height_raw = max(uint(glyphHeight), 1u);
     uint glyph_width = min(glyph_width_raw, max(atlas_dims.x, 1u));
     uint glyph_height = min(glyph_height_raw, max(atlas_dims.y, 1u));
 
-    uint glyph_count = round_to_u32(gridLayout.y);
+    uint glyph_count = uint(glyphCount);
     uint atlas_capacity = max(atlas_dims.y / max(glyph_height, 1u), 1u);
     if (glyph_count == 0u) {
         glyph_count = atlas_capacity;
     }
     glyph_count = clamp(glyph_count, 1u, atlas_capacity);
 
-    float mask_value = gridLayout.z;
-    bool colorize = gridLayout.w > 0.5;
-    float zoom = max(curve.x, 1.0e-5);
-    float alpha_factor = clamp01(curve.y);
-    float spline_order = curve.z;
+    float mask_value = maskValue;
+    float zoomVal = max(zoom, 1.0e-5);
+    float alpha_factor = clamp01(alpha);
+    float spline_order = splineOrder;
     if (abs(mask_value - 1020.0) < 0.5) {
         spline_order = 2.0;
     }
 
-    float inv_zoom = 1.0 / zoom;
+    float inv_zoom = 1.0 / zoomVal;
     uint input_width = max(uint(floor(float(width) * inv_zoom)), 1u);
     uint input_height = max(uint(floor(float(height) * inv_zoom)), 1u);
 
@@ -172,8 +178,8 @@ void main() {
     float sample_input_y =
         clamp(cell_center_y * input_height_f, 0.0, max(input_height_f - 1.0, 0.0));
 
-    float sample_source_x = clamp((sample_input_x + 0.5) * zoom, 0.0, max(width_f - 1.0, 0.0));
-    float sample_source_y = clamp((sample_input_y + 0.5) * zoom, 0.0, max(height_f - 1.0, 0.0));
+    float sample_source_x = clamp((sample_input_x + 0.5) * zoomVal, 0.0, max(width_f - 1.0, 0.0));
+    float sample_source_y = clamp((sample_input_y + 0.5) * zoomVal, 0.0, max(height_f - 1.0, 0.0));
 
     vec2 sample_coords = vec2(int(sample_source_x), int(sample_source_y));
     vec4 sample_texel = texture(inputTex, (vec2(sample_coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));

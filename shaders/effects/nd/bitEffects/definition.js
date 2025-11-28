@@ -5,6 +5,28 @@ export default class BitEffects extends Effect {
   namespace = "nd";
   func = "bitEffects";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    formula: { slot: 1, components: 'x' },
+    colorScheme: { slot: 1, components: 'y' },
+    n: { slot: 1, components: 'z' },
+    interp: { slot: 1, components: 'w' },
+    scale: { slot: 2, components: 'x' },
+    rotation: { slot: 2, components: 'y' },
+    loopAmp: { slot: 2, components: 'z' },
+    mode: { slot: 2, components: 'w' },
+    maskFormula: { slot: 3, components: 'x' },
+    tiles: { slot: 3, components: 'y' },
+    complexity: { slot: 3, components: 'z' },
+    maskColorScheme: { slot: 3, components: 'w' },
+    hueRange: { slot: 4, components: 'x' },
+    hueRotation: { slot: 4, components: 'y' },
+    baseHueRange: { slot: 4, components: 'z' }
+  };
   globals = {
     mode: {
       type: "int",

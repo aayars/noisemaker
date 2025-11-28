@@ -98,7 +98,39 @@ function callToSurface(node) {
 export function validate(ast) {
     const diagnosticsList = []
     function pushDiag(code, node, message = diagnostics[code].message) {
-        diagnosticsList.push({code, message, severity: diagnostics[code].severity, nodeId: node?.id})
+        // Enrich message with identifier/location context when available
+        let enrichedMessage = message
+        const identName = extractIdentifierName(node)
+        // Only append identifier if not already in message
+        if (identName && !message.includes(identName) && !message.includes("'")) {
+            enrichedMessage = `${message}: '${identName}'`
+        }
+        // Add source location if available
+        let location = null
+        if (node?.loc) {
+            location = { line: node.loc.line, column: node.loc.column }
+        }
+        diagnosticsList.push({
+            code,
+            message: enrichedMessage,
+            severity: diagnostics[code].severity,
+            nodeId: node?.id,
+            ...(location && { location }),
+            ...(identName && { identifier: identName })
+        })
+    }
+
+    function extractIdentifierName(node) {
+        if (!node) return null
+        if (node.type === 'Ident') return node.name
+        if (node.type === 'Member' && Array.isArray(node.path)) return node.path.join('.')
+        if (node.type === 'Call') return node.name
+        if (node.type === 'Func' && node.src) return `{${node.src.slice(0, 30)}${node.src.length > 30 ? '...' : ''}}`
+        // Fallback: try to extract any name-like property
+        if (node.name) return node.name
+        if (node.value) return String(node.value)
+        // Debug: show what we got
+        return `[${node.type || 'unknown'}]`
     }
     const plans = []
     const render = ast.render ? parseInt(ast.render.name.slice(1), 10) : null
@@ -679,7 +711,7 @@ export function validate(ast) {
                 if (kw) {
                     for (const key of Object.keys(kw)) {
                         if (!seen.has(key)) {
-                            pushDiag('S001', kw[key])
+                            pushDiag('S001', kw[key], `Unknown argument '${key}' for ${call.name}()`)
                         }
                     }
                 }

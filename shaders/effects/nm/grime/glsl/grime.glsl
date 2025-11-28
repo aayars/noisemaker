@@ -9,8 +9,11 @@ precision highp int;
 const uint CHANNEL_COUNT = 4u;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 timeSpeed;
+uniform vec2 resolution;
+uniform float time;
+uniform float speed;
+uniform float strength;
+uniform float debugMode;
 
 out vec4 fragColor;
 
@@ -243,8 +246,8 @@ float refracted_exponential(
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width = max(as_u32(size.x), 1u);
-    uint height = max(as_u32(size.y), 1u);
+    uint width = max(as_u32(resolution.x), 1u);
+    uint height = max(as_u32(resolution.y), 1u);
 
     if (global_id.x >= width || global_id.y >= height) {
         return;
@@ -254,16 +257,16 @@ void main() {
     vec4 base_color = texelFetch(inputTex, coords, 0);
 
     vec2 dims = vec2(
-        max(size.x, 1.0),
-        max(size.y, 1.0)
+        max(resolution.x, 1.0),
+        max(resolution.y, 1.0)
     );
     vec2 pixel_size = vec2(1.0 / dims.x, 1.0 / dims.y);
     vec2 uv = (vec2(float(global_id.x), float(global_id.y)) + 0.5) * pixel_size;
 
-    float time_value = timeSpeed.x;
-    float speed_value = timeSpeed.y;
-    float strength = max(timeSpeed.z, 0.0);
-    float debug_mode = timeSpeed.w;
+    float time_value = time;
+    float speed_value = speed;
+    float strength_val = max(strength, 0.0);
+    float debug_mode = debugMode;
 
     vec2 freq_mask = freq_for_shape(5.0, dims.x, dims.y);
     float mask_refracted = refracted_scalar_field(
@@ -320,7 +323,7 @@ void main() {
     dusty = mix(dusty, vec3(sparse_noise), vec3(0.075));
     dusty = dusty * specks;
 
-    float blend_mask = clamp01(mask_value * 0.75 * strength);
+    float blend_mask = clamp01(mask_value * 0.75 * strength_val);
     
     // Debug visualization modes
     vec3 final_rgb;

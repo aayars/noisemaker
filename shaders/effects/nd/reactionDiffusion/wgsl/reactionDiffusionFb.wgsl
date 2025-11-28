@@ -7,8 +7,8 @@
 struct Uniforms {
     // data[0] = (resolution.x, resolution.y, time, zoom)
     // data[1] = (feed, kill, rate1, rate2)
-    // data[2] = (speed, inputWeight, feedSource, killSource)
-    // data[3] = (rate1Source, rate2Source, paletteMode, smooth)
+    // data[2] = (speed, weight, sourceF, sourceK)
+    // data[3] = (sourceR1, sourceR2, paletteMode, smooth)
     // data[4] = (unused, cyclePalette, rotatePalette, repeatPalette)
     // data[5] = (paletteOffset.x, paletteOffset.y, paletteOffset.z, colorMode)
     // data[6] = (paletteAmp.x, paletteAmp.y, paletteAmp.z, unused)
@@ -46,17 +46,38 @@ fn lum(color: vec3<f32>) -> f32 {
     return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
 }
 
+fn hash(p: vec2<f32>) -> f32 {
+    var p2 = fract(p * vec2<f32>(0.1031, 0.1030));
+    p2 = p2 + dot(p2, p2.yx + 33.33);
+    return fract((p2.x + p2.y) * p2.x);
+}
+
 @fragment
 fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
     let resolution = uniforms.data[0].xy;
     let time = uniforms.data[0].z; // unused
     let zoom = uniforms.data[0].w;
-    let seed = uniforms.data[8].w; // unused
+    let seed = uniforms.data[8].w;
 
     let texSize = vec2<f32>(textureDimensions(bufTex, 0));
     let tex = textureSampleLevel(bufTex, samp, pos.xy / texSize, 0.0);
     var a = tex.r;
     var b = tex.g;
+
+    // Check if buffer is empty (first frame initialization)
+    let bufferIsEmpty = (tex.r == 0.0 && tex.g == 0.0 && tex.b == 0.0 && tex.a == 0.0);
+
+    if (bufferIsEmpty) {
+        // Initialize: A=1 everywhere, B=1 at sparse random locations
+        a = 1.0;
+        b = 0.0;
+        if (hash(pos.xy + vec2<f32>(seed, seed)) > 0.99) {
+            b = 1.0;
+        }
+        // Return initial state without running update step
+        return vec4<f32>(a, b, 0.0, 1.0);
+    }
+
     var color = lp(bufTex, pos.xy, texSize);
 
     var prevFrameCoord = pos.xy / texSize;
@@ -137,8 +158,7 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
         r2 = mix(r2, val, weight);
     }
 
-    let a2 = a + (r1 * color.r - a * b * b + f * (1.0 - a)) * s;
-    let b2 = b + (r2 * color.g + a * b * b - (k + f) * b) * s;
-    color = vec3<f32>(a2, b2, 0.0);
-    return vec4<f32>(color, 1.0);
+    let a2 = clamp(a + (r1 * color.r - a * b * b + f * (1.0 - a)) * s, 0.0, 1.0);
+    let b2 = clamp(b + (r2 * color.g + a * b * b - (k + f) * b) * s, 0.0, 1.0);
+    return vec4<f32>(a2, b2, 0.0, 1.0);
 }

@@ -11,6 +11,39 @@ export default class CellularAutomataMN extends Effect {
   namespace = "nd";
   func = "cellularAutomataMn";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    deltaTime: { slot: 0, components: 'y' },
+    time: { slot: 0, components: 'z' },
+    speed: { slot: 1, components: 'x' },
+    smoothing: { slot: 1, components: 'y' },
+    weight: { slot: 1, components: 'y' },
+    colorMode: { slot: 1, components: 'z' },
+    seed: { slot: 1, components: 'z' },
+    paletteMode: { slot: 1, components: 'w' },
+    resetState: { slot: 1, components: 'w' },
+    cyclePalette: { slot: 2, components: 'x' },
+    n1v1: { slot: 2, components: 'x' },
+    rotatePalette: { slot: 2, components: 'y' },
+    n1r1: { slot: 2, components: 'y' },
+    repeatPalette: { slot: 2, components: 'z' },
+    n1v2: { slot: 2, components: 'z' },
+    n1r2: { slot: 2, components: 'w' },
+    n1v3: { slot: 3, components: 'x' },
+    n1r3: { slot: 3, components: 'y' },
+    n1v4: { slot: 3, components: 'z' },
+    n1r4: { slot: 3, components: 'w' },
+    offset: { slot: 4, components: 'xyz' },
+    n2v1: { slot: 4, components: 'x' },
+    n2r1: { slot: 4, components: 'y' },
+    n2v2: { slot: 4, components: 'z' },
+    n2r2: { slot: 4, components: 'w' },
+    amp: { slot: 5, components: 'xyz' },
+    freq: { slot: 6, components: 'xyz' },
+    phase: { slot: 7, components: 'xyz' }
+  };
   textures = {};
 
   globals = {

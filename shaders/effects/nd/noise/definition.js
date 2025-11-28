@@ -11,6 +11,38 @@ export default class Noise extends Effect {
   namespace = "nd";
   func = "noise";
 
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+    resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    aspectRatio: { slot: 0, components: 'w' },
+    xScale: { slot: 1, components: 'x' },
+    yScale: { slot: 1, components: 'y' },
+    seed: { slot: 1, components: 'z' },
+    loopScale: { slot: 1, components: 'w' },
+    loopAmp: { slot: 2, components: 'x' },
+    loopOffset: { slot: 2, components: 'y' },
+    noiseType: { slot: 2, components: 'z' },
+    octaves: { slot: 2, components: 'w' },
+    ridges: { slot: 3, components: 'x' },
+    wrap: { slot: 3, components: 'y' },
+    refractMode: { slot: 3, components: 'z' },
+    refractAmt: { slot: 3, components: 'w' },
+    kaleido: { slot: 4, components: 'x' },
+    metric: { slot: 4, components: 'y' },
+    colorMode: { slot: 4, components: 'z' },
+    paletteMode: { slot: 4, components: 'w' },
+    cyclePalette: { slot: 5, components: 'x' },
+    rotatePalette: { slot: 5, components: 'y' },
+    repeatPalette: { slot: 5, components: 'z' },
+    hueRange: { slot: 5, components: 'w' },
+    hueRotation: { slot: 6, components: 'x' },
+    paletteOffset: { slot: 7, components: 'xyz' },
+    paletteAmp: { slot: 8, components: 'xyz' },
+    paletteFreq: { slot: 9, components: 'xyz' },
+    palettePhase: { slot: 10, components: 'xyz' }
+  };
+
   globals = {
     aspect: {
       type: "float",

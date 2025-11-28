@@ -11,6 +11,31 @@ export default class CellNoise extends Effect {
   namespace = "nd";
   func = "cellNoise";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    metric: { slot: 1, components: 'x' },
+    scale: { slot: 1, components: 'y' },
+    cellScale: { slot: 1, components: 'z' },
+    cellSmooth: { slot: 1, components: 'w' },
+    cellVariation: { slot: 2, components: 'x' },
+    loopAmp: { slot: 2, components: 'y' },
+    paletteMode: { slot: 2, components: 'z' },
+    colorMode: { slot: 2, components: 'w' },
+    paletteOffset: { slot: 3, components: 'xyz' },
+    cyclePalette: { slot: 3, components: 'w' },
+    paletteAmp: { slot: 4, components: 'xyz' },
+    rotatePalette: { slot: 4, components: 'w' },
+    paletteFreq: { slot: 5, components: 'xyz' },
+    repeatPalette: { slot: 5, components: 'w' },
+    palettePhase: { slot: 6, components: 'xyz' },
+    texSource: { slot: 7, components: 'x' },
+    texInfluence: { slot: 7, components: 'y' },
+    texIntensity: { slot: 7, components: 'z' }
+  };
   globals = {
     metric: {
       type: "int",

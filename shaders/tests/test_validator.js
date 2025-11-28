@@ -52,6 +52,10 @@ test('Valid Chain', 'search basics\nosc(10).out(o0)', (result) => {
 test('Unknown Function', 'search basics\nunknown(10).out(o0)', (result) => {
     const diag = result.diagnostics.find(d => d.code === 'S001');
     if (!diag) throw new Error('Expected S001 (Unknown identifier)');
+    // Verify the identifier name is included in the message
+    if (!diag.identifier) throw new Error('Expected identifier field in diagnostic');
+    if (diag.identifier !== 'unknown') throw new Error(`Expected identifier 'unknown', got '${diag.identifier}'`);
+    if (!diag.message.includes('unknown')) throw new Error('Expected identifier name in message');
 });
 
 test('Missing Out', 'search basics\nosc(10)', (result) => {

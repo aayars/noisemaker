@@ -5,6 +5,17 @@ export default class DepthOfField extends Effect {
   namespace = "nd";
   func = "depthOfField";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    focalDistance: { slot: 1, components: 'x' },
+    aperture: { slot: 1, components: 'y' },
+    sampleBias: { slot: 1, components: 'z' },
+    depthSource: { slot: 1, components: 'w' }
+  };
   globals = {
     tex: {
       type: "surface",

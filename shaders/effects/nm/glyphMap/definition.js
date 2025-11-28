@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Glyph Map
- * /shaders/effects/glyph_map/glyph_map.wgsl
+ * Maps input values to glyph indices from an atlas texture
  */
 export default class GlyphMap extends Effect {
   name = "GlyphMap";
@@ -20,12 +20,12 @@ export default class GlyphMap extends Effect {
         }
     },
     zoom: {
-        type: "int",
-        default: 1,
+        type: "float",
+        default: 1.0,
         uniform: "zoom",
-        min: 1,
-        max: 8,
-        step: 1,
+        min: 0.1,
+        max: 8.0,
+        step: 0.1,
         ui: {
             label: "Zoom",
             control: "slider"
@@ -33,21 +33,70 @@ export default class GlyphMap extends Effect {
     },
     alpha: {
         type: "float",
-        default: 1,
+        default: 1.0,
         uniform: "alpha",
-        min: 0,
-        max: 1,
+        min: 0.0,
+        max: 1.0,
         step: 0.01,
         ui: {
             label: "Alpha",
             control: "slider"
         }
+    },
+    glyphWidth: {
+        type: "float",
+        default: 8.0,
+        uniform: "glyphWidth",
+        min: 4.0,
+        max: 64.0,
+        step: 1.0,
+        ui: {
+            label: "Glyph Width"
+        }
+    },
+    glyphHeight: {
+        type: "float",
+        default: 8.0,
+        uniform: "glyphHeight",
+        min: 4.0,
+        max: 64.0,
+        step: 1.0,
+        ui: {
+            label: "Glyph Height"
+        }
+    },
+    glyphCount: {
+        type: "float",
+        default: 0.0,
+        uniform: "glyphCount",
+        min: 0.0,
+        max: 256.0,
+        step: 1.0,
+        ui: {
+            label: "Glyph Count (0=auto)"
+        }
+    },
+    maskValue: {
+        type: "float",
+        default: 0.0,
+        uniform: "maskValue",
+        ui: {
+            label: "Mask Value"
+        }
+    },
+    splineOrder: {
+        type: "float",
+        default: 0.0,
+        uniform: "splineOrder",
+        min: 0.0,
+        max: 3.0,
+        step: 1.0,
+        ui: {
+            label: "Spline Order"
+        }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
@@ -56,7 +105,7 @@ export default class GlyphMap extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

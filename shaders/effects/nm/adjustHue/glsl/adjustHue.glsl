@@ -97,15 +97,15 @@ void main() {
     vec4 texel = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
 
     uint channelCount = 4u;
-    float amount = amount;
-    if (channelCount < 3u || amount == 0.0 || amount == 1.0) {
+    float hueAmount = amount;
+    if (channelCount < 3u || hueAmount == 0.0 || hueAmount == 1.0) {
         fragColor = vec4(texel.xyz, texel.w);
         return;
     }
 
     vec3 rgb = clamp(texel.xyz, ZERO_RGB, ONE_RGB);
     vec3 hsv = rgb_to_hsv(rgb);
-    hsv.x = wrap_unit(hsv.x + amount);
+    hsv.x = wrap_unit(hsv.x + hueAmount);
     hsv.y = clamp01(hsv.y);
     hsv.z = clamp01(hsv.z);
     vec3 adjusted = clamp(hsv_to_rgb(hsv), ZERO_RGB, ONE_RGB);

@@ -2,9 +2,10 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D inputTexture;
-uniform vec4 size;      // (width, height, channels, unused)
-uniform vec4 timeSpeed; // (time, speed, unused, unused)
+uniform sampler2D inputTex;
+uniform vec2 resolution;
+uniform float time;
+uniform float speed;
 
 out vec4 fragColor;
 
@@ -99,7 +100,7 @@ float simple_multires(
 vec4 safe_load(int x, int y, int width, int height) {
     int sx = clamp(x, 0, max(width - 1, 0));
     int sy = clamp(y, 0, max(height - 1, 0));
-    return texelFetch(inputTexture, ivec2(sx, sy), 0);
+    return texelFetch(inputTex, ivec2(sx, sy), 0);
 }
 
 vec3 adjust_brightness(vec3 rgb, float value) {
@@ -213,16 +214,16 @@ float scratch_mask(vec2 uv, float time_value, float speed_value, float seed_valu
 void main() {
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width = max(as_u32(size.x), 1u);
-    uint height = max(as_u32(size.y), 1u);
+    uint width = max(as_u32(resolution.x), 1u);
+    uint height = max(as_u32(resolution.y), 1u);
     if (global_id.x >= width || global_id.y >= height) {
         return;
     }
 
-    float width_f = max(size.x, 1.0);
-    float height_f = max(size.y, 1.0);
-    float time_value = timeSpeed.x;
-    float speed_value = timeSpeed.y;
+    float width_f = max(resolution.x, 1.0);
+    float height_f = max(resolution.y, 1.0);
+    float time_value = time;
+    float speed_value = speed;
     float seed_value = hash31(vec3(
         time_value * 0.123,
         speed_value * 1.37,
@@ -230,10 +231,10 @@ void main() {
     ));
 
     vec2 coords = vec2(float(global_id.x), float(global_id.y));
-    vec4 sample_val = texelFetch(inputTexture, ivec2(coords), 0);
+    vec4 sample_val = texelFetch(inputTex, ivec2(coords), 0);
 
-    int width_i = as_i32(size.x);
-    int height_i = as_i32(size.y);
+    int width_i = as_i32(resolution.x);
+    int height_i = as_i32(resolution.y);
 
     vec3 color = sample_val.xyz;
     color = adjust_brightness(color, 0.1);

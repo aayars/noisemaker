@@ -44,7 +44,7 @@ export default class Aberration extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

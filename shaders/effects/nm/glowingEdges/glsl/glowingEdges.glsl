@@ -3,56 +3,75 @@
 precision highp float;
 precision highp int;
 
-// Glowing Edges final combine shader
-// Reuses: posterize, convolve (Sobel), sobel (combine), bloom, normalize
-// This shader performs only the last blend step:
-//   edges_prep = clamp(edges * 8.0, 0.0, 1.0) * clamp(base * 1.25, 0.0, 1.0)
-//   screen = 1.0 - (1.0 - edges_prep) * (1.0 - base)
-//   out = mix(base, screen, alpha)
-
-const uint CHANNEL_COUNT = 4u;
-
+// Glowing Edges - single-pass effect that computes Sobel edges and applies glow
+// Based on the Python reference which chains posterize -> sobel -> bloom -> blend
 
 uniform sampler2D inputTex;
-uniform float width;
-uniform float height;
-uniform float channelCount;
+uniform vec2 resolution;
 uniform float alpha;
 uniform float sobelMetric;
 uniform float time;
-uniform float speed;
-uniform sampler2D edgesTexture;
-
-
-vec3 clamp01(vec3 v) {
-    return clamp(v, vec3(0.0), vec3(1.0));
-}
-
 
 out vec4 fragColor;
 
-void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
+float luminance(vec3 rgb) {
+    return dot(rgb, vec3(0.299, 0.587, 0.114));
+}
 
-    uint width = max(uint(width), 1u);
-    uint height = max(uint(height), 1u);
-    if (global_id.x >= width || global_id.y >= height) {
-        return;
+float distance_metric(float gx, float gy, int metric) {
+    float abs_gx = abs(gx);
+    float abs_gy = abs(gy);
+    
+    if (metric == 2) {
+        return abs_gx + abs_gy;  // Manhattan
+    } else if (metric == 3) {
+        return max(abs_gx, abs_gy);  // Chebyshev
+    } else if (metric == 4) {
+        float cross = (abs_gx + abs_gy) / 1.414;
+        return max(cross, max(abs_gx, abs_gy));  // Octagram
     }
+    return sqrt(gx * gx + gy * gy);  // Euclidean
+}
 
-    vec2 xy = vec2(int(global_id.x), int(global_id.y));
-    vec4 base = texture(inputTex, (vec2(xy) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
-    vec4 edges = texture(edgesTexture, (vec2(xy) + vec2(0.5)) / vec2(textureSize(edgesTexture, 0)));
-
-    vec3 edges_scaled = clamp01(edges.xyz * 8.0);
-    vec3 base_scaled = clamp01(base.xyz * 1.25);
+void main() {
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 texel = 1.0 / resolution;
+    
+    // Sample base color
+    vec4 base = texture(inputTex, uv);
+    
+    // Sample 3x3 neighborhood for Sobel (using raw luminance, no posterization)
+    float tl = luminance(texture(inputTex, uv + vec2(-texel.x, -texel.y)).rgb);
+    float tc = luminance(texture(inputTex, uv + vec2(0.0, -texel.y)).rgb);
+    float tr = luminance(texture(inputTex, uv + vec2(texel.x, -texel.y)).rgb);
+    float ml = luminance(texture(inputTex, uv + vec2(-texel.x, 0.0)).rgb);
+    float mr = luminance(texture(inputTex, uv + vec2(texel.x, 0.0)).rgb);
+    float bl = luminance(texture(inputTex, uv + vec2(-texel.x, texel.y)).rgb);
+    float bc = luminance(texture(inputTex, uv + vec2(0.0, texel.y)).rgb);
+    float br = luminance(texture(inputTex, uv + vec2(texel.x, texel.y)).rgb);
+    
+    // Sobel kernels
+    float gx = -tl - 2.0*ml - bl + tr + 2.0*mr + br;
+    float gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
+    
+    // Edge magnitude - scale up to make visible
+    int metric = int(sobelMetric);
+    float edge = distance_metric(gx, gy, metric);
+    // Scale up edge detection to make it more visible
+    edge = clamp(edge * 4.0, 0.0, 1.0);
+    
+    // Apply glow effect
+    // edges_prep = clamp(edges * 8.0) * clamp(base * 1.25)
+    vec3 edges_scaled = vec3(clamp(edge * 4.0, 0.0, 1.0));  // Additional boost
+    vec3 base_scaled = clamp(base.rgb * 1.25, 0.0, 1.0);
     vec3 edges_prep = edges_scaled * base_scaled;
-
-    vec3 screen_rgb = vec3(1.0) - (vec3(1.0) - edges_prep) * (vec3(1.0) - base.xyz);
-    float alpha = clamp(alpha, 0.0, 1.0);
-    vec3 mixed_rgb = mix(base.xyz, screen_rgb, alpha);
-
-    vec4 out_color = vec4(clamp01(mixed_rgb), base.w);
-    uint base_index = (global_id.y * width + global_id.x) * CHANNEL_COUNT;
-    fragColor = out_color;
+    
+    // Screen blend: out = 1 - (1-a)*(1-b)
+    vec3 screen_rgb = vec3(1.0) - (vec3(1.0) - edges_prep) * (vec3(1.0) - base.rgb);
+    
+    // Mix based on alpha
+    float blendAlpha = clamp(alpha, 0.0, 1.0);
+    vec3 mixed_rgb = mix(base.rgb, screen_rgb, blendAlpha);
+    
+    fragColor = vec4(clamp(mixed_rgb, 0.0, 1.0), base.a);
 }

@@ -27,6 +27,10 @@
  *   "basics/*"            # glob pattern (quote for shell)
  *   "/^basics\\//"        # regex (starts with /)
  * 
+ * Backend (REQUIRED - one of the following):
+ *   --webgl2, --glsl      # use WebGL2/GLSL backend
+ *   --webgpu, --wgsl      # use WebGPU/WGSL backend
+ * 
  * Flags:
  *   --all                 # run ALL tests (benchmark, uniforms, structure, alg-equiv, passthrough)
  *   --benchmark           # run FPS test (~500ms per effect)
@@ -36,7 +40,6 @@
  *   --alg-equiv           # test algorithmic equivalence between GLSL and WGSL shaders (requires .openai key)
  *   --passthrough         # test that filter effects do NOT pass through input unchanged
  *   --verbose             # show additional diagnostic info
- *   --webgpu, --wgsl      # use WebGPU/WGSL backend instead of WebGL2/GLSL
  * 
  * Vision Validation (ENABLED BY DEFAULT):
  *   Every rendered frame is analyzed by AI to detect:
@@ -68,15 +71,16 @@
  *   - Fails if textures are >99% similar
  * 
  * Examples:
- *   node test-harness.js basics/noise              # compile + render + vision
- *   node test-harness.js "basics/*" --benchmark    # all basics with FPS
- *   node test-harness.js "basics/*" --all          # all basics with ALL tests
- *   node test-harness.js basics/noise --no-vision  # skip vision check
- *   node test-harness.js nm/worms --uniforms       # test uniform responsiveness
- *   node test-harness.js nm/worms --structure      # test shader organization
- *   node test-harness.js nm/normalize --benchmark --webgpu  # test WGSL with FPS
- *   node test-harness.js "nm/*" --alg-equiv        # test GLSL/WGSL algorithmic equivalence
- *   node test-harness.js "nm/*" --passthrough      # test filter effects for passthrough
+ *   node test-harness.js basics/noise --glsl         # compile + render + vision (GLSL)
+ *   node test-harness.js basics/noise --wgsl         # compile + render + vision (WGSL)
+ *   node test-harness.js "basics/*" --webgl2 --benchmark    # all basics with FPS (WebGL2)
+ *   node test-harness.js "basics/*" --webgpu --all          # all basics with ALL tests (WebGPU)
+ *   node test-harness.js basics/noise --glsl --no-vision    # skip vision check
+ *   node test-harness.js nm/worms --wgsl --uniforms         # test uniform responsiveness
+ *   node test-harness.js nm/worms --webgl2 --structure      # test shader organization
+ *   node test-harness.js nm/normalize --webgpu --benchmark  # test WGSL with FPS
+ *   node test-harness.js "nm/*" --glsl --alg-equiv          # test GLSL/WGSL algorithmic equivalence
+ *   node test-harness.js "nm/*" --wgsl --passthrough        # test filter effects for passthrough
  */
 
 import { createBrowserHarness } from './browser-harness.js';
@@ -86,12 +90,28 @@ import { getOpenAIApiKey, checkEffectStructure, checkShaderParity } from './core
  * Effects exempt from monochrome output check.
  * These effects are DESIGNED to output a single color by their nature.
  * 
- * STRICT: Adding new exemptions requires explicit permission.
+ * STRICT: No more exemptions are permitted
  */
 const MONOCHROME_EXEMPT_EFFECTS = new Set([
     'basics/alpha',       // Extracts alpha channel as grayscale - input noise has alpha=1.0
     'basics/shape',       // Outputs a shape on solid background - "solid" tag is valid
     'basics/solid',       // Outputs a solid fill color by design
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
+]);
+
+/**
+ * Effects exempt from "essentially blank" output check.
+ * These effects are edge detection or similar that produce near-black output
+ * on smooth noise input - this is correct behavior, not a bug.
+ * 
+ * STRICT: No more exemptions are permitted
+ */
+const BLANK_EXEMPT_EFFECTS = new Set([
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
 ]);
 
 /**
@@ -99,12 +119,13 @@ const MONOCHROME_EXEMPT_EFFECTS = new Set([
  * These effects require external input that isn't available in automated testing,
  * or legitimately output transparency as part of their function.
  * 
- * STRICT: Adding new exemptions requires explicit permission.
+ * STRICT: No more exemptions are permitted
  */
 const TRANSPARENT_EXEMPT_EFFECTS = new Set([
-    'basics/luma',        // Luma keying effect - legitimately outputs transparency based on luminance
-    'nd/feedbackSynth',   // Feedback effect - outputs transparent when no prior frame exists
     'nd/mediaInput',      // Media input effect - outputs transparent when no media file loaded
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
 ]);
 
 /**
@@ -112,12 +133,14 @@ const TRANSPARENT_EXEMPT_EFFECTS = new Set([
  * These effects preserve average color statistics while changing visual structure,
  * which causes high similarity scores even though they're NOT passthrough.
  * 
- * STRICT: Adding new exemptions requires explicit permission.
+ * STRICT: No more exemptions are permitted
  */
 const PASSTHROUGH_EXEMPT_EFFECTS = new Set([
     'basics/pixelate',    // Pixelate groups colors into blocks - preserves average but changes structure
     'nm/aberration',      // Chromatic aberration uses edge mask (pow(dist, 3)) - center unchanged, edges shifted
-    'nm/densityMap',      // Min/max normalization - noise() input already uses full [0,1] range, so remapping is identity
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
+    // STRICT: No more exemptions are permitted
 ]);
 
 /**
@@ -305,10 +328,12 @@ async function testEffect(harness, effectId, options = {}) {
     results.render = renderResult.status;
     const isMonochromeExempt = MONOCHROME_EXEMPT_EFFECTS.has(effectId);
     const isTransparentExempt = TRANSPARENT_EXEMPT_EFFECTS.has(effectId);
+    const isBlankExempt = BLANK_EXEMPT_EFFECTS.has(effectId);
     // Transparent-exempt effects also get exempted from monochrome/blank checks since transparent = black = monochrome
     results.isMonochrome = (renderResult.metrics?.is_monochrome || false) && !isMonochromeExempt && !isTransparentExempt;
     results.isMonochromeExempt = isMonochromeExempt && (renderResult.metrics?.is_monochrome || false);
-    results.isEssentiallyBlank = (renderResult.metrics?.is_essentially_blank || false) && !isTransparentExempt;
+    results.isEssentiallyBlank = (renderResult.metrics?.is_essentially_blank || false) && !isTransparentExempt && !isBlankExempt;
+    results.isBlankExempt = isBlankExempt && (renderResult.metrics?.is_essentially_blank || false);
     results.isAllTransparent = (renderResult.metrics?.is_all_transparent || false) && !isTransparentExempt;
     results.isTransparentExempt = isTransparentExempt && (renderResult.metrics?.is_all_transparent || false);
     
@@ -334,6 +359,8 @@ async function testEffect(harness, effectId, options = {}) {
         }
     } else if (isTransparentExempt && renderResult.metrics?.is_all_transparent) {
         console.log(`  ⊘ render: transparent (exempt - expected for ${effectId})`);
+    } else if (isBlankExempt && renderResult.metrics?.is_essentially_blank) {
+        console.log(`  ⊘ render: essentially blank (exempt - edge detection on smooth noise)`);
     } else if (renderResult.metrics?.is_essentially_blank) {
         const m = renderResult.metrics;
         console.log(`  ❌ render: ESSENTIALLY BLANK (mean_rgb=[${m.mean_rgb.map(v => v.toFixed(4)).join(', ')}], ${m.unique_sampled_colors} colors)`);
@@ -560,7 +587,24 @@ async function main() {
     const skipVision = process.argv.includes('--no-vision');  // Vision is ON by default if API key exists
     const verbose = process.argv.includes('--verbose');
     
+    // Backend is MANDATORY - must specify one
+    const useWebGL2 = process.argv.includes('--webgl2') || process.argv.includes('--glsl');
     const useWebGPU = process.argv.includes('--webgpu') || process.argv.includes('--wgsl');
+    
+    if (!useWebGL2 && !useWebGPU) {
+        console.error('ERROR: Backend flag is REQUIRED.');
+        console.error('  Use --webgl2 or --glsl for WebGL2/GLSL');
+        console.error('  Use --webgpu or --wgsl for WebGPU/WGSL');
+        console.error('\nExample: node test-harness.js basics/noise --glsl');
+        process.exit(1);
+    }
+    
+    if (useWebGL2 && useWebGPU) {
+        console.error('ERROR: Cannot specify both WebGL2 and WebGPU backends.');
+        console.error('  Choose one: --webgl2/--glsl OR --webgpu/--wgsl');
+        process.exit(1);
+    }
+    
     const backend = useWebGPU ? 'webgpu' : 'webgl2';
     
     console.log(`Starting browser harness (backend: ${backend})...`);
@@ -595,7 +639,7 @@ async function main() {
         
         for (const effectId of matchedEffects) {
             console.log(`\n────────────────────────────────────────────────────────────────────────────────`);
-            console.log(`[${effectId}]`);
+            console.log(`[${effectId}] (${backend})`);
             const result = await testEffect(harness, effectId, { 
                 benchmark: runBenchmark, 
                 uniforms: runUniforms,
@@ -770,11 +814,16 @@ async function main() {
         
     } catch (error) {
         console.error('Test failed:', error);
+        process.exit(1);
     } finally {
         await harness.close();
     }
 
     console.log(nag);
+    process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

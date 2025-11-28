@@ -39,12 +39,12 @@ export default class ConvFeedback extends Effect {
   // Two-pass feedback: blur then sharpen
   // selfTex provides previous frame's output for accumulation
   passes = [
-    // Pass 1: Blur the previous frame's accumulated result
+    // Pass 1: Blur the input
     {
       name: "blur",
       program: "convFeedbackBlur",
       inputs: {
-        inputTex: "selfTex"  // Previous frame's output (o0)
+        inputTex: "inputTex"  // Use input, not selfTex
       },
       outputs: {
         fragColor: "_blurred"
@@ -56,8 +56,7 @@ export default class ConvFeedback extends Effect {
       program: "convFeedbackSharpenBlend",
       inputs: {
         blurredTex: "_blurred",
-        inputTex: "inputTex",   // Original input for blending
-        selfTex: "selfTex"      // For first-frame detection
+        inputTex: "inputTex"    // Original input for blending
       },
       outputs: {
         fragColor: "outputColor"

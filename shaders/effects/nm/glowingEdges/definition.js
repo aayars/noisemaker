@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * Glowing Edges
- * /shaders/effects/glowing_edges/glowing_edges.wgsl
+ * Single-pass edge glow effect based on Sobel edge detection
  */
 export default class GlowingEdges extends Effect {
   name = "GlowingEdges";
@@ -11,9 +11,12 @@ export default class GlowingEdges extends Effect {
 
   globals = {
     sobelMetric: {
-        type: "enum",
+        type: "int",
         default: 1,
         uniform: "sobelMetric",
+        min: 1,
+        max: 4,
+        step: 1,
         ui: {
             label: "Sobel Metric"
         }
@@ -30,11 +33,8 @@ export default class GlowingEdges extends Effect {
             control: "slider"
         }
     }
-};
+  };
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
@@ -43,7 +43,7 @@ export default class GlowingEdges extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

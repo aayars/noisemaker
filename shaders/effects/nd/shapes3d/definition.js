@@ -11,6 +11,42 @@ export default class Shapes3D extends Effect {
   namespace = "nd";
   func = "shapes3d";
 
+  // WGSL uniform packing layout - contiguous vec3/vec4 layout
+  uniformLayout = {
+    resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    shapeA: { slot: 1, components: 'x' },
+    shapeB: { slot: 1, components: 'y' },
+    shapeAScale: { slot: 1, components: 'z' },
+    shapeBScale: { slot: 1, components: 'w' },
+    shapeAThickness: { slot: 2, components: 'x' },
+    shapeBThickness: { slot: 2, components: 'y' },
+    blendMode: { slot: 2, components: 'z' },
+    smoothness: { slot: 2, components: 'w' },
+    spin: { slot: 3, components: 'x' },
+    flip: { slot: 3, components: 'y' },
+    spinSpeed: { slot: 3, components: 'z' },
+    flipSpeed: { slot: 3, components: 'w' },
+    repetition: { slot: 4, components: 'x' },
+    animation: { slot: 4, components: 'y' },
+    flythroughSpeed: { slot: 4, components: 'z' },
+    spacing: { slot: 4, components: 'w' },
+    cameraDist: { slot: 5, components: 'x' },
+    backgroundOpacity: { slot: 5, components: 'y' },
+    colorMode: { slot: 5, components: 'z' },
+    source: { slot: 5, components: 'w' },
+    backgroundColor: { slot: 6, components: 'xyz' },
+    paletteMode: { slot: 6, components: 'w' },
+    paletteOffset: { slot: 7, components: 'xyz' },
+    cyclePalette: { slot: 7, components: 'w' },
+    paletteAmp: { slot: 8, components: 'xyz' },
+    rotatePalette: { slot: 8, components: 'w' },
+    paletteFreq: { slot: 9, components: 'xyz' },
+    repeatPalette: { slot: 9, components: 'w' },
+    palettePhase: { slot: 10, components: 'xyz' }
+  };
+
   globals = {
     seed: {
       type: "int",

@@ -13,6 +13,7 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import {
     compileEffect,
@@ -47,6 +48,11 @@ export class BrowserHarness {
         this.page = null;
         this.serverProcess = null;
         this.baseUrl = `http://${this.options.host}:${this.options.port}`;
+        
+        // Track shader file changes for smart reload
+        this.shadersDirty = false;
+        this.fileWatchers = [];  // Track all watchers for proper cleanup
+        this.lastReloadTime = 0;
     }
     
     /**
@@ -82,12 +88,12 @@ export class BrowserHarness {
         this.consoleMessages = [];
         this.page.on('console', msg => {
             const text = msg.text();
-            // Capture all messages for debugging
+            // Capture relevant messages for debugging
             if (text.includes('Error') || text.includes('error') || text.includes('warning') || 
                 text.includes('Storage') || text.includes('getOutput') ||
                 text.includes('[bindTextures]') || text.includes('DSL') ||
                 text.includes('[WebGPU') || text.includes('GPGPU') ||
-                text.includes('[passthrough]') ||
+                text.includes('[passthrough]') || text.includes('[DEBUG]') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }
@@ -111,6 +117,73 @@ export class BrowserHarness {
             () => document.querySelectorAll('#effect-select option').length > 0,
             { timeout: STATUS_TIMEOUT }
         );
+        
+        // Start watching shader files for changes
+        this.startFileWatcher();
+        this.lastReloadTime = Date.now();
+    }
+    
+    /**
+     * Start watching shader files for changes
+     */
+    startFileWatcher() {
+        const shadersDir = path.join(PROJECT_ROOT, 'shaders');
+        const srcDir = path.join(PROJECT_ROOT, 'shaders/src');
+        const effectsDir = path.join(PROJECT_ROOT, 'shaders/effects');
+        
+        // Watch for changes in shader directories
+        const watchDirs = [srcDir, effectsDir];
+        
+        for (const dir of watchDirs) {
+            if (fs.existsSync(dir)) {
+                const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
+                    if (filename && (filename.endsWith('.js') || filename.endsWith('.glsl') || 
+                        filename.endsWith('.wgsl') || filename.endsWith('.json'))) {
+                        this.shadersDirty = true;
+                    }
+                });
+                // Track all watchers for proper cleanup
+                this.fileWatchers.push(watcher);
+            }
+        }
+    }
+    
+    /**
+     * Reload the page if shader files have changed
+     * @returns {Promise<boolean>} True if page was reloaded
+     */
+    async reloadIfDirty() {
+        if (!this.shadersDirty) return false;
+        
+        this.shadersDirty = false;
+        this.consoleMessages = [];
+        
+        // Clear browser cache to ensure fresh module imports
+        // This is crucial for ES module hot reloading
+        const client = await this.context.newCDPSession(this.page);
+        await client.send('Network.clearBrowserCache');
+        await client.detach();
+        
+        // Use goto with cache bypass instead of reload
+        // This forces a fresh fetch of all resources including ES modules
+        await this.page.goto(`${this.baseUrl}/demo/shaders/`, { 
+            waitUntil: 'networkidle' 
+        });
+        
+        // Wait for the app to be ready again
+        await this.page.waitForFunction(() => {
+            const app = document.getElementById('app-container');
+            return !!app && window.getComputedStyle(app).display !== 'none';
+        }, { timeout: STATUS_TIMEOUT });
+        
+        // Wait for effects to load
+        await this.page.waitForFunction(
+            () => document.querySelectorAll('#effect-select option').length > 0,
+            { timeout: STATUS_TIMEOUT }
+        );
+        
+        this.lastReloadTime = Date.now();
+        return true;
     }
     
     /**
@@ -175,6 +248,7 @@ export class BrowserHarness {
      * Compile an effect
      */
     async compileEffect(effectId, options = {}) {
+        await this.reloadIfDirty();
         this.consoleMessages = [];
         const result = await compileEffect(this.page, effectId, options);
         
@@ -190,6 +264,7 @@ export class BrowserHarness {
      * Render an effect frame and compute metrics
      */
     async renderEffectFrame(effectId, options = {}) {
+        await this.reloadIfDirty();
         this.consoleMessages = [];
         const result = await renderEffectFrame(this.page, effectId, options);
         
@@ -204,6 +279,7 @@ export class BrowserHarness {
      * Benchmark effect FPS
      */
     async benchmarkEffectFps(effectId, options = {}) {
+        await this.reloadIfDirty();
         this.consoleMessages = [];
         const result = await benchmarkEffectFps(this.page, effectId, options);
         
@@ -218,6 +294,7 @@ export class BrowserHarness {
      * Describe effect frame with AI vision
      */
     async describeEffectFrame(effectId, prompt, options = {}) {
+        await this.reloadIfDirty();
         this.consoleMessages = [];
         const result = await describeEffectFrame(this.page, effectId, prompt, options);
         
@@ -267,6 +344,7 @@ export class BrowserHarness {
      * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
      */
     async testNoPassthrough(effectId, options = {}) {
+        await this.reloadIfDirty();
         this.consoleMessages = [];
         const result = await testNoPassthrough(this.page, effectId, options);
         
@@ -542,6 +620,12 @@ export class BrowserHarness {
      * Close the browser harness
      */
     async close() {
+        // Close all file watchers
+        for (const watcher of this.fileWatchers) {
+            watcher.close();
+        }
+        this.fileWatchers = [];
+        
         if (this.page) {
             await this.page.close();
             this.page = null;
@@ -558,7 +642,9 @@ export class BrowserHarness {
         }
         
         if (this.serverProcess) {
-            this.serverProcess.kill();
+            this.serverProcess.kill('SIGTERM');
+            // Unref to allow process exit even if kill is slow
+            this.serverProcess.unref();
             this.serverProcess = null;
         }
     }

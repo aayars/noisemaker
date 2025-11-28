@@ -5,6 +5,23 @@ export default class Pattern extends Effect {
   namespace = "nd";
   func = "pattern";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    patternType: { slot: 1, components: 'x' },
+    scale: { slot: 1, components: 'y' },
+    skewAmt: { slot: 1, components: 'z' },
+    rotation: { slot: 1, components: 'w' },
+    lineWidth: { slot: 2, components: 'x' },
+    animation: { slot: 2, components: 'y' },
+    speed: { slot: 2, components: 'z' },
+    sharpness: { slot: 2, components: 'w' },
+    color1: { slot: 3, components: 'xyz' },
+    color2: { slot: 4, components: 'xyz' }
+  };
   globals = {
     patternType: {
       type: "int",

@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 /**
  * FXAA
- * /shaders/effects/fxaa/fxaa.wgsl
+ * Fast Approximate Anti-Aliasing
  */
 export default class Fxaa extends Effect {
   name = "Fxaa";
@@ -11,9 +11,6 @@ export default class Fxaa extends Effect {
 
   globals = {};
 
-  // TODO: Define passes based on shader requirements
-  // This effect was originally implemented as a WebGPU compute shader.
-  // A render pass implementation needs to be created for GLSL/WebGL2 compatibility.
   passes = [
     {
       name: "main",
@@ -22,7 +19,7 @@ export default class Fxaa extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

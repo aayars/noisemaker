@@ -21,6 +21,18 @@ export default class Snow extends Effect {
             label: "Alpha",
             control: "slider"
         }
+    },
+    speed: {
+        type: "float",
+        default: 1.0,
+        uniform: "speed",
+        min: 0,
+        max: 5,
+        step: 0.1,
+        ui: {
+            label: "Speed",
+            control: "slider"
+        }
     }
 };
 
@@ -35,7 +47,7 @@ export default class Snow extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        fragColor: "outputColor"
       }
     }
   ];

@@ -66,11 +66,20 @@ void main() {
 	float a = tex.r;
 	float b = tex.g;
 
-    if (a == 0.0 && b == 0.0) {
+    // Check if buffer is empty (first frame initialization)
+    // Sample all channels to detect truly empty buffer
+    bool bufferIsEmpty = (tex.r == 0.0 && tex.g == 0.0 && tex.b == 0.0 && tex.a == 0.0);
+    
+    if (bufferIsEmpty) {
+        // Initialize: A=1 everywhere, B=1 at sparse random locations
         a = 1.0;
+        b = 0.0;
         if (hash(gl_FragCoord.xy + vec2(seed)) > 0.99) {
             b = 1.0;
         }
+        // Return initial state without running update step
+        fragColor = vec4(a, b, 0.0, 1.0);
+        return;
     }
 
 	vec3 color = lp(bufTex, gl_FragCoord.xy, vec2(texSize));
@@ -160,7 +169,9 @@ void main() {
 	float a2 = a + (r1 * color.r - a * b * b + f * (1.0 - a)) * s;
 	float b2 = b + (r2 * color.g + a * b * b - (k + f) * b) * s;
 
-	color = vec3(a2, b2, 0.0);
+	// Clamp to [0,1] for numerical stability
+	a2 = clamp(a2, 0.0, 1.0);
+	b2 = clamp(b2, 0.0, 1.0);
 
-	fragColor = vec4(color, 1.0);
+	fragColor = vec4(a2, b2, 0.0, 1.0);
 }

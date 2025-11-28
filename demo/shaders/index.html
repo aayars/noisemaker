@@ -769,14 +769,14 @@
                     const outputSurface = 'o0';
                     // Ensure tex parameter is passed to the effect
                     const paramsWithTex = paramString ? `tex: src(${sourceSurface}), ${paramString}` : `tex: src(${sourceSurface})`;
-                    return `${searchDirective}noise(seed: 1).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
+                    return `${searchDirective}noise(seed: 1, ridges: true).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
                 }
                 return `${searchDirective}${funcName}(${paramString}).out(o0)`;
             } else if (hasTex) {
                 // Mixer effect (has inputTex and tex): two noise sources
                 // The pipeline always presents o0 to screen, so output to o0
-                // noise(seed: 1).out(o1)
-                // noise(seed: 2).effectName(tex: src(o1), ...).out(o0)
+                // noise(seed: 1, ridged: true).out(o1)
+                // noise(seed: 2, ridged: true).effectName(tex: src(o1), ...).out(o0)
                 const params = [];
                 if (effect.instance.globals) {
                     for (const [key, spec] of Object.entries(effect.instance.globals)) {
@@ -793,8 +793,8 @@
                     }
                 }
                 const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1).out(o1)
-noise(seed: 2).${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}noise(seed: 1, ridges: true).out(o1)
+noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             } else {
                 // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
                 const params = [];
@@ -808,7 +808,7 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                     }
                 }
                 const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1).${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}noise(seed: 1, ridges: true).${funcName}(${paramString}).out(o0)`;
             }
         }
 
@@ -888,7 +888,22 @@ noise(seed: 2).${funcName}(${paramString}).out(o0)`;
                 }
             } catch (err) {
                 console.error(err);
-                const errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+                let errMsg;
+                if (err.code === 'ERR_COMPILATION_FAILED' && Array.isArray(err.diagnostics)) {
+                    // Format diagnostics with identifier context
+                    errMsg = err.diagnostics
+                        .filter(d => d.severity === 'error')
+                        .map(d => {
+                            let msg = d.message || 'Unknown error';
+                            if (d.location) {
+                                msg += ` (line ${d.location.line}, col ${d.location.column})`;
+                            }
+                            return msg;
+                        })
+                        .join('; ') || 'Unknown compilation error';
+                } else {
+                    errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+                }
                 showStatus(`compilation failed: ${errMsg}`, 'error');
             }
         }

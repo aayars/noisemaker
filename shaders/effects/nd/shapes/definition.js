@@ -11,6 +11,28 @@ export default class Shapes extends Effect {
   namespace = "nd";
   func = "shapes";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    wrap: { slot: 1, components: 'x' },
+    loopAOffset: { slot: 1, components: 'y' },
+    loopBOffset: { slot: 1, components: 'z' },
+    loopAScale: { slot: 1, components: 'w' },
+    loopBScale: { slot: 2, components: 'x' },
+    loopAAmp: { slot: 2, components: 'y' },
+    loopBAmp: { slot: 2, components: 'z' },
+    paletteMode: { slot: 2, components: 'w' },
+    paletteOffset: { slot: 3, components: 'xyz' },
+    cyclePalette: { slot: 3, components: 'w' },
+    paletteAmp: { slot: 4, components: 'xyz' },
+    rotatePalette: { slot: 4, components: 'w' },
+    paletteFreq: { slot: 5, components: 'xyz' },
+    repeatPalette: { slot: 5, components: 'w' },
+    palettePhase: { slot: 6, components: 'xyz' }
+  };
   globals = {
     loopAOffset: {
       type: "int",

@@ -10,8 +10,9 @@ const uint CHANNEL_COUNT = 4u;
 const float BORDER_BLEND = 0.55;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 timeSpeed;
+uniform vec2 channels;    // x: resolution width, y: resolution height (auto-provided)
+uniform float brightness; // Frame brightness (-1 to 1)
+uniform float time;
 
 uint as_u32(float value) {
     return uint(max(round(value), 0.0));
@@ -46,20 +47,21 @@ float posterize_level_one(float value) {
 
 
 out vec4 fragColor;
+in vec2 v_texCoord;
 
 void main() {
+    // Get texture size from the sampler
+    vec2 texSize = vec2(textureSize(inputTex, 0));
     uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
 
-    uint width_u = max(as_u32(size.x), 1u);
-    uint height_u = max(as_u32(size.y), 1u);
+    uint width_u = max(uint(texSize.x), 1u);
+    uint height_u = max(uint(texSize.y), 1u);
     if (global_id.x >= width_u || global_id.y >= height_u) {
-        return;
+        discard;
     }
 
-    float width_f = max(float(width_u), 1.0);
-    float height_f = max(float(height_u), 1.0);
-    uint half_width_u = width_u / 2u;
-    uint half_height_u = height_u / 2u;
+    float width_f = max(texSize.x, 1.0);
+    float height_f = max(texSize.y, 1.0);
     float center_x = width_f * 0.5;
     float center_y = height_f * 0.5;
 
@@ -85,10 +87,8 @@ void main() {
     float ramp = sqrt(normalized);
     float mask = posterize_level_one(ramp);
 
-    vec2 coords = vec2(int(global_id.x), int(global_id.y));
-    vec4 srcSample = texture(inputTex, (vec2(coords) + vec2(0.5)) / vec2(textureSize(inputTex, 0)));
+    vec4 srcSample = texture(inputTex, v_texCoord);
 
-    float brightness = size.w;
     vec3 brightness_vec = vec3(brightness);
     vec3 blended_rgb = mix(srcSample.xyz, brightness_vec, vec3(mask));
 

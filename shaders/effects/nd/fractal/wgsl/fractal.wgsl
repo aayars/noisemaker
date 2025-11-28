@@ -5,17 +5,17 @@
  */
 
 struct Uniforms {
-    // vec4 packing:
+    // Contiguous vec4 packing for easier uniform buffer mapping:
     // 0: resolution.xy, time, seed
     // 1: fractalType, symmetry, offsetX, offsetY
     // 2: centerX, centerY, zoomAmt, speed
-    // 3: rotation, iterations, mode
-    // 4: colorMode, paletteMode, paletteOffset.xy
-    // 5: paletteOffset.z, paletteAmp
-    // 6: paletteFreq, palettePhase.x
-    // 7: palettePhase.yz, cyclePalette, rotatePalette
-    // 8: repeatPalette, hueRange, levels, backgroundColor.r
-    // 9: backgroundColor.gb, backgroundOpacity, cutoff
+    // 3: rotation, iterations, mode, colorMode
+    // 4: paletteMode, cyclePalette, rotatePalette, repeatPalette
+    // 5: paletteOffset.xyz, hueRange
+    // 6: paletteAmp.xyz, levels
+    // 7: paletteFreq.xyz, backgroundOpacity
+    // 8: palettePhase.xyz, cutoff
+    // 9: backgroundColor.xyz, (unused)
     data: array<vec4<f32>, 10>,
 };
 
@@ -257,34 +257,34 @@ fn main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let zoomAmt = uniforms.data[2].z;
     let speed = uniforms.data[2].w;
     let rotation = uniforms.data[3].x;
-    let iter = i32(uniforms.data[3].y);
+    let iterations = i32(uniforms.data[3].y);
     let mode = i32(uniforms.data[3].z);
+    let colorMode = i32(uniforms.data[3].w);
 
-    let colorMode = i32(uniforms.data[4].x);
-    let paletteMode = i32(uniforms.data[4].y);
-    var paletteOffset = vec3<f32>(uniforms.data[4].z, uniforms.data[4].w, uniforms.data[5].x);
-    var paletteAmp = vec3<f32>(uniforms.data[5].y, uniforms.data[5].z, uniforms.data[5].w);
-    var paletteFreq = vec3<f32>(uniforms.data[6].x, uniforms.data[6].y, uniforms.data[6].z);
-    var palettePhase = vec3<f32>(uniforms.data[6].w, uniforms.data[7].x, uniforms.data[7].y);
-    let cyclePalette = i32(uniforms.data[7].z);
-    let rotatePalette = uniforms.data[7].w;
-    let repeatPalette = uniforms.data[8].x;
-    let hueRange = uniforms.data[8].y;
-    let levels = uniforms.data[8].z;
-    let backgroundColor = vec3<f32>(uniforms.data[8].w, uniforms.data[9].x, uniforms.data[9].y);
-    let backgroundOpacity = uniforms.data[9].z;
-    let cutoff = uniforms.data[9].w;
+    let paletteMode = i32(uniforms.data[4].x);
+    let cyclePalette = i32(uniforms.data[4].y);
+    let rotatePalette = uniforms.data[4].z;
+    let repeatPalette = uniforms.data[4].w;
+    var paletteOffset = uniforms.data[5].xyz;
+    let hueRange = uniforms.data[5].w;
+    var paletteAmp = uniforms.data[6].xyz;
+    let levels = uniforms.data[6].w;
+    var paletteFreq = uniforms.data[7].xyz;
+    let backgroundOpacity = uniforms.data[7].w;
+    var palettePhase = uniforms.data[8].xyz;
+    let cutoff = uniforms.data[8].w;
+    let backgroundColor = uniforms.data[9].xyz;
     let aspect = resolution.x / resolution.y;
 
     var color = vec4<f32>(0.0, 0.0, 1.0, 1.0);
     var st = pos.xy / resolution.y;
     var d = 0.0;
     if (fractalType == 0) {
-        d = julia(st, zoomAmt, speed, offsetX, offsetY, rotation, centerX, centerY, iter, cutoff, time, mode, aspect);
+        d = julia(st, zoomAmt, speed, offsetX, offsetY, rotation, centerX, centerY, iterations, cutoff, time, mode, aspect);
     } else if (fractalType == 1) {
-        d = newton(st, iter, offsetX, offsetY, speed, centerX, centerY, zoomAmt, rotation, time, mode, aspect);
+        d = newton(st, iterations, offsetX, offsetY, speed, centerX, centerY, zoomAmt, rotation, time, mode, aspect);
     } else {
-        d = mandelbrot(st, zoomAmt, speed, rotation, centerX, centerY, iter, time, mode, aspect);
+        d = mandelbrot(st, zoomAmt, speed, rotation, centerX, centerY, iterations, time, mode, aspect);
     }
     if (d == 1.0) {
         color = vec4<f32>(backgroundColor, backgroundOpacity * 0.01);

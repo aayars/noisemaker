@@ -27,9 +27,10 @@ const float KEY_MAX_VALUE = 16777215.0;
 const uint INTERNAL_ITERATIONS = 12u;
 
 uniform sampler2D inputTex;
-uniform vec4 size;
-uniform vec4 timeSpeed;
+uniform float time;
+uniform float speed;
 
+in vec2 v_texCoord;
 out vec4 fragColor;
 
 uint as_u32(float value) {
@@ -164,26 +165,23 @@ int clamp_coord(int value, int limit) {
 }
 
 void main() {
-    uvec3 global_id = uvec3(uint(gl_FragCoord.x), uint(gl_FragCoord.y), 0u);
+    ivec2 texSize = textureSize(inputTex, 0);
+    ivec2 coords_i = ivec2(v_texCoord * vec2(texSize));
+    uvec2 coords_u = uvec2(coords_i);
 
-    uint width = max(as_u32(size.x), 1u);
-    uint height = max(as_u32(size.y), 1u);
-    if (global_id.x >= width || global_id.y >= height) {
-        return;
-    }
-
-    int width_i = int(width);
-    int height_i = int(height);
-    ivec2 coords_i = ivec2(int(global_id.x), int(global_id.y));
-    uvec2 coords_u = global_id.xy;
-
-    vec4 texel = texelFetch(inputTex, coords_i, 0);
+    uint width = uint(texSize.x);
+    uint height = uint(texSize.y);
+    
+    vec4 texel = texture(inputTex, v_texCoord);
     vec3 state_rgb = texel.xyz;
     float alpha = texel.w;
 
-    float time_value = sanitized_time(timeSpeed.x);
-    float speed_value = sanitized_speed(timeSpeed.y);
+    float time_value = sanitized_time(time);
+    float speed_value = sanitized_speed(speed);
     uint time_key = build_time_key(time_value, speed_value);
+
+    int width_i = int(width);
+    int height_i = int(height);
 
     for (uint iteration = 0u; iteration < INTERNAL_ITERATIONS; iteration = iteration + 1u) {
         uint quality_value = random_inclusive(iteration, 0u, time_key, QUALITY_MIN, QUALITY_MAX);

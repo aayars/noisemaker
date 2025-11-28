@@ -5,6 +5,40 @@ export default class ReactionDiffusion extends Effect {
   namespace = "nd";
   func = "reactionDiffusion";
 
+
+  // WGSL uniform packing layouts (per-program for multi-pass effects)
+  uniformLayouts = {
+    reactionDiffusion: {
+      resolution: { slot: 0, components: 'xy' },
+      time: { slot: 0, components: 'z' },
+      paletteMode: { slot: 3, components: 'z' },
+      smoothingMode: { slot: 3, components: 'w' },
+      cyclePalette: { slot: 4, components: 'y' },
+      rotatePalette: { slot: 4, components: 'z' },
+      repeatPalette: { slot: 4, components: 'w' },
+      paletteOffset: { slot: 5, components: 'xyz' },
+      colorMode: { slot: 5, components: 'w' },
+      paletteAmp: { slot: 6, components: 'xyz' },
+      paletteFreq: { slot: 7, components: 'xyz' },
+      palettePhase: { slot: 8, components: 'xyz' }
+    },
+    reactionDiffusionFb: {
+      resolution: { slot: 0, components: 'xy' },
+      time: { slot: 0, components: 'z' },
+      zoom: { slot: 0, components: 'w' },
+      feed: { slot: 1, components: 'x' },
+      kill: { slot: 1, components: 'y' },
+      rate1: { slot: 1, components: 'z' },
+      rate2: { slot: 1, components: 'w' },
+      speed: { slot: 2, components: 'x' },
+      weight: { slot: 2, components: 'y' },
+      sourceF: { slot: 2, components: 'z' },
+      sourceK: { slot: 2, components: 'w' },
+      sourceR1: { slot: 3, components: 'x' },
+      sourceR2: { slot: 3, components: 'y' },
+      seed: { slot: 8, components: 'w' }
+    }
+  };
   globals = {
     seed: {
       type: "int",
@@ -14,6 +48,17 @@ export default class ReactionDiffusion extends Effect {
       max: 100,
       ui: {
         label: "seed",
+        control: "slider"
+      }
+    },
+    iterations: {
+      type: "int",
+      default: 8,
+      uniform: "iterations",
+      min: 1,
+      max: 32,
+      ui: {
+        label: "iterations",
         control: "slider"
       }
     },
@@ -195,6 +240,7 @@ export default class ReactionDiffusion extends Effect {
     {
       name: "simulate",
       program: "reactionDiffusionFb",
+      repeat: "iterations",
       inputs: {
         bufTex: "globalReactionDiffusionState",
         inputTex: "inputTex"

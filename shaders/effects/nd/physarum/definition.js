@@ -395,9 +395,9 @@ export default class Physarum extends Effect {
       name: "render",
       program: "physarum",
       inputs: {
-              bufTex: "globalPhysarumTrail",
-              inputTex: "inputTex"
-            },
+        bufTex: "globalPhysarumTrail",
+        inputTex: "inputTex"
+      },
       outputs: {
         fragColor: "outputColor"
       }

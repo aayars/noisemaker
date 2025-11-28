@@ -93,7 +93,10 @@ const server = http.createServer(async (req, res) => {
     const data = await fs.readFile(finalPath);
     res.writeHead(200, {
       'Content-Type': getContentType(finalPath),
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
+      'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'ETag': `"${Date.now()}"`
     });
     res.end(data);
   } catch (err) {

@@ -5,6 +5,16 @@ export default class Text extends Effect {
   namespace = "nd";
   func = "text";
 
+
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+        resolution: { slot: 0, components: 'xy' },
+    glyphUV1: { slot: 1, components: 'xy' },
+    glyphUV2: { slot: 1, components: 'zw' },
+    scale: { slot: 2, components: 'x' },
+    offset: { slot: 2, components: 'yz' },
+    color: { slot: 3, components: 'xyz' }
+  };
   globals = {
     seed: {
       type: "int",
