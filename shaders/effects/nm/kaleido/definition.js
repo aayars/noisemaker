@@ -106,7 +106,7 @@ export default class Kaleido extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -53,7 +53,7 @@ export default class Lowpoly extends Effect {
         distMetric: "distMetric"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

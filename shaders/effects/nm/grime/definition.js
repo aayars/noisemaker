@@ -61,7 +61,7 @@ export default class Grime extends Effect {
         speed: "speed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

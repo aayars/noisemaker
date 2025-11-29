@@ -43,7 +43,7 @@ export default class Vignette extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -242,7 +242,7 @@ export default class BitEffects extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

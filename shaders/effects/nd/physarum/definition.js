@@ -399,7 +399,7 @@ export default class Physarum extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

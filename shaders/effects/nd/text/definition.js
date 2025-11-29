@@ -176,7 +176,7 @@ export default class Text extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

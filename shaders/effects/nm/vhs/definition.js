@@ -31,7 +31,7 @@ export default class Vhs extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -161,7 +161,7 @@ export default class Warp extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

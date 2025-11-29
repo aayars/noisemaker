@@ -278,7 +278,7 @@ export default class Shapes extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

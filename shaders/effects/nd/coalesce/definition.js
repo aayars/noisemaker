@@ -128,7 +128,7 @@ export default class Coalesce extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

@@ -1773,7 +1773,7 @@ export class WebGPUBackend extends Backend {
         
         
         if (!textureId) {
-            // Default to outputColor if no explicit mapping
+            // Default to outputTex if no explicit mapping
             if (binding.name === 'output_texture') {
                 return this.getOutputStorageView(state)
             }
@@ -1782,7 +1782,7 @@ export class WebGPUBackend extends Backend {
         }
         
         // Map textureId to actual texture via state.writeSurfaces
-        if (textureId === 'outputColor') {
+        if (textureId === 'outputTex') {
             return this.getOutputStorageView(state)
         }
         
@@ -2571,7 +2571,7 @@ export class WebGPUBackend extends Backend {
                 outputTex = this.textures.get(writeTexId)
             }
         }
-        if (!outputTex && outputId === 'outputColor') {
+        if (!outputTex && outputId === 'outputTex') {
             // Try to get o0's write texture
             const writeTexId = state.writeSurfaces?.['o0']
             if (writeTexId) {

@@ -97,7 +97,7 @@ export default class Refract extends Effect {
         speed: "speed"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

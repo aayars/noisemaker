@@ -47,7 +47,7 @@ export default class ValueRefract extends Effect {
         frequency: "frequency"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

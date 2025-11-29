@@ -32,7 +32,7 @@ export default class Tint extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

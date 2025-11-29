@@ -59,7 +59,7 @@ export default class ScanlineError extends Effect {
         time: "time"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

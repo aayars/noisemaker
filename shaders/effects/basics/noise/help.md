@@ -9,11 +9,6 @@ Animated simplex noise.
 - **Default:** `3`.
 - **Range:** 0–100.
 - **Description:** Overall scale of the effect.
-### `offset`
-- **Type:** Number.
-- **Default:** `0`.
-- **Range:** -100–100.
-- **Description:** Offset amount applied to the effect.
 ### `octaves`
 - **Type:** Number.
 - **Default:** `1`.
@@ -31,9 +26,9 @@ Animated simplex noise.
 - **Description:** Base hue rotation.
 ### `hueRange`
 - **Type:** Number.
-- **Default:** `100`.
-- **Range:** 0–100.
-- **Description:** Span of hues to cycle through.
+- **Default:** `0.5`.
+- **Range:** 0–1.
+- **Description:** Span of hues to cycle through (0=none, 0.5=100%, 1=200%).
 ### `ridged`
 - **Type:** Boolean.
 - **Default:** `false`.
@@ -49,11 +44,11 @@ Animated simplex noise.
 ### Positional
 
 ```dsl
-noise(4, 0.1, 2).out()
+noise(4, 2).out()
 ```
 
 ### Keyword
 
 ```dsl
-noise(scale: 4, offset: 0.1, octaves: 2).out()
+noise(scale: 4, octaves: 2).out()
 ```

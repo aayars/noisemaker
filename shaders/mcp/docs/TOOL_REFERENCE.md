@@ -501,7 +501,7 @@ All names must follow camelCase convention (start with lowercase, no underscores
 **Special cases for texture names:**
 - `global_` prefix allowed (e.g., `global_worms_state1`)
 - `_` prefix allowed for internals (e.g., `_bloomDownsample`)
-- Reserved: `inputTex`, `outputColor`, `fragColor`, etc.
+- Reserved: `inputTex`, `outputTex`, `fragColor`, etc.
 
 ### Internal Uniform Leaks
 

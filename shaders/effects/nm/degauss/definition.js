@@ -44,7 +44,7 @@ export default class Degauss extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

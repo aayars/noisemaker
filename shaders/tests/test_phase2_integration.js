@@ -13,11 +13,11 @@ registerStarterOps(['osc']);
 
 registerEffect('osc', {
     name: 'osc',
-    passes: [{ type: 'render', program: 'osc', outputs: { color: 'outputColor' } }]
+    passes: [{ type: 'render', program: 'osc', outputs: { color: 'outputTex' } }]
 });
 registerEffect('kaleid', {
     name: 'kaleid',
-    passes: [{ type: 'render', program: 'kaleid', inputs: { tex: 'inputColor' }, outputs: { color: 'outputColor' } }]
+    passes: [{ type: 'render', program: 'kaleid', inputs: { tex: 'inputColor' }, outputs: { color: 'outputTex' } }]
 });
 
 function compileAndAllocate(code) {

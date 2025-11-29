@@ -117,7 +117,7 @@ export default class Refract extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

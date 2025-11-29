@@ -209,7 +209,7 @@ export default class LensDistortion extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

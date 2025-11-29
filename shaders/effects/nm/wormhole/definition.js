@@ -73,7 +73,7 @@ export default class Wormhole extends Effect {
         speed: "speed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

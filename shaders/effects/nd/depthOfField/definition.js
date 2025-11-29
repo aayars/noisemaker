@@ -93,7 +93,7 @@ export default class DepthOfField extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

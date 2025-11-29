@@ -110,7 +110,7 @@ export default class DisplaceMixer extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

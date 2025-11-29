@@ -38,7 +38,7 @@ export default class SimpleFrame extends Effect {
         brightness: "brightness"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

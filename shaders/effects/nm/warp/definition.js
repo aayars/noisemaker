@@ -86,7 +86,7 @@ export default class Warp extends Effect {
         splineOrder: "splineOrder"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

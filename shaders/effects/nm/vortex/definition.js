@@ -47,7 +47,7 @@ export default class Vortex extends Effect {
         speed: "speed"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

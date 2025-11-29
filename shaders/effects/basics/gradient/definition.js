@@ -21,7 +21,7 @@ export default class Gradient extends Effect {
       program: "gradient",
       inputs: {},
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

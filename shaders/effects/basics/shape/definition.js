@@ -35,7 +35,7 @@ export default class Shape extends Effect {
       program: "shape",
       inputs: {},
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

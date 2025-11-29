@@ -49,7 +49,7 @@ export default class DensityMap extends Effect {
         minmaxTexture: "_minmaxGlobal"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

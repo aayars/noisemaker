@@ -95,7 +95,7 @@ export default class Composite extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

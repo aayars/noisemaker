@@ -63,7 +63,7 @@ export default class Outline extends Effect {
         edgesTexture: "outlineEdges"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

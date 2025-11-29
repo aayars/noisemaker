@@ -61,7 +61,7 @@ export default class PixelSort extends Effect {
         darkest: "darkest"
       },
       outputs: {
-        outputColor: "prepared"
+        fragColor: "prepared"
       }
     },
     {
@@ -71,7 +71,7 @@ export default class PixelSort extends Effect {
         inputTex: "prepared"
       },
       outputs: {
-        outputColor: "luminance"
+        fragColor: "luminance"
       }
     },
     {
@@ -81,7 +81,7 @@ export default class PixelSort extends Effect {
         lumTex: "luminance"
       },
       outputs: {
-        outputColor: "brightest"
+        fragColor: "brightest"
       }
     },
     {
@@ -91,7 +91,7 @@ export default class PixelSort extends Effect {
         lumTex: "luminance"
       },
       outputs: {
-        outputColor: "rank"
+        fragColor: "rank"
       }
     },
     {
@@ -103,7 +103,7 @@ export default class PixelSort extends Effect {
         brightestTex: "brightest"
       },
       outputs: {
-        outputColor: "sorted"
+        fragColor: "sorted"
       }
     },
     {
@@ -119,7 +119,7 @@ export default class PixelSort extends Effect {
         darkest: "darkest"
       },
       outputs: {
-        outputColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

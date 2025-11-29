@@ -121,7 +121,7 @@ export default class Fibers extends Effect {
         maskScale: "maskScale"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

@@ -173,7 +173,7 @@ export default class Atmosphere extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

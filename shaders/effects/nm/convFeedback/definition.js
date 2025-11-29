@@ -62,7 +62,7 @@ export default class ConvFeedback extends Effect {
         alpha: "alpha"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

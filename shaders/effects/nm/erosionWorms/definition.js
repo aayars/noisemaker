@@ -191,7 +191,7 @@ export default class ErosionWorms extends Effect {
         trailTex: "globalErosionTrailA"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

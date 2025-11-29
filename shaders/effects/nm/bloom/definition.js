@@ -51,7 +51,7 @@ export default class Bloom extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputColor: "_bloomDownsample"
+        fragColor: "_bloomDownsample"
       }
     },
     {
@@ -62,7 +62,7 @@ export default class Bloom extends Effect {
         downsampleBuffer: "_bloomDownsample"
       },
       outputs: {
-        outputColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

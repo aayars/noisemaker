@@ -1306,7 +1306,7 @@ const SYSTEM_UNIFORMS = {
  * - May contain digits
  * 
  * Reserved names that are always valid (system names):
- * - inputTex, outputColor, fragColor, outState1-3, stateTex1-3, sourceTex, mixerTex, trailTex
+ * - inputTex, outputTex, fragColor, outState1-3, stateTex1-3, sourceTex, mixerTex, trailTex
  * - global_* prefixed internal textures (these use underscore by convention)
  * 
  * @param {string} name - The name to check
@@ -1358,7 +1358,7 @@ function checkCamelCase(name, allowGlobalPrefix = false) {
  * - camelCase names (start with lowercase, no underscores/hyphens)
  * - global_ prefixed internal textures (e.g., global_worms_state1)
  * - _ prefixed internal textures (e.g., _bloomDownsample) 
- * - Reserved system names: inputTex, outputColor, fragColor
+ * - Reserved system names: inputTex, outputTex, fragColor
  * 
  * @param {string} name - The texture name to check
  * @returns {{valid: boolean, reason?: string}}
@@ -1366,7 +1366,7 @@ function checkCamelCase(name, allowGlobalPrefix = false) {
 function checkTextureName(name) {
     // Reserved system names - always valid
     const reservedNames = new Set([
-        'inputTex', 'outputColor', 'fragColor',
+        'inputTex', 'outputTex', 'fragColor',
         'outState1', 'outState2', 'outState3',
         'stateTex1', 'stateTex2', 'stateTex3',
         'sourceTex', 'mixerTex', 'trailTex'

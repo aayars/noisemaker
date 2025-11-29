@@ -123,7 +123,7 @@ export default class Tunnel extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

@@ -23,7 +23,7 @@ export default class Inv extends Effect {
       "tex0": "inputTex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

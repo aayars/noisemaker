@@ -33,7 +33,7 @@ export default class Normalize extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputColor: "reduce1"
+        fragColor: "reduce1"
       }
     },
     {
@@ -43,7 +43,7 @@ export default class Normalize extends Effect {
         inputTex: "reduce1"
       },
       outputs: {
-        outputColor: "reduce2"
+        fragColor: "reduce2"
       }
     },
     {
@@ -53,7 +53,7 @@ export default class Normalize extends Effect {
         inputTex: "reduce2"
       },
       outputs: {
-        outputColor: "stats"
+        fragColor: "stats"
       }
     },
     {
@@ -64,7 +64,7 @@ export default class Normalize extends Effect {
         statsTex: "stats"
       },
       outputs: {
-        outputColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

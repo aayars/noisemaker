@@ -11,15 +11,13 @@ export default class Palette extends Effect {
 
   globals = {
     paletteIndex: {
-        type: "int",
-        default: 1,
+        type: "member",
+        default: "palette.afterimage",
+        enum: "palette",
         uniform: "paletteIndex",
-        min: 0,
-        max: 37,
-        step: 1,
         ui: {
-            label: "Palette Index",
-            control: "slider"
+            label: "Palette",
+            control: "dropdown"
         }
     },
     alpha: {
@@ -44,7 +42,7 @@ export default class Palette extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

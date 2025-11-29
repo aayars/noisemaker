@@ -45,7 +45,7 @@ export default class Reverb extends Effect {
         ridges: "ridges"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

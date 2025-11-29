@@ -47,7 +47,7 @@ export default class GlowingEdges extends Effect {
         alpha: "alpha"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

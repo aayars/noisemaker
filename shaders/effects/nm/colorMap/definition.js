@@ -75,7 +75,7 @@ export default class ColorMap extends Effect {
         horizontal: "horizontal"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

@@ -23,7 +23,7 @@ export default class Hue extends Effect {
       "tex0": "inputTex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

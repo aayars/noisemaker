@@ -30,7 +30,7 @@ export default class B extends Effect {
       "tex0": "inputTex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -32,7 +32,7 @@ export default class AdjustBrightness extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -44,7 +44,7 @@ export default class Scale extends Effect {
       "tex0": "inputTex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

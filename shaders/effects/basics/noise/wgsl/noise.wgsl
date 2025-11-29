@@ -3,7 +3,7 @@
 @group(0) @binding(1) var<uniform> aspect: f32;
 @group(0) @binding(2) var<uniform> time: f32;
 @group(0) @binding(3) var<uniform> scale: f32;
-@group(0) @binding(4) var<uniform> offset: f32;
+// binding 4 (offset) intentionally omitted - unused uniforms cause WebGPU bind group mismatch
 @group(0) @binding(5) var<uniform> seed: f32;
 @group(0) @binding(6) var<uniform> octaves: i32;
 @group(0) @binding(7) var<uniform> colorMode: i32;
@@ -11,154 +11,165 @@
 @group(0) @binding(9) var<uniform> hueRange: f32;
 @group(0) @binding(10) var<uniform> ridged: i32;
 
-/* 3D simplex noise implementation based on the Ashima Arts reference (MIT License).
-   Animated by treating time as the third dimension. */
+/* 4D gradient noise with quintic interpolation
+   Animated using circular time coordinates for seamless looping */
 
-fn mod_f32(x: f32, y: f32) -> f32 {
-  return x - y * floor(x / y);
-}
+const TAU: f32 = 6.283185307179586;
 
-fn mod289(x: vec3<f32>) -> vec3<f32> {
-  return x - floor(x * (1.0 / 289.0)) * 289.0;
-}
-fn mod289_v4(x: vec4<f32>) -> vec4<f32> {
-  return x - floor(x * (1.0 / 289.0)) * 289.0;
-}
-fn permute(x: vec4<f32>) -> vec4<f32> {
-  return mod289_v4(((x * 34.0) + 1.0) * x);
-}
-fn taylorInvSqrt(r: vec4<f32>) -> vec4<f32> {
-  return 1.79284291400159 - 0.85373472095314 * r;
+// Fast hash function
+fn hash4(p: vec4<f32>) -> f32 {
+    var q = fract(p * vec4<f32>(443.8975, 397.2973, 491.1871, 289.6247));
+    q = q + dot(q, q.wzxy + 19.19);
+    return fract((q.x + q.y) * q.z + (q.z + q.w) * q.x);
 }
 
-fn snoise(v: vec3<f32>) -> f32 {
-  let C = vec2<f32>(1.0 / 6.0, 1.0 / 3.0);
-  let D = vec4<f32>(0.0, 0.5, 1.0, 2.0);
-  var i = floor(v + vec3<f32>(dot(v, vec3<f32>(C.y))));
-  var x0 = v - i + vec3<f32>(dot(i, vec3<f32>(C.x)));
-  var g = step(x0.yzx, x0.xyz);
-  var l = vec3<f32>(1.0) - g;
-  var i1 = min(g, l.zxy);
-  var i2 = max(g, l.zxy);
-  var x1 = x0 - i1 + vec3<f32>(C.x);
-  var x2 = x0 - i2 + vec3<f32>(C.y);
-  var x3 = x0 - vec3<f32>(D.y);
-  i = mod289(i);
-  var p = permute(
-    permute(
-      permute(i.z + vec4<f32>(0.0, i1.z, i2.z, 1.0))
-      + i.y + vec4<f32>(0.0, i1.y, i2.y, 1.0)
-    )
-    + i.x + vec4<f32>(0.0, i1.x, i2.x, 1.0)
-  );
-  let n_ = 0.142857142857;
-  let ns = n_ * D.wyz - D.xzx;
-  let j = p - 49.0 * floor(p * ns.z * ns.z);
-  let x_ = floor(j * ns.z);
-  let y_ = floor(j - 7.0 * x_);
-  let x = x_ * ns.x + ns.y;
-  let y = y_ * ns.x + ns.y;
-  let h = vec4<f32>(1.0) - abs(x) - abs(y);
-  let b0 = vec4<f32>(x.xy, y.xy);
-  let bVec1 = vec4<f32>(x.zw, y.zw);
-  let s0 = floor(b0) * 2.0 + vec4<f32>(1.0);
-  let sVec1 = floor(bVec1) * 2.0 + vec4<f32>(1.0);
-  let sh = -step(h, vec4<f32>(0.0));
-  let a0 = b0.xzyw + s0.xzyw * sh.xxyy;
-  let aVec1 = bVec1.xzyw + sVec1.xzyw * sh.zzww;
-  var p0 = vec3<f32>(a0.xy, h.x);
-  var p1 = vec3<f32>(a0.zw, h.y);
-  var p2 = vec3<f32>(aVec1.xy, h.z);
-  var p3 = vec3<f32>(aVec1.zw, h.w);
-  let norm = taylorInvSqrt(vec4<f32>(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
-  p0 = p0 * norm.x;
-  p1 = p1 * norm.y;
-  p2 = p2 * norm.z;
-  p3 = p3 * norm.w;
-  var m = max(vec4<f32>(0.6) - vec4<f32>(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), vec4<f32>(0.0));
-  m = m * m;
-  return 42.0 * dot(m * m, vec4<f32>(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+// Gradient from hash - returns normalized 4D vector
+fn grad4(p: vec4<f32>) -> vec4<f32> {
+    let h1 = hash4(p);
+    let h2 = hash4(p + 127.1);
+    let h3 = hash4(p + 269.5);
+    let h4 = hash4(p + 419.2);
+    
+    let g = vec4<f32>(
+        cos(h1 * TAU),
+        sin(h1 * TAU) * cos(h2 * 3.14159),
+        sin(h1 * TAU) * sin(h2 * 3.14159) * cos(h3 * TAU),
+        sin(h1 * TAU) * sin(h2 * 3.14159) * sin(h3 * TAU)
+    );
+    
+    return normalize(g);
+}
+
+// Quintic interpolation for smooth transitions
+fn quintic(t: f32) -> f32 {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+// 4D gradient noise - Perlin-style with quintic interpolation
+fn noise4D(p: vec4<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    
+    let u = vec4<f32>(quintic(f.x), quintic(f.y), quintic(f.z), quintic(f.w));
+    
+    let n0000 = dot(grad4(i + vec4<f32>(0.0, 0.0, 0.0, 0.0)), f - vec4<f32>(0.0, 0.0, 0.0, 0.0));
+    let n1000 = dot(grad4(i + vec4<f32>(1.0, 0.0, 0.0, 0.0)), f - vec4<f32>(1.0, 0.0, 0.0, 0.0));
+    let n0100 = dot(grad4(i + vec4<f32>(0.0, 1.0, 0.0, 0.0)), f - vec4<f32>(0.0, 1.0, 0.0, 0.0));
+    let n1100 = dot(grad4(i + vec4<f32>(1.0, 1.0, 0.0, 0.0)), f - vec4<f32>(1.0, 1.0, 0.0, 0.0));
+    let n0010 = dot(grad4(i + vec4<f32>(0.0, 0.0, 1.0, 0.0)), f - vec4<f32>(0.0, 0.0, 1.0, 0.0));
+    let n1010 = dot(grad4(i + vec4<f32>(1.0, 0.0, 1.0, 0.0)), f - vec4<f32>(1.0, 0.0, 1.0, 0.0));
+    let n0110 = dot(grad4(i + vec4<f32>(0.0, 1.0, 1.0, 0.0)), f - vec4<f32>(0.0, 1.0, 1.0, 0.0));
+    let n1110 = dot(grad4(i + vec4<f32>(1.0, 1.0, 1.0, 0.0)), f - vec4<f32>(1.0, 1.0, 1.0, 0.0));
+    let n0001 = dot(grad4(i + vec4<f32>(0.0, 0.0, 0.0, 1.0)), f - vec4<f32>(0.0, 0.0, 0.0, 1.0));
+    let n1001 = dot(grad4(i + vec4<f32>(1.0, 0.0, 0.0, 1.0)), f - vec4<f32>(1.0, 0.0, 0.0, 1.0));
+    let n0101 = dot(grad4(i + vec4<f32>(0.0, 1.0, 0.0, 1.0)), f - vec4<f32>(0.0, 1.0, 0.0, 1.0));
+    let n1101 = dot(grad4(i + vec4<f32>(1.0, 1.0, 0.0, 1.0)), f - vec4<f32>(1.0, 1.0, 0.0, 1.0));
+    let n0011 = dot(grad4(i + vec4<f32>(0.0, 0.0, 1.0, 1.0)), f - vec4<f32>(0.0, 0.0, 1.0, 1.0));
+    let n1011 = dot(grad4(i + vec4<f32>(1.0, 0.0, 1.0, 1.0)), f - vec4<f32>(1.0, 0.0, 1.0, 1.0));
+    let n0111 = dot(grad4(i + vec4<f32>(0.0, 1.0, 1.0, 1.0)), f - vec4<f32>(0.0, 1.0, 1.0, 1.0));
+    let n1111 = dot(grad4(i + vec4<f32>(1.0, 1.0, 1.0, 1.0)), f - vec4<f32>(1.0, 1.0, 1.0, 1.0));
+    
+    let nx000 = mix(n0000, n1000, u.x);
+    let nx100 = mix(n0100, n1100, u.x);
+    let nx010 = mix(n0010, n1010, u.x);
+    let nx110 = mix(n0110, n1110, u.x);
+    let nx001 = mix(n0001, n1001, u.x);
+    let nx101 = mix(n0101, n1101, u.x);
+    let nx011 = mix(n0011, n1011, u.x);
+    let nx111 = mix(n0111, n1111, u.x);
+    
+    let nxy00 = mix(nx000, nx100, u.y);
+    let nxy10 = mix(nx010, nx110, u.y);
+    let nxy01 = mix(nx001, nx101, u.y);
+    let nxy11 = mix(nx011, nx111, u.y);
+    
+    let nxyz0 = mix(nxy00, nxy10, u.z);
+    let nxyz1 = mix(nxy01, nxy11, u.z);
+    
+    return mix(nxyz0, nxyz1, u.w);
 }
 
 fn hsv2rgb(hsv: vec3<f32>) -> vec3<f32> {
-  let h = fract(hsv.x);
-  let s = hsv.y;
-  let v = hsv.z;
-  let c = v * s;
-  let x = c * (1.0 - abs(mod_f32(h * 6.0, 2.0) - 1.0));
-  let m = v - c;
-  var rgb: vec3<f32>;
-  if (0.0 <= h && h < 1.0/6.0) {
-    rgb = vec3<f32>(c, x, 0.0);
-  } else if (1.0/6.0 <= h && h < 2.0/6.0) {
-    rgb = vec3<f32>(x, c, 0.0);
-  } else if (2.0/6.0 <= h && h < 3.0/6.0) {
-    rgb = vec3<f32>(0.0, c, x);
-  } else if (3.0/6.0 <= h && h < 4.0/6.0) {
-    rgb = vec3<f32>(0.0, x, c);
-  } else if (4.0/6.0 <= h && h < 5.0/6.0) {
-    rgb = vec3<f32>(x, 0.0, c);
-  } else if (5.0/6.0 <= h && h < 1.0) {
-    rgb = vec3<f32>(c, 0.0, x);
-  } else {
-    rgb = vec3<f32>(0.0);
-  }
-  return rgb + vec3<f32>(m, m, m);
+    let c = vec3<f32>(hsv.x, hsv.y, hsv.z);
+    let K = vec4<f32>(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+    let p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, vec3<f32>(0.0), vec3<f32>(1.0)), c.y);
 }
 
-fn fbm(p: vec3<f32>, offset: f32, ridged: i32) -> f32 {
-  let MAX_OCT: i32 = 6;
-  var amplitude: f32 = 0.5;
-  var frequency: f32 = 1.0;
-  var sum: f32 = 0.0;
-  for (var i: i32 = 0; i < MAX_OCT; i = i + 1) {
-    if (i >= octaves) { break; }
-    let animatedOffset = vec3<f32>(seed + offset + f32(i) * 10.0);
-    var n = snoise(p * frequency + animatedOffset);
-    if (ridged == 1) {
-      n = 1.0 - abs(n);
-      n = n * 2.0 - 1.0;
+// FBM using 4D noise with circular time for seamless looping
+fn fbm(st: vec2<f32>, timeAngle: f32, channelOffset: f32, ridgedMode: i32) -> f32 {
+    let MAX_OCT: i32 = 8;
+    var amplitude: f32 = 0.5;
+    var frequency: f32 = 1.0;
+    var sum: f32 = 0.0;
+    var maxVal: f32 = 0.0;
+    var oct = octaves;
+    if (oct < 1) { oct = 1; }
+    
+    // Circular time coordinates for seamless looping
+    // Radius 0.4, centered at 0.5 so circle stays within [0.1, 0.9] - no cell crossings
+    let timeRadius: f32 = 0.4;
+    let tc = cos(timeAngle) * timeRadius + 0.5 + channelOffset;
+    let ts = sin(timeAngle) * timeRadius + 0.5;
+    
+    for (var i: i32 = 0; i < MAX_OCT; i = i + 1) {
+        if (i >= oct) { break; }
+        let p = vec4<f32>(st * frequency + seed, tc, ts);
+        var n = noise4D(p);  // -1..1
+        // Scale up by ~1.5 to spread the gaussian-ish distribution
+        // Perlin noise rarely hits +-1, so this expands the usable range
+        n = clamp(n * 1.5, -1.0, 1.0);
+        if (ridgedMode == 1) {
+            n = 1.0 - abs(n);  // fold at zero, gives 0..1 with ridges at zero-crossings
+        } else {
+            n = (n + 1.0) * 0.5;  // normalize to 0..1
+        }
+        sum = sum + n * amplitude;
+        maxVal = maxVal + amplitude;
+        frequency = frequency * 2.0;
+        amplitude = amplitude * 0.5;
     }
-    sum = sum + n * amplitude;
-    frequency = frequency * 2.0;
-    amplitude = amplitude * 0.5;
-  }
-  return sum;
+    return sum / maxVal;
 }
 
 @fragment
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-  var st = position.xy / resolution;
-  st.x = st.x * aspect;
-  st = st * scale;
-  let t = time + offset;
-  let p = vec3<f32>(st, t);
-  var r: f32;
-  var g: f32;
-  var b: f32;
-  if (colorMode == 2 && ridged != 0) {
-    r = fbm(p, 0.0, 0);
-    g = fbm(p, 100.0, 0);
-    b = fbm(p, 200.0, ridged);
-  } else {
-    r = fbm(p, 0.0, ridged);
-    g = fbm(p, 100.0, ridged);
-    b = fbm(p, 200.0, ridged);
-  }
-  var col: vec3<f32>;
-  if (colorMode == 0) {
-    let v = r * 0.5 + 0.5;
-    col = vec3<f32>(v);
-  } else if (colorMode == 1) {
-    col = vec3<f32>(r, g, b) * 0.5 + vec3<f32>(0.5);
-  } else {
-    var h = r * 0.5 + 0.5;
-    h = h * (hueRange * 0.01);
-    h = h + 1.0 - (hueRotation / 360.0);
-    h = fract(h);
-    let s = g * 0.5 + 0.5;
-    let v = b * 0.5 + 0.5;
-    col = hsv2rgb(vec3<f32>(h, s, v));
-  }
-  return vec4<f32>(col, 1.0);
+    var res = resolution;
+    if (res.x < 1.0) { res = vec2<f32>(1024.0, 1024.0); }
+    var st = position.xy / res;
+    st.y = 1.0 - st.y;  // Flip Y to match WebGL coordinate system
+    st.x = st.x * aspect;
+    st = st * scale;
+    
+    // time is 0-1 representing position around circle for seamless looping
+    let timeAngle = time * TAU;
+    
+    var r: f32;
+    var g: f32;
+    var b: f32;
+    if (colorMode == 2 && ridged != 0) {
+        r = fbm(st, timeAngle, 0.0, 0);
+        g = fbm(st, timeAngle, 100.0, 0);
+        b = fbm(st, timeAngle, 200.0, ridged);
+    } else {
+        r = fbm(st, timeAngle, 0.0, ridged);
+        g = fbm(st, timeAngle, 100.0, ridged);
+        b = fbm(st, timeAngle, 200.0, ridged);
+    }
+    
+    var col: vec3<f32>;
+    if (colorMode == 0) {
+        col = vec3<f32>(r);
+    } else if (colorMode == 1) {
+        col = vec3<f32>(r, g, b);
+    } else {
+        var h = r * (hueRange * 2.0);
+        h = h + 1.0 - (hueRotation / 360.0);
+        h = fract(h);
+        let s = g;
+        let v = b;
+        col = hsv2rgb(vec3<f32>(h, s, v));
+    }
+    return vec4<f32>(col, 1.0);
 }
+

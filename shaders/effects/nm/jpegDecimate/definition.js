@@ -22,7 +22,7 @@ export default class JpegDecimate extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        outputBuffer: "outputTex"
       }
     }
   ];

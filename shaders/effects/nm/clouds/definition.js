@@ -96,7 +96,7 @@ export default class Clouds extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

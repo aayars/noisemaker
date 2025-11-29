@@ -48,7 +48,7 @@ export default class Grain extends Effect {
         speed: "speed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

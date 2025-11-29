@@ -48,7 +48,7 @@ export default class Aberration extends Effect {
         speed: "speed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

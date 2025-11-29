@@ -88,9 +88,9 @@ export function expand(compilationResult) {
             if (step.from !== null) {
                 // Find the output texture of the previous node
                 const prevNodeId = `node_${step.from}`;
-                // The output of the previous node is usually its 'outputColor'
+                // The output of the previous node is usually its 'outputTex'
                 // We need to track what the "main" output of a node is.
-                // For now, assume 'outputColor' is the main output.
+                // For now, assume 'outputTex' is the main output.
                 currentInput = textureMap.get(`${prevNodeId}_out`);
             }
 
@@ -249,7 +249,7 @@ export function expand(compilationResult) {
                 if (passDef.outputs) {
                     for (const [attachment, texRef] of Object.entries(passDef.outputs)) {
                         let virtualTex;
-                        if (texRef === 'outputColor') {
+                        if (texRef === 'outputTex') {
                             // This is the main output of this node
                             // OPTIMIZATION: If this is the last step and last pass, write directly to global output
                             const isLastStep = step === plan.chain[plan.chain.length - 1];

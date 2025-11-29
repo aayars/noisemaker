@@ -300,7 +300,7 @@ export default class CellularAutomata extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

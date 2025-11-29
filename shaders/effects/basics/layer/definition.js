@@ -25,7 +25,7 @@ export default class Layer extends Effect {
       "tex1": "tex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -35,7 +35,7 @@ const SolidEffect = {
             type: "render",
             program: "solid",
             inputs: {},
-            outputs: { color: "outputColor" }
+            outputs: { color: "outputTex" }
         }
     ]
 }
@@ -53,7 +53,7 @@ const OscEffect = {
             type: "render",
             program: "osc",
             inputs: {},
-            outputs: { color: "outputColor" }
+            outputs: { color: "outputTex" }
         }
     ]
 }
@@ -74,7 +74,7 @@ const BlendEffect = {
                 tex0: "inputColor",
                 tex1: "tex"
             },
-            outputs: { color: "outputColor" }
+            outputs: { color: "outputTex" }
         }
     ]
 }

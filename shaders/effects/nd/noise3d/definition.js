@@ -135,7 +135,7 @@ export default class Noise3d extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

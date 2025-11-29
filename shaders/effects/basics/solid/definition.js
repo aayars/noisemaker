@@ -35,7 +35,7 @@ export default class Solid extends Effect {
       program: "solid",
       inputs: {},
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

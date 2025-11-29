@@ -51,7 +51,7 @@ export default class Snow extends Effect {
         speed: "speed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

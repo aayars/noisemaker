@@ -105,7 +105,7 @@ export default class Convolve extends Effect {
         alpha: "alpha"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

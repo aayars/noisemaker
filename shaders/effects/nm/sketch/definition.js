@@ -22,7 +22,7 @@ export default class Sketch extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        outputBuffer: "outputTex"
       }
     }
   ];

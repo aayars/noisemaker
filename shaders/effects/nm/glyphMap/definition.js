@@ -105,7 +105,7 @@ export default class GlyphMap extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

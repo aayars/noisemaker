@@ -35,7 +35,7 @@ export default class Voronoi extends Effect {
       program: "voronoi",
       inputs: {},
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -35,7 +35,7 @@ export default class SpookyTicker extends Effect {
         speed: "speed"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

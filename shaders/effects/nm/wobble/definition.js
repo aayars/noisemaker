@@ -35,7 +35,7 @@ export default class Wobble extends Effect {
         time: "time"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

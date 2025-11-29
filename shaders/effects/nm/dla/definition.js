@@ -142,7 +142,7 @@ export default class Dla extends Effect {
         alpha: "alpha"
       },
       outputs: {
-        dlaOutColor: "outputColor"
+        dlaOutColor: "outputTex"
       }
     }
   ];

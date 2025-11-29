@@ -196,7 +196,7 @@ export default class Voronoi extends Effect {
         pointDrift: "pointDrift"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

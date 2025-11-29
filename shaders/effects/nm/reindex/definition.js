@@ -64,7 +64,7 @@ export default class Reindex extends Effect {
         statsTex: "globalStats"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

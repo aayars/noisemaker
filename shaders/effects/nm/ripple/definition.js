@@ -88,7 +88,7 @@ export default class Ripple extends Effect {
         speed: "speed"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

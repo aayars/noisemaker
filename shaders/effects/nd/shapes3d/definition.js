@@ -437,7 +437,7 @@ export default class Shapes3D extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

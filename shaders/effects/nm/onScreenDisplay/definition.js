@@ -19,7 +19,7 @@ export default class OnScreenDisplay extends Effect {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

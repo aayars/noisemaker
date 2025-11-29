@@ -170,7 +170,7 @@ export default class CellRefract extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

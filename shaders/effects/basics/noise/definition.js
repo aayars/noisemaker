@@ -13,13 +13,6 @@ export default class Noise extends Effect {
         "max": 100,
         "uniform": "scale"
     },
-    "offset": {
-        "type": "float",
-        "default": 0,
-        "min": -100,
-        "max": 100,
-        "uniform": "offset"
-    },
     "octaves": {
         "type": "int",
         "default": 1,
@@ -42,9 +35,9 @@ export default class Noise extends Effect {
     },
     "hueRange": {
         "type": "float",
-        "default": 100,
+        "default": 0.5,
         "min": 0,
-        "max": 100,
+        "max": 1,
         "uniform": "hueRange"
     },
     "ridges": {
@@ -67,7 +60,7 @@ export default class Noise extends Effect {
       program: "noise",
       inputs: {},
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

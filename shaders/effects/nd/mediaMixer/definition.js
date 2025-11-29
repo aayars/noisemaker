@@ -153,7 +153,7 @@ export default class MediaMixer extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

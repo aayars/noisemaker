@@ -35,7 +35,7 @@ export default class Rotate extends Effect {
         angle: "angle"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

@@ -52,7 +52,7 @@ export default class Vaseline extends Effect {
         downsampleBuffer: "_vaselineDownsample"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

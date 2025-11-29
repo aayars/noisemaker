@@ -256,7 +256,7 @@ export default class ReactionDiffusion extends Effect {
         fbTex: "globalReactionDiffusionState"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

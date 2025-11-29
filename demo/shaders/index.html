@@ -403,20 +403,27 @@
                         <select id="effect-select" class="control-select"></select>
                     </div>
 
-                    <div class="control-group">
-                        <div class="control-header">
-                            <label class="control-label">shader language</label>
-                        </div>
-                        <div class="radio-group" style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
-                                <input type="radio" name="backend" value="glsl" checked>
-                                <span>glsl</span>
-                            </label>
-                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
-                                <input type="radio" name="backend" value="wgsl">
-                                <span>wgsl</span>
-                            </label>
-                        </div>
+                    <div class="control-group" style="display: flex; flex-direction: row !important; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+                        <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                            <input type="radio" name="backend" value="glsl" checked>
+                            <span>glsl</span>
+                        </label>
+                        <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                            <input type="radio" name="backend" value="wgsl">
+                            <span>wgsl</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                            <span>duration</span>
+                            <input type="number" id="duration-input" class="control-select" value="10" min="1" max="300" step="1" style="width: 4rem;">
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                            <span>fps</span>
+                            <select id="fps-select" class="control-select">
+                                <option value="30">30</option>
+                                <option value="60" selected>60</option>
+                                <option value="120">120</option>
+                            </select>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -468,11 +475,15 @@
         window.__noisemakerCurrentBackend = () => currentBackend;
         window.__noisemakerRegistry = { getEffect };
         window.__noisemakerFrameCount = 0;
+        window.__noisemakerGetLoopDuration = () => loopDuration;
+        window.__noisemakerGetFPS = () => TARGET_FPS;
         let animationFrameId = null;
         let animationTimerId = null;
-        const TARGET_FPS = 60;
-        const TARGET_FRAME_TIME = 1000 / TARGET_FPS;
+        let TARGET_FPS = 60;
+        let TARGET_FRAME_TIME = 1000 / TARGET_FPS;
+        let loopDuration = 10; // Duration in seconds for one complete loop (time goes from 0 to 1)
         let lastFrameTime = performance.now();
+        let loopStartTime = performance.now();
         let enums = {};
         let uniformBindings = new Map();
         let currentDsl = '';
@@ -539,7 +550,10 @@
 
             if (pipeline) {
                 try {
-                    pipeline.render(time / 1000);
+                    // Calculate normalized time (0 to 1) based on loop duration
+                    const elapsedSeconds = (time - loopStartTime) / 1000;
+                    const normalizedTime = (elapsedSeconds % loopDuration) / loopDuration;
+                    pipeline.render(normalizedTime);
                 } catch (err) {
                     console.error('Render loop error:', err);
                 }
@@ -1471,6 +1485,23 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 showStatus(`switched to ${currentBackend}`, 'success');
                 await rebuildPipeline({ silent: true });
             });
+        });
+
+        // FPS selector
+        document.getElementById('fps-select').addEventListener('change', (e) => {
+            TARGET_FPS = parseInt(e.target.value, 10);
+            TARGET_FRAME_TIME = 1000 / TARGET_FPS;
+            showStatus(`fps set to ${TARGET_FPS}`, 'success');
+        });
+
+        // Duration input
+        document.getElementById('duration-input').addEventListener('change', (e) => {
+            const newDuration = parseFloat(e.target.value);
+            if (newDuration >= 1 && newDuration <= 300) {
+                loopDuration = newDuration;
+                loopStartTime = performance.now(); // Reset loop to start
+                showStatus(`duration set to ${loopDuration}s`, 'success');
+            }
         });
 
         // Check for backend in URL query parameter

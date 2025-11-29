@@ -129,7 +129,7 @@ export default class MediaPost extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

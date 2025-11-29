@@ -195,7 +195,7 @@ export default class Worms extends Effect {
         inputIntensity: "inputIntensity"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

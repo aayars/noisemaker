@@ -5,7 +5,6 @@ uniform vec2 resolution;
 uniform float aspect;
 uniform float time;
 uniform float scale;
-uniform float offset;
 uniform float seed;
 uniform int octaves;
 uniform int colorMode;
@@ -15,166 +14,171 @@ uniform int ridged;
 
 out vec4 fragColor;
 
-/* 3D simplex noise implementation based on the Ashima Arts reference (MIT License).
-   Animated by treating time as the third dimension. */
+/* Improved 4D noise implementation
+   Uses value noise with smooth interpolation
+   Animated using circular time coordinates for seamless looping */
 
-vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
-vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+const float TAU = 6.283185307179586;
 
-float snoise(vec3 v) {
-  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
-  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+// Fast hash function
+float hash4(vec4 p) {
+    p = fract(p * vec4(443.8975, 397.2973, 491.1871, 289.6247));
+    p += dot(p, p.wzxy + 19.19);
+    return fract((p.x + p.y) * p.z + (p.z + p.w) * p.x);
+}
 
-  // First corner
-  vec3 i  = floor(v + dot(v, C.yyy));
-  vec3 x0 = v - i + dot(i, C.xxx);
+// Gradient from hash - returns normalized 4D vector
+vec4 grad4(vec4 p) {
+    // Generate 4 independent random values
+    float h1 = hash4(p);
+    float h2 = hash4(p + 127.1);
+    float h3 = hash4(p + 269.5);
+    float h4 = hash4(p + 419.2);
+    
+    // Map to sphere using cosine
+    vec4 g = vec4(
+        cos(h1 * TAU),
+        sin(h1 * TAU) * cos(h2 * 3.14159),
+        sin(h1 * TAU) * sin(h2 * 3.14159) * cos(h3 * TAU),
+        sin(h1 * TAU) * sin(h2 * 3.14159) * sin(h3 * TAU)
+    );
+    
+    return normalize(g);
+}
 
-  // Other corners
-  vec3 g = step(x0.yzx, x0.xyz);
-  vec3 l = 1.0 - g;
-  vec3 i1 = min(g.xyz, l.zxy);
-  vec3 i2 = max(g.xyz, l.zxy);
+// Quintic interpolation for smooth transitions (no visible seams)
+float quintic(float t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
 
-  vec3 x1 = x0 - i1 + C.xxx;
-  vec3 x2 = x0 - i2 + C.yyy;
-  vec3 x3 = x0 - D.yyy;
-
-  // Permutations
-  i = mod289(i);
-  vec4 p = permute(
-    permute(
-      permute(i.z + vec4(0.0, i1.z, i2.z, 1.0))
-      + i.y + vec4(0.0, i1.y, i2.y, 1.0)
-    )
-    + i.x + vec4(0.0, i1.x, i2.x, 1.0)
-  );
-
-  // Gradients
-  float n_ = 0.142857142857; // 1/7
-  vec3  ns = n_ * D.wyz - D.xzx;
-
-  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-
-  vec4 x_ = floor(j * ns.z);
-  vec4 y_ = floor(j - 7.0 * x_);
-
-  vec4 x = x_ * ns.x + ns.y;
-  vec4 y = y_ * ns.x + ns.y;
-  vec4 h = 1.0 - abs(x) - abs(y);
-
-  vec4 b0 = vec4(x.xy, y.xy);
-  vec4 bVec1 = vec4(x.zw, y.zw);
-
-  vec4 s0 = floor(b0) * 2.0 + 1.0;
-  vec4 sVec1 = floor(bVec1) * 2.0 + 1.0;
-  vec4 sh = -step(h, vec4(0.0));
-
-  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
-  vec4 aVec1 = bVec1.xzyw + sVec1.xzyw * sh.zzww;
-
-  vec3 p0 = vec3(a0.xy, h.x);
-  vec3 p1 = vec3(a0.zw, h.y);
-  vec3 p2 = vec3(aVec1.xy, h.z);
-  vec3 p3 = vec3(aVec1.zw, h.w);
-
-  vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
-  p0 *= norm.x;
-  p1 *= norm.y;
-  p2 *= norm.z;
-  p3 *= norm.w;
-
-  vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
-  m = m * m;
-  return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+// 4D gradient noise - Perlin-style with quintic interpolation
+float noise4D(vec4 p) {
+    vec4 i = floor(p);
+    vec4 f = fract(p);
+    
+    // Quintic interpolation curves
+    vec4 u = vec4(quintic(f.x), quintic(f.y), quintic(f.z), quintic(f.w));
+    
+    // 16 corners of 4D hypercube (we'll do this in groups)
+    float n0000 = dot(grad4(i + vec4(0,0,0,0)), f - vec4(0,0,0,0));
+    float n1000 = dot(grad4(i + vec4(1,0,0,0)), f - vec4(1,0,0,0));
+    float n0100 = dot(grad4(i + vec4(0,1,0,0)), f - vec4(0,1,0,0));
+    float n1100 = dot(grad4(i + vec4(1,1,0,0)), f - vec4(1,1,0,0));
+    float n0010 = dot(grad4(i + vec4(0,0,1,0)), f - vec4(0,0,1,0));
+    float n1010 = dot(grad4(i + vec4(1,0,1,0)), f - vec4(1,0,1,0));
+    float n0110 = dot(grad4(i + vec4(0,1,1,0)), f - vec4(0,1,1,0));
+    float n1110 = dot(grad4(i + vec4(1,1,1,0)), f - vec4(1,1,1,0));
+    float n0001 = dot(grad4(i + vec4(0,0,0,1)), f - vec4(0,0,0,1));
+    float n1001 = dot(grad4(i + vec4(1,0,0,1)), f - vec4(1,0,0,1));
+    float n0101 = dot(grad4(i + vec4(0,1,0,1)), f - vec4(0,1,0,1));
+    float n1101 = dot(grad4(i + vec4(1,1,0,1)), f - vec4(1,1,0,1));
+    float n0011 = dot(grad4(i + vec4(0,0,1,1)), f - vec4(0,0,1,1));
+    float n1011 = dot(grad4(i + vec4(1,0,1,1)), f - vec4(1,0,1,1));
+    float n0111 = dot(grad4(i + vec4(0,1,1,1)), f - vec4(0,1,1,1));
+    float n1111 = dot(grad4(i + vec4(1,1,1,1)), f - vec4(1,1,1,1));
+    
+    // Trilinear interpolation along x
+    float nx000 = mix(n0000, n1000, u.x);
+    float nx100 = mix(n0100, n1100, u.x);
+    float nx010 = mix(n0010, n1010, u.x);
+    float nx110 = mix(n0110, n1110, u.x);
+    float nx001 = mix(n0001, n1001, u.x);
+    float nx101 = mix(n0101, n1101, u.x);
+    float nx011 = mix(n0011, n1011, u.x);
+    float nx111 = mix(n0111, n1111, u.x);
+    
+    // Interpolation along y
+    float nxy00 = mix(nx000, nx100, u.y);
+    float nxy10 = mix(nx010, nx110, u.y);
+    float nxy01 = mix(nx001, nx101, u.y);
+    float nxy11 = mix(nx011, nx111, u.y);
+    
+    // Interpolation along z
+    float nxyz0 = mix(nxy00, nxy10, u.z);
+    float nxyz1 = mix(nxy01, nxy11, u.z);
+    
+    // Final interpolation along w
+    return mix(nxyz0, nxyz1, u.w);
 }
 
 vec3 hsv2rgb(vec3 hsv) {
-  float h = fract(hsv.x);
-  float s = hsv.y;
-  float v = hsv.z;
-
-  float c = v * s;
-  float x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));
-  float m = v - c;
-
-  vec3 rgb;
-  if (0.0 <= h && h < 1.0/6.0) {
-    rgb = vec3(c, x, 0.0);
-  } else if (1.0/6.0 <= h && h < 2.0/6.0) {
-    rgb = vec3(x, c, 0.0);
-  } else if (2.0/6.0 <= h && h < 3.0/6.0) {
-    rgb = vec3(0.0, c, x);
-  } else if (3.0/6.0 <= h && h < 4.0/6.0) {
-    rgb = vec3(0.0, x, c);
-  } else if (4.0/6.0 <= h && h < 5.0/6.0) {
-    rgb = vec3(x, 0.0, c);
-  } else if (5.0/6.0 <= h && h < 1.0) {
-    rgb = vec3(c, 0.0, x);
-  } else {
-    rgb = vec3(0.0);
-  }
-
-  return rgb + vec3(m, m, m);
+    vec3 c = vec3(hsv.x, hsv.y, hsv.z);
+    vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-float fbm(vec3 p, float offset, int ridged) {
-  const int MAX_OCT = 6;
-  float amplitude = 0.5;
-  float frequency = 1.0;
-  float sum = 0.0;
-  int oct = octaves;
-  if (oct < 1) oct = 1;
-  for (int i = 0; i < MAX_OCT; i++) {
-    if (i >= oct) break;
-    float n = snoise(p * frequency + seed + offset + float(i) * 10.0);
-    if (ridged == 1) {
-      n = 1.0 - abs(n);
-      n = n * 2.0 - 1.0;
+// FBM using 4D noise with circular time for seamless looping
+float fbm(vec2 st, float timeAngle, float channelOffset, int ridgedMode) {
+    const int MAX_OCT = 8;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    float sum = 0.0;
+    float maxVal = 0.0;
+    int oct = octaves;
+    if (oct < 1) oct = 1;
+    
+    // Circular time coordinates for seamless looping
+    // Radius 0.4, centered at 0.5 so circle stays within [0.1, 0.9] - no cell crossings
+    float timeRadius = 0.4;
+    float tc = cos(timeAngle) * timeRadius + 0.5 + channelOffset;
+    float ts = sin(timeAngle) * timeRadius + 0.5;
+    
+    for (int i = 0; i < MAX_OCT; i++) {
+        if (i >= oct) break;
+        vec4 p = vec4(st * frequency + seed, tc, ts);
+        float n = noise4D(p);  // -1..1
+        // Scale up by ~1.5 to spread the gaussian-ish distribution
+        // Perlin noise rarely hits +-1, so this expands the usable range
+        n = clamp(n * 1.5, -1.0, 1.0);
+        if (ridgedMode == 1) {
+            n = 1.0 - abs(n);  // fold at zero, gives 0..1 with ridges at zero-crossings
+        } else {
+            n = (n + 1.0) * 0.5;  // normalize to 0..1
+        }
+        sum += n * amplitude;
+        maxVal += amplitude;
+        frequency *= 2.0;
+        amplitude *= 0.5;
     }
-    sum += n * amplitude;
-    frequency *= 2.0;
-    amplitude *= 0.5;
-  }
-  return sum;
+    return sum / maxVal;
 }
 
 void main() {
-  vec2 res = resolution;
-  if (res.x < 1.0) res = vec2(1024.0, 1024.0);
-  vec2 st = gl_FragCoord.xy / res;
-  st.x *= aspect;
-  st *= scale;
-  float t = time + offset;
-  vec3 p = vec3(st, t);
-  float r;
-  float g;
-  float b;
-  if (colorMode == 2 && ridged != 0) {
-    r = fbm(p, 0.0, 0);
-    g = fbm(p, 100.0, 0);
-    b = fbm(p, 200.0, ridged);
-  } else {
-    r = fbm(p, 0.0, ridged);
-    g = fbm(p, 100.0, ridged);
-    b = fbm(p, 200.0, ridged);
-  }
-  vec3 col;
-  if (colorMode == 0) {
-    float v = r * 0.5 + 0.5;
-    col = vec3(v);
-  } else if (colorMode == 1) {
-    col = vec3(r, g, b) * 0.5 + 0.5;
-  } else {
-    float h = r * 0.5 + 0.5;
-    h = h * (hueRange * 0.01);
-    h += 1.0 - (hueRotation / 360.0);
-    h = fract(h);
-    float s = g * 0.5 + 0.5;
-    float v = b * 0.5 + 0.5;
-    col = hsv2rgb(vec3(h, s, v));
-  }
-  fragColor = vec4(col, 1.0);
+    vec2 res = resolution;
+    if (res.x < 1.0) res = vec2(1024.0, 1024.0);
+    vec2 st = gl_FragCoord.xy / res;
+    st.x *= aspect;
+    st *= scale;
+    
+    // time is 0-1 representing position around circle for seamless looping
+    float timeAngle = time * TAU;
+    
+    float r, g, b;
+    if (colorMode == 2 && ridged != 0) {
+        r = fbm(st, timeAngle, 0.0, 0);
+        g = fbm(st, timeAngle, 100.0, 0);
+        b = fbm(st, timeAngle, 200.0, ridged);
+    } else {
+        r = fbm(st, timeAngle, 0.0, ridged);
+        g = fbm(st, timeAngle, 100.0, ridged);
+        b = fbm(st, timeAngle, 200.0, ridged);
+    }
+    
+    vec3 col;
+    if (colorMode == 0) {
+        col = vec3(r);
+    } else if (colorMode == 1) {
+        col = vec3(r, g, b);
+    } else {
+        float h = r * (hueRange * 2.0);
+        h += 1.0 - (hueRotation / 360.0);
+        h = fract(h);
+        float s = g;
+        float v = b;
+        col = hsv2rgb(vec3(h, s, v));
+    }
+    fragColor = vec4(col, 1.0);
 }
+
 

@@ -30,7 +30,7 @@ export default class Rot extends Effect {
       "tex0": "inputTex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

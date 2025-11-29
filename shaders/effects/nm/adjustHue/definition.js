@@ -35,7 +35,7 @@ export default class AdjustHue extends Effect {
         amount: "amount"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

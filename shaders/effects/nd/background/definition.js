@@ -56,7 +56,7 @@ export default class Background extends Effect {
       name: "render",
       program: "background",
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

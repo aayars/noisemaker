@@ -232,7 +232,7 @@ export default class ColorLab extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

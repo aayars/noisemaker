@@ -77,7 +77,7 @@ export default class Scratches extends Effect {
         enabled: "enabled"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

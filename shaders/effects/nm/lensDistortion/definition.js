@@ -38,7 +38,7 @@ export default class LensDistortion extends Effect {
         displacement: "displacement"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        outputBuffer: "outputTex"
       }
     }
   ];

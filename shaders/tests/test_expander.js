@@ -21,7 +21,7 @@ registerEffect('basics.osc', {
         {
             type: 'render',
             program: 'osc',
-            outputs: { color: 'outputColor' }
+            outputs: { color: 'outputTex' }
         }
     ]
 });
@@ -34,7 +34,7 @@ registerEffect('basics.blend', {
             src: 'inputColor',
             tex: 'tex'
         },
-        outputs: { color: 'outputColor' }
+        outputs: { color: 'outputTex' }
     }]
 });
 

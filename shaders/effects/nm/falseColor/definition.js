@@ -50,7 +50,7 @@ export default class FalseColor extends Effect {
         speed: "speed"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        outputBuffer: "outputTex"
       }
     }
   ];

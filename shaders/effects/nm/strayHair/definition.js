@@ -35,7 +35,7 @@ export default class StrayHair extends Effect {
         seed: "seed"
       },
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

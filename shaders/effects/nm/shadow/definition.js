@@ -70,7 +70,7 @@ export default class Shadow extends Effect {
         sharpenTexture: "shadowSharpen"
       },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

@@ -200,7 +200,7 @@ export default class MediaInput extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

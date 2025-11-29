@@ -24,7 +24,7 @@ export default class Src extends Effect {
       "tex0": "tex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

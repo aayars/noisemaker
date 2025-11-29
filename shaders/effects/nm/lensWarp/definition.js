@@ -38,7 +38,7 @@ export default class LensWarp extends Effect {
         displacement: "displacement"
       },
       outputs: {
-        outputBuffer: "outputColor"
+        outputBuffer: "outputTex"
       }
     }
   ];

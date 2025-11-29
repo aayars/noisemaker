@@ -280,7 +280,7 @@ export default class CellNoise extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

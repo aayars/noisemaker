@@ -51,7 +51,7 @@ export default class Palette extends Effect {
       min: 1,
       max: 4,
       ui: {
-        label: "repeat palette",
+        label: "freq",
         control: "slider"
       }
     },
@@ -206,17 +206,6 @@ export default class Palette extends Effect {
         control: "slider"
       }
     },
-    ampB: {
-      type: "float",
-      default: 50,
-      uniform: "ampB",
-      min: 0,
-      max: 100,
-      ui: {
-        label: "amp B",
-        control: "slider"
-      }
-    },
     ampG: {
       type: "float",
       default: 50,
@@ -225,6 +214,17 @@ export default class Palette extends Effect {
       max: 100,
       ui: {
         label: "amp G",
+        control: "slider"
+      }
+    },
+    ampB: {
+      type: "float",
+      default: 50,
+      uniform: "ampB",
+      min: 0,
+      max: 100,
+      ui: {
+        label: "amp B",
         control: "slider"
       }
     },
@@ -253,7 +253,7 @@ export default class Palette extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

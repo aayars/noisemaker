@@ -175,7 +175,7 @@ export default class Kaleido extends Effect {
       },
 
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

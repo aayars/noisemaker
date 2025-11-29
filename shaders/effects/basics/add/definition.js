@@ -31,7 +31,7 @@ export default class Add extends Effect {
       "tex1": "tex"
 },
       outputs: {
-        color: "outputColor"
+        color: "outputTex"
       }
     }
   ];

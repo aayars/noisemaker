@@ -232,7 +232,7 @@ export default class ShapeMixer extends Effect {
             }
 ,
       outputs: {
-        fragColor: "outputColor"
+        fragColor: "outputTex"
       }
     }
   ];

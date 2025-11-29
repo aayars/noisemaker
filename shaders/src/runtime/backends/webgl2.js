@@ -617,7 +617,7 @@ export class WebGL2Backend extends Backend {
             }
         }
         
-        // If outputs exist but use compute conventions (outputBuffer -> outputColor)
+        // If outputs exist but use compute conventions (outputBuffer -> fragColor)
         if (pass.outputs) {
             renderPass.outputs = {}
             for (const [key, texId] of Object.entries(pass.outputs)) {
@@ -629,7 +629,7 @@ export class WebGL2Backend extends Backend {
         
         // Ensure we have at least one output
         if (!renderPass.outputs || Object.keys(renderPass.outputs).length === 0) {
-            renderPass.outputs = { color: 'outputColor' }
+            renderPass.outputs = { color: 'outputTex' }
         }
         
         return renderPass
