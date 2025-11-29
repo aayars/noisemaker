@@ -717,6 +717,7 @@ export function validate(ast) {
                 }
                 const hook = typeof call.name === 'string' ? validatorHooks[call.name] : null
                 if (typeof hook === 'function') {
+                    const starterInfo = getStarterInfo(original)
                     const hookResult = hook({
                         call,
                         originalCall: original,
