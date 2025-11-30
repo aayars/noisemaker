@@ -47,7 +47,7 @@ def scan_effect(effect_dir):
 def main():
     manifest = {}
     
-    for namespace in ["basics", "nd", "nm"]:
+    for namespace in ["basics", "nd", "nm", "nu"]:
         ns_dir = EFFECTS_ROOT / namespace
         if not ns_dir.exists():
             continue

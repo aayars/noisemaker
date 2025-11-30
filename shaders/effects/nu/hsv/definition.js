@@ -1,0 +1,28 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * nu/hsv - Reinterpret RGB as HSV
+ * Treats RGB channels as HSV values and converts to RGB
+ */
+export default class Hsv extends Effect {
+  name = "Hsv";
+  namespace = "nu";
+  func = "hsv";
+
+  uniformLayout = {};
+
+  globals = {};
+
+  passes = [
+    {
+      name: "render",
+      program: "hsv",
+      inputs: {
+        inputTex: "inputTex"
+      },
+      outputs: {
+        fragColor: "outputTex"
+      }
+    }
+  ];
+}

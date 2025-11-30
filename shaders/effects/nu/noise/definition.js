@@ -1,0 +1,61 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Noise extends Effect {
+  name = "Noise";
+  namespace = "nu";
+  func = "noise";
+
+  // Simplified: mono (0) and rgb (1) only, no hsv mode
+  globals = {
+    "scale": {
+        "type": "float",
+        "default": 3,
+        "min": 0,
+        "max": 100,
+        "uniform": "scale"
+    },
+    "octaves": {
+        "type": "int",
+        "default": 1,
+        "min": 1,
+        "max": 6,
+        "uniform": "octaves"
+    },
+    "colorMode": {
+        "type": "int",
+        "default": 0,
+        "uniform": "colorMode",
+        "choices": {
+            "Mono": 0,
+            "RGB": 1
+        },
+        "ui": {
+            "label": "color mode",
+            "control": "dropdown"
+        }
+    },
+    "ridges": {
+        "type": "boolean",
+        "default": false,
+        "uniform": "ridged"
+    },
+    "seed": {
+        "type": "float",
+        "default": 0,
+        "min": 0,
+        "max": 100,
+        "uniform": "seed"
+    }
+  };
+
+  passes = [
+    {
+      name: "main",
+      program: "noise",
+      inputs: {},
+      outputs: {
+        color: "outputTex"
+      }
+    }
+  ];
+}
