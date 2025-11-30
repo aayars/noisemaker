@@ -1147,19 +1147,20 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
         /**
          * Update DSL text from effect parameter values
+         * For uniform-only changes, just apply values without recompiling
          */
         function updateDslFromEffectParams() {
-            const currentDslText = dslEditor.value;
-            
-            // For now, just rebuild the pipeline with current DSL
-            // More sophisticated DSL text updating could be done by regenerating the DSL
-            rebuildPipelineFromDsl();
+            // Just apply the parameter values to the running pipeline
+            // No need to recompile - uniforms can be updated at runtime
+            applyEffectParameterValues();
         }
 
         /**
          * Rebuild pipeline from DSL editor content
+         * @param {object} options
+         * @param {boolean} [options.rebuildControls=true] - Whether to rebuild effect controls
          */
-        async function rebuildPipelineFromDsl() {
+        async function rebuildPipelineFromDsl({ rebuildControls = true } = {}) {
             const dsl = dslEditor.value.trim();
             if (!dsl) {
                 showStatus('DSL is empty', 'error');
@@ -1199,8 +1200,10 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
                 window.__noisemakerRenderingPipeline = pipeline;
                 
-                // Rebuild effect controls based on new DSL
-                createEffectControlsFromDsl(dsl);
+                // Rebuild effect controls based on new DSL (only if requested)
+                if (rebuildControls) {
+                    createEffectControlsFromDsl(dsl);
+                }
                 
                 showStatus('compiled successfully', 'success');
             } catch (err) {
