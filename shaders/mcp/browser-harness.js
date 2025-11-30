@@ -153,12 +153,12 @@ export class BrowserHarness {
     }
     
     /**
-     * Reload the page if shader files have changed
+     * Reload the page unconditionally.
+     * Always reloads to ensure we pick up any shader/code changes.
      * @returns {Promise<boolean>} True if page was reloaded
      */
     async reloadIfDirty() {
-        if (!this.shadersDirty) return false;
-        
+        // Always reload on every request to ensure fresh state
         this.shadersDirty = false;
         this.consoleMessages = [];
         
@@ -250,9 +250,14 @@ export class BrowserHarness {
     
     /**
      * Compile an effect
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      */
     async compileEffect(effectId, options = {}) {
-        await this.reloadIfDirty();
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
         this.consoleMessages = [];
         const result = await compileEffect(this.page, effectId, options);
         
@@ -266,9 +271,14 @@ export class BrowserHarness {
     
     /**
      * Render an effect frame and compute metrics
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      */
     async renderEffectFrame(effectId, options = {}) {
-        await this.reloadIfDirty();
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
         this.consoleMessages = [];
         const result = await renderEffectFrame(this.page, effectId, options);
         
@@ -281,9 +291,14 @@ export class BrowserHarness {
     
     /**
      * Benchmark effect FPS
+     * @param {string} effectId - Effect identifier
+     * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      */
     async benchmarkEffectFps(effectId, options = {}) {
-        await this.reloadIfDirty();
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
         this.consoleMessages = [];
         const result = await benchmarkEffectFps(this.page, effectId, options);
         
@@ -296,9 +311,15 @@ export class BrowserHarness {
     
     /**
      * Describe effect frame with AI vision
+     * @param {string} effectId - Effect identifier
+     * @param {string} prompt - Vision prompt
+     * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      */
     async describeEffectFrame(effectId, prompt, options = {}) {
-        await this.reloadIfDirty();
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
         this.consoleMessages = [];
         const result = await describeEffectFrame(this.page, effectId, prompt, options);
         
@@ -313,20 +334,42 @@ export class BrowserHarness {
      * Check effect structure for unused files and compute pass requirements
      * @param {string} effectId - Effect identifier
      * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[]}>}
      */
     async checkEffectStructure(effectId, options = {}) {
-        return await checkEffectStructure(effectId, options);
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
+        this.consoleMessages = [];
+        const result = await checkEffectStructure(effectId, options);
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
     }
     
     /**
      * Check algorithmic parity between GLSL and WGSL shader implementations
      * @param {string} effectId - Effect identifier
      * @param {object} options
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      * @returns {Promise<{status: 'ok'|'error'|'divergent', pairs: Array, summary: string}>}
      */
     async checkShaderParity(effectId, options = {}) {
-        return await checkShaderParity(effectId, options);
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
+        this.consoleMessages = [];
+        const result = await checkShaderParity(effectId, options);
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
     }
     
     /**
@@ -345,10 +388,13 @@ export class BrowserHarness {
      * @param {object} options
      * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
      * @param {boolean} [options.skipCompile] - Skip initial compilation (effect already loaded)
+     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
      */
     async testNoPassthrough(effectId, options = {}) {
-        await this.reloadIfDirty();
+        if (!options.skipReload) {
+            await this.reloadIfDirty();
+        }
         this.consoleMessages = [];
         const result = await testNoPassthrough(this.page, effectId, options);
         
@@ -393,11 +439,14 @@ export class BrowserHarness {
      * @returns {Promise<{status: 'ok'|'error'|'skipped', tested_uniforms: string[], details: string}>}
      */
     async testUniformResponsiveness(effectId, options = {}) {
+        await this.reloadIfDirty();
+        this.consoleMessages = [];
+        
         const backend = options.backend || 'webgl2';
         
         // Only compile if not already loaded
         if (!options.skipCompile) {
-            const compileResult = await this.compileEffect(effectId, { backend });
+            const compileResult = await this.compileEffect(effectId, { backend, skipReload: true });
             if (compileResult.status === 'error') {
                 return { status: 'error', tested_uniforms: [], details: compileResult.message };
             }
@@ -436,6 +485,7 @@ export class BrowserHarness {
         // Render with default values and capture a hash
         const baseRender = await this.renderEffectFrame(effectId, { 
             skipCompile: true, 
+            skipReload: true,
             backend,
             warmupFrames: 5
         });
@@ -509,6 +559,7 @@ export class BrowserHarness {
             // Render with the new uniform value - need enough frames for change to take effect
             const testRender = await this.renderEffectFrame(effectId, {
                 skipCompile: true,
+                skipReload: true,
                 backend,
                 warmupFrames: 5
             });

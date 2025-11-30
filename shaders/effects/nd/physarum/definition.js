@@ -11,13 +11,13 @@ export default class Physarum extends Effect {
       default: 1,
       uniform: "zoom",
       choices: {
-        "1x": 1,
-        "2x": 2,
-        "4x": 4,
-        "8x": 8,
-        "16x": 16,
-        "32x": 32,
-        "64x": 64
+        x1: 1,
+        x2: 2,
+        x4: 4,
+        x8: 8,
+        x16: 16,
+        x32: 32,
+        x64: 64
       },
       ui: {
         label: "zoom",
@@ -194,7 +194,7 @@ export default class Physarum extends Effect {
       default: 0,
       uniform: "colorMode",
       choices: {
-        "grayscale": 0,
+        "mono": 0,
         "palette": 1
       },
       ui: {

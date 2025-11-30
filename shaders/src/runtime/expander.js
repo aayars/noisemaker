@@ -5,6 +5,36 @@ console.log('[EXPANDER MODULE LOADED]');
 
 /**
  * Expands the Logical Graph (plans) into a Render Graph (passes).
+ * 
+ * ## Texture Pipeline
+ * 
+ * Effects can use standard 2D textures or 3D volumetric textures:
+ * 
+ * ### 2D Textures (standard pipeline)
+ * - `inputTex` - 2D input from previous effect in chain
+ * - `outputTex` - 2D output to next effect in chain
+ * 
+ * ### 3D Textures (volumetric pipeline)
+ * - `inputTex3d` - 3D volume input from previous effect
+ * - `outputTex3d` - 3D volume output to next effect
+ * 
+ * 3D textures can be defined in effect `textures3d` property for true 3D storage:
+ * ```javascript
+ * textures3d = {
+ *   myVolume: { width: 64, height: 64, depth: 64, format: 'rgba16f' }
+ * }
+ * ```
+ * 
+ * Alternatively, effects can expose an existing internal texture (like a 2D atlas
+ * representing 3D volume data) as the 3D output using the `outputTex3d` property:
+ * ```javascript
+ * // Declare the internal texture that holds 3D volume data
+ * outputTex3d = "volumeCache";
+ * ```
+ * 
+ * Note: WebGL2 can sample 3D textures but cannot render directly to them.
+ * For compute-style writes to 3D textures, use WebGPU backend.
+ * 
  * @param {object} compilationResult { plans, diagnostics }
  * @returns {object} { passes, errors, programs, textureSpecs }
  */
@@ -13,7 +43,7 @@ export function expand(compilationResult) {
     const passes = [];
     const errors = [];
     const programs = {};
-    const textureSpecs = {}; // nodeId_texName -> { width, height, format }
+    const textureSpecs = {}; // nodeId_texName -> { width, height, format, is3D?, depth? }
     const textureMap = new Map(); // logical_id -> virtual_texture_id
 
     // Helper to resolve enum paths
@@ -34,7 +64,8 @@ export function expand(compilationResult) {
     for (const plan of compilationResult.plans) {
         // Each plan is a chain of effects
         // We need to track the "current" output texture as we traverse the chain
-        let currentInput = null;
+        let currentInput = null;      // 2D pipeline texture
+        let currentInput3d = null;    // 3D pipeline texture (for volumetric effects)
 
         console.log('[expand] plan chain:', plan.chain.map(s => s.op).join(' -> '));
         
@@ -79,6 +110,17 @@ export function expand(compilationResult) {
                         ? `global_${nodeId}_${texName}`  // Use global_ prefix for double-buffering
                         : `${nodeId}_${texName}`;
                     textureSpecs[virtualTexId] = { ...spec };
+                }
+            }
+
+            // Collect 3D texture specs from effect definition
+            // 3D textures are used for volumetric data and caching
+            if (effectDef.textures3d) {
+                for (const [texName, spec] of Object.entries(effectDef.textures3d)) {
+                    const virtualTexId = isGlobalTexture(texName) 
+                        ? `global_${nodeId}_${texName}`
+                        : `${nodeId}_${texName}`;
+                    textureSpecs[virtualTexId] = { ...spec, is3D: true };
                 }
             }
 
@@ -164,14 +206,20 @@ export function expand(compilationResult) {
                 // Map Inputs
                 if (passDef.inputs) {
                     for (const [uniformName, texRef] of Object.entries(passDef.inputs)) {
-                        // Handle standard and legacy pipeline inputs
+                        // Handle standard and legacy pipeline inputs (2D)
                         const isPipelineInput = 
                             texRef === 'inputTex' ||
                             texRef === 'src' ||
                             (texRef.startsWith('o') && !isNaN(parseInt(texRef.slice(1))));
 
+                        // Handle 3D pipeline input
+                        const isPipelineInput3d = texRef === 'inputTex3d';
+
                         if (isPipelineInput) {
                             pass.inputs[uniformName] = currentInput || texRef;
+                        } else if (isPipelineInput3d) {
+                            // 3D pipeline input - look for 3D output from previous node
+                            pass.inputs[uniformName] = currentInput3d || texRef;
                         } else if (texRef === 'noise') {
                             pass.inputs[uniformName] = 'global_noise';
                         } else if (texRef === 'feedback' || texRef === 'selfTex') {
@@ -249,7 +297,7 @@ export function expand(compilationResult) {
                     for (const [attachment, texRef] of Object.entries(passDef.outputs)) {
                         let virtualTex;
                         if (texRef === 'outputTex') {
-                            // This is the main output of this node
+                            // This is the main 2D output of this node
                             // OPTIMIZATION: If this is the last step and last pass, write directly to global output
                             const isLastStep = step === plan.chain[plan.chain.length - 1];
                             const isLastPass = i === effectPasses.length - 1;
@@ -263,6 +311,10 @@ export function expand(compilationResult) {
                                 virtualTex = `${nodeId}_out`;
                             }
                             textureMap.set(virtualTex, virtualTex); // Register
+                        } else if (texRef === 'outputTex3d') {
+                            // This is the main 3D output of this node (for volumetric effects)
+                            virtualTex = `${nodeId}_out3d`;
+                            textureMap.set(`${nodeId}_out3d`, virtualTex); // Register 3D output
                         } else if (texRef.startsWith('global_')) {
                             virtualTex = texRef;
                         } else if (texRef.startsWith('feedback_')) {
@@ -282,6 +334,22 @@ export function expand(compilationResult) {
             
             // Update currentInput for the next step in the chain
             currentInput = textureMap.get(`${nodeId}_out`);
+            // Update currentInput3d if this node produced a 3D output
+            const out3d = textureMap.get(`${nodeId}_out3d`);
+            if (out3d) {
+                currentInput3d = out3d;
+            }
+            
+            // Check if the effect definition declares an explicit outputTex3d property.
+            // This allows effects to expose an internal texture (like a volume cache) as
+            // the 3D output without requiring a separate render pass.
+            if (effectDef.outputTex3d && !out3d) {
+                const internalTexName = effectDef.outputTex3d;
+                // Map the internal texture to the 3D pipeline
+                const virtualTexId = `${nodeId}_${internalTexName}`;
+                textureMap.set(`${nodeId}_out3d`, virtualTexId);
+                currentInput3d = virtualTexId;
+            }
         }
 
         // Handle the final output of the chain (.out(o0) or .out(f0))

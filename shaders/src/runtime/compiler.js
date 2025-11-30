@@ -88,13 +88,20 @@ function extractTextureSpecs(passes, options, textureSpecs = {}) {
                     // Use effect-defined specs if available
                     const effectSpec = textureSpecs[texId]
                     if (effectSpec) {
-                        textures.set(texId, {
+                        const spec = {
                             width: effectSpec.width || defaultWidth,
                             height: effectSpec.height || defaultHeight,
                             format: effectSpec.format || 'rgba16f',
                             // Include copySrc to allow readback for testing/debugging
                             usage: ['render', 'sample', 'copySrc']
-                        })
+                        }
+                        // Handle 3D textures
+                        if (effectSpec.is3D) {
+                            spec.depth = effectSpec.depth || effectSpec.width || 64
+                            spec.is3D = true
+                            spec.usage = ['storage', 'sample', 'copySrc'] // 3D textures need storage for compute writes
+                        }
+                        textures.set(texId, spec)
                     } else {
                         textures.set(texId, {
                             width: defaultWidth,

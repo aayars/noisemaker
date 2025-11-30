@@ -106,10 +106,10 @@ export default class Atmosphere extends Effect {
       type: "int",
       default: 2,
       choices: {
-        "Grayscale": 0,
-        "RGB": 1,
-        "HSV": 2,
-        "OKLab": 3
+        "mono": 0,
+        "rgb": 1,
+        "hsv": 2,
+        "oklab": 3
       },
       ui: { label: "Color Mode", control: "dropdown" },
       uniform: "colorMode"

@@ -1,0 +1,257 @@
+// Hydraulic Flow - Pass 1: Agent State Update
+// Fragment shader with MRT output to 3 state textures
+// Agent format: [x, y, x_dir, y_dir] [r, g, b, inertia] [age, 0, 0, 0]
+
+const TAU: f32 = 6.283185307179586;
+
+struct Uniforms {
+    resolution: vec2<f32>,
+    stride: f32,
+    quantize: f32,
+    time: f32,
+    inverse: f32,
+    xyBlend: f32,
+    wormLifetime: f32,
+}
+
+struct Outputs {
+    @location(0) outState1: vec4<f32>,
+    @location(1) outState2: vec4<f32>,
+    @location(2) outState3: vec4<f32>,
+}
+
+// textureLoad doesn't require sampler - start bindings at 0
+@group(0) @binding(0) var stateTex1: texture_2d<f32>;
+@group(0) @binding(1) var stateTex2: texture_2d<f32>;
+@group(0) @binding(2) var stateTex3: texture_2d<f32>;
+@group(0) @binding(3) var mixerTex: texture_2d<f32>;
+@group(0) @binding(4) var<uniform> uniforms: Uniforms;
+
+fn hash2(seed: u32) -> vec2<f32> {
+    var state = seed * 747796405u + 2891336453u;
+    var word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    let x_bits = (word >> 22u) ^ word;
+    state = x_bits * 747796405u + 2891336453u;
+    word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    let y_bits = (word >> 22u) ^ word;
+    return vec2<f32>(f32(x_bits) / 4294967295.0, f32(y_bits) / 4294967295.0);
+}
+
+fn wrap_float(value: f32, size: f32) -> f32 {
+    if (size <= 0.0) { return 0.0; }
+    let scaled = floor(value / size);
+    var wrapped = value - scaled * size;
+    if (wrapped < 0.0) { wrapped = wrapped + size; }
+    return wrapped;
+}
+
+fn wrap_int(value: i32, size: i32) -> i32 {
+    if (size <= 0) { return 0; }
+    var result = value % size;
+    if (result < 0) { result = result + size; }
+    return result;
+}
+
+fn srgb_to_linear(value: f32) -> f32 {
+    if (value <= 0.04045) { return value / 12.92; }
+    return pow((value + 0.055) / 1.055, 2.4);
+}
+
+fn cube_root(value: f32) -> f32 {
+    if (value == 0.0) { return 0.0; }
+    let sign_value = select(-1.0, 1.0, value >= 0.0);
+    return sign_value * pow(abs(value), 1.0 / 3.0);
+}
+
+fn oklab_l(rgb: vec3<f32>) -> f32 {
+    let r_lin = srgb_to_linear(clamp(rgb.x, 0.0, 1.0));
+    let g_lin = srgb_to_linear(clamp(rgb.y, 0.0, 1.0));
+    let b_lin = srgb_to_linear(clamp(rgb.z, 0.0, 1.0));
+    let l = 0.4121656120 * r_lin + 0.5362752080 * g_lin + 0.0514575653 * b_lin;
+    let m = 0.2118591070 * r_lin + 0.6807189584 * g_lin + 0.1074065790 * b_lin;
+    let s = 0.0883097947 * r_lin + 0.2818474174 * g_lin + 0.6302613616 * b_lin;
+    return 0.2104542553 * cube_root(l) + 0.7936177850 * cube_root(m) - 0.0040720468 * cube_root(s);
+}
+
+fn fetch_texel(x: i32, y: i32, width: i32, height: i32) -> vec4<f32> {
+    let wrapped_x = wrap_int(x, width);
+    let wrapped_y = wrap_int(y, height);
+    return textureLoad(mixerTex, vec2<i32>(wrapped_x, wrapped_y), 0);
+}
+
+fn luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
+    let texel = fetch_texel(x, y, width, height);
+    return oklab_l(texel.xyz);
+}
+
+fn blurred_luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
+    // 3x3 Gaussian blur for better performance (matches GLSL)
+    let kernel = array<array<f32, 3>, 3>(
+        array<f32, 3>(1.0, 2.0, 1.0),
+        array<f32, 3>(2.0, 4.0, 2.0),
+        array<f32, 3>(1.0, 2.0, 1.0),
+    );
+    var total: f32 = 0.0;
+    var weight_sum: f32 = 0.0;
+    for (var offset_y: i32 = -1; offset_y <= 1; offset_y = offset_y + 1) {
+        for (var offset_x: i32 = -1; offset_x <= 1; offset_x = offset_x + 1) {
+            let sample_val = luminance_at(x + offset_x, y + offset_y, width, height);
+            let weight = kernel[offset_y + 1][offset_x + 1];
+            total = total + sample_val * weight;
+            weight_sum = weight_sum + weight;
+        }
+    }
+    return total / max(weight_sum, 1e-6);
+}
+
+@fragment
+fn main(@builtin(position) position: vec4<f32>) -> Outputs {
+    let stateSize = vec2<i32>(textureDimensions(stateTex1, 0));
+    let coord = vec2<i32>(clamp(position.xy, vec2<f32>(0.0), vec2<f32>(stateSize) - vec2<f32>(1.0)));
+    
+    let state1 = textureLoad(stateTex1, coord, 0);
+    let state2 = textureLoad(stateTex2, coord, 0);
+    let state3 = textureLoad(stateTex3, coord, 0);
+    
+    var x = state1.x;
+    var y = state1.y;
+    var x_dir = state1.z;
+    var y_dir = state1.w;
+    var cr = state2.r;
+    var cg = state2.g;
+    var cb = state2.b;
+    var inertia = state2.w;
+    var age = state3.x;
+    
+    let width = i32(uniforms.resolution.x);
+    let height = i32(uniforms.resolution.y);
+    
+    let agent_id = u32(coord.y * stateSize.x + coord.x);
+    let total_agents = u32(stateSize.x * stateSize.y);
+    
+    // Initialization: detect uninitialized state (all zeros)
+    let needs_init = (x == 0.0 && y == 0.0 && x_dir == 0.0 && y_dir == 0.0);
+    if (needs_init) {
+        // Initialize agent at random position
+        let pos = hash2(agent_id);
+        x = pos.x * uniforms.resolution.x;
+        y = pos.y * uniforms.resolution.y;
+        
+        // Random direction
+        let dir_raw = hash2(agent_id + 12345u) * 2.0 - 1.0;
+        let dir_len = length(dir_raw);
+        if (dir_len > 1e-5) {
+            x_dir = dir_raw.x / dir_len;
+            y_dir = dir_raw.y / dir_len;
+        } else {
+            x_dir = 1.0;
+            y_dir = 0.0;
+        }
+        
+        // Sample initial color from input
+        let init_xi = wrap_int(i32(floor(x)), width);
+        let init_yi = wrap_int(i32(floor(y)), height);
+        let init_sample = textureLoad(mixerTex, vec2<i32>(init_xi, init_yi), 0);
+        cr = init_sample.x;
+        cg = init_sample.y;
+        cb = init_sample.z;
+        
+        inertia = 0.7 + hash2(agent_id + 99999u).x * 0.3;
+        age = 0.0;
+        
+        return Outputs(
+            vec4<f32>(x, y, x_dir, y_dir),
+            vec4<f32>(cr, cg, cb, inertia),
+            vec4<f32>(age, 0.0, 0.0, 0.0)
+        );
+    }
+    
+    // Respawn logic
+    let normalized_lifetime = uniforms.wormLifetime / 60.0;
+    let normalized_index = f32(agent_id) / f32(total_agents);
+    let agent_phase = fract(normalized_index);
+    let time_in_cycle = fract(uniforms.time + agent_phase);
+    let prev_time_in_cycle = fract(uniforms.time - (1.0 / 60.0) + agent_phase);
+    let respawn_check = uniforms.wormLifetime > 0.0 && normalized_lifetime > 0.0 &&
+                        time_in_cycle < normalized_lifetime &&
+                        prev_time_in_cycle >= normalized_lifetime;
+    
+    let needs_initial_color = age < 0.0;
+    if (needs_initial_color) {
+        let init_xi = wrap_int(i32(floor(x)), width);
+        let init_yi = wrap_int(i32(floor(y)), height);
+        let init_sample = textureLoad(mixerTex, vec2<i32>(init_xi, init_yi), 0);
+        cr = init_sample.x;
+        cg = init_sample.y;
+        cb = init_sample.z;
+        age = 0.0;
+    }
+    
+    if (respawn_check) {
+        let seed = agent_id + u32(uniforms.time * 1000.0);
+        let pos = hash2(seed);
+        x = pos.x * uniforms.resolution.x;
+        y = pos.y * uniforms.resolution.y;
+        let spawn_xi = wrap_int(i32(floor(x)), width);
+        let spawn_yi = wrap_int(i32(floor(y)), height);
+        let spawn_sample = textureLoad(mixerTex, vec2<i32>(spawn_xi, spawn_yi), 0);
+        cr = spawn_sample.x;
+        cg = spawn_sample.y;
+        cb = spawn_sample.z;
+        age = 0.0;
+        let dir_seed = seed + 12345u;
+        let dir_raw = hash2(dir_seed) * 2.0 - 1.0;
+        let dir_len = length(dir_raw);
+        if (dir_len > 1e-5) {
+            x_dir = dir_raw.x / dir_len;
+            y_dir = dir_raw.y / dir_len;
+        } else {
+            x_dir = 1.0;
+            y_dir = 0.0;
+        }
+    }
+    
+    // Gradient descent
+    let xi = wrap_int(i32(floor(x)), width);
+    let yi = wrap_int(i32(floor(y)), height);
+    let x1i = wrap_int(xi + 1, width);
+    let y1i = wrap_int(yi + 1, height);
+    
+    let u = x - floor(x);
+    let v = y - floor(y);
+    
+    let c00 = blurred_luminance_at(xi, yi, width, height);
+    let c10 = blurred_luminance_at(x1i, yi, width, height);
+    let c01 = blurred_luminance_at(xi, y1i, width, height);
+    let c11 = blurred_luminance_at(x1i, y1i, width, height);
+    
+    var gx = mix(c01 - c00, c11 - c10, u);
+    var gy = mix(c10 - c00, c11 - c01, v);
+    
+    if (uniforms.quantize > 0.5) {
+        gx = floor(gx);
+        gy = floor(gy);
+    }
+    
+    let glen = length(vec2<f32>(gx, gy));
+    if (glen > 1e-6) {
+        let scale = uniforms.stride / glen;
+        gx = gx * scale;
+        gy = gy * scale;
+    } else {
+        gx = 0.0;
+        gy = 0.0;
+    }
+    
+    x_dir = mix(x_dir, gx, inertia);
+    y_dir = mix(y_dir, gy, inertia);
+    
+    x = wrap_float(x + x_dir, uniforms.resolution.x);
+    y = wrap_float(y + y_dir, uniforms.resolution.y);
+    
+    return Outputs(
+        vec4<f32>(x, y, x_dir, y_dir),
+        vec4<f32>(cr, cg, cb, inertia),
+        vec4<f32>(max(age, 0.0), 0.0, 0.0, 0.0)
+    );
+}

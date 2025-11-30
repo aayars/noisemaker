@@ -246,7 +246,7 @@ export default class Noise extends Effect {
       default: 6,
       uniform: "colorMode",
       choices: {
-        Grayscale: 0,
+        mono: 0,
         "Linear Rgb": 1,
         Srgb: 2,
         Oklab: 3,

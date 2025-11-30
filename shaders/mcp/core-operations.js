@@ -19,6 +19,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
+// Timeout for shader compilation status checks (ms)
+export const STATUS_TIMEOUT = 10000;
+
 /**
  * Get OpenAI API key from .openai file or environment variable
  * @returns {string|null} API key or null if not found
@@ -34,11 +37,6 @@ export function getOpenAIApiKey() {
     }
     return null;
 }
-
-/**
- * Status timeout for compilation operations (ms)
- */
-export const STATUS_TIMEOUT = 1_000;
 
 /**
  * Wait for shader compilation status in the demo page
@@ -69,11 +67,14 @@ export async function waitForCompileStatus(page) {
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
  * @param {string} effectId - Effect identifier (e.g., "basics/noise")
  * @param {object} options
- * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
+ * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @returns {Promise<{status: 'ok'|'error', backend: string, passes: Array<{id: string, status: 'ok'|'error', errors?: Array}>}>}
  */
 export async function compileEffect(page, effectId, options = {}) {
-    const backend = options.backend || 'webgl2';
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
+    const backend = options.backend;
     const targetBackend = backend === 'webgpu' ? 'wgsl' : 'glsl';
     
     // Do everything in a single browser round-trip
@@ -85,14 +86,56 @@ export async function compileEffect(page, effectId, options = {}) {
         
         if (currentBackend !== targetBackend) {
             const radio = document.querySelector(`input[name="backend"][value="${targetBackend}"]`);
-            if (radio) radio.click();
+            if (radio) {
+                radio.click();
+                // Wait for backend switch to complete - pipeline must be rebuilt
+                const switchStart = Date.now();
+                while (Date.now() - switchStart < timeout) {
+                    // Check that:
+                    // 1. The status shows "switched to X"
+                    // 2. The pipeline exists and has the correct backend
+                    const status = document.getElementById('status');
+                    const text = (status?.textContent || '').toLowerCase();
+                    const pipeline = window.__noisemakerRenderingPipeline;
+                    const pipelineBackend = pipeline?.backend?.getName?.()?.toLowerCase() || '';
+                    const expectedBackend = targetBackend === 'wgsl' ? 'webgpu' : 'webgl2';
+                    
+                    if (text.includes(`switched to ${targetBackend}`) && 
+                        pipelineBackend.includes(expectedBackend.toLowerCase())) {
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 10));
+                }
+            }
         }
         
         // Select the effect
         const select = document.getElementById('effect-select');
         if (select) {
+            // Check if effectId exists in dropdown options
+            const optionExists = Array.from(select.options).some(opt => opt.value === effectId);
+            if (!optionExists) {
+                console.error(`[compileEffect] Effect "${effectId}" not found in dropdown! Available options:`, 
+                    Array.from(select.options).map(o => o.value).filter(v => v).join(', '));
+                return { state: 'error', message: `Effect "${effectId}" not found in effect selector` };
+            }
             select.value = effectId;
             select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        
+        // Wait for effect to be loaded and at least one frame rendered
+        // This ensures the pipeline has fully processed the new effect
+        const effectStart = Date.now();
+        let initialFrame = window.__noisemakerFrameCount || 0;
+        while (Date.now() - effectStart < timeout) {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            const currentFrame = window.__noisemakerFrameCount || 0;
+            // Effect is ready when: pipeline exists, has graph, and at least 1 frame rendered
+            if (pipeline && pipeline.graph && pipeline.graph.passes && 
+                pipeline.graph.passes.length > 0 && currentFrame > initialFrame) {
+                break;
+            }
+            await new Promise(r => setTimeout(r, 10));
         }
         
         // Poll for compilation status (inline, no round-trips)
@@ -228,6 +271,7 @@ export function computeImageMetrics(data, width, height) {
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
  * @param {string} effectId - Effect identifier
  * @param {object} options
+ * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @param {number} [options.time] - Time to render at (ignored - uses page's natural render loop)
  * @param {[number,number]} [options.resolution] - Resolution [width, height]
  * @param {number} [options.seed] - Random seed
@@ -236,6 +280,9 @@ export function computeImageMetrics(data, width, height) {
  * @returns {Promise<{status: 'ok'|'error', frame: {image_uri: string, width: number, height: number}, metrics: object}>}
  */
 export async function renderEffectFrame(page, effectId, options = {}) {
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
     const warmupFrames = options.warmupFrames ?? 10;
     const skipCompile = options.skipCompile ?? false;
     
@@ -255,6 +302,16 @@ export async function renderEffectFrame(page, effectId, options = {}) {
     // Wait for the page's natural render loop to run warmup frames
     // Use a longer timeout since we're waiting for actual frame renders
     const FRAME_WAIT_TIMEOUT = 5000;  // 5 seconds should be plenty for 10 frames
+    
+    // Apply uniform overrides BEFORE warmup so they take effect during rendering
+    if (options.uniforms) {
+        await page.evaluate((uniforms) => {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            if (pipeline && pipeline.globalUniforms) {
+                Object.assign(pipeline.globalUniforms, uniforms);
+            }
+        }, options.uniforms);
+    }
     
     // Clear any stale baseline before starting
     await page.evaluate(() => {
@@ -292,16 +349,11 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         delete window.__noisemakerTestBaselineFrame;
     });
     
-    // Single round-trip: apply uniforms, read pixels, compute metrics in browser
-    const result = await page.evaluate(async ({ uniforms }) => {
+    // Single round-trip: read pixels, compute metrics in browser
+    const result = await page.evaluate(async () => {
         const pipeline = window.__noisemakerRenderingPipeline;
         if (!pipeline) {
             return { error: 'Pipeline not available' };
-        }
-        
-        // Apply uniform overrides (will take effect on next frame, but we've already rendered warmup)
-        if (uniforms && pipeline.globalUniforms) {
-            Object.assign(pipeline.globalUniforms, uniforms);
         }
         
         const backend = pipeline.backend;
@@ -446,8 +498,8 @@ export async function renderEffectFrame(page, effectId, options = {}) {
             is_monochrome: sampledColors.size <= 1
         };
         
-        return { width, height, metrics };
-    }, { uniforms: options.uniforms });
+        return { width, height, metrics, backendName };
+    });
     
     if (result.error) {
         return {
@@ -474,6 +526,7 @@ export async function renderEffectFrame(page, effectId, options = {}) {
     
     return {
         status: 'ok',
+        backend: result.backendName,
         frame: {
             image_uri: imageUri,
             width: result.width,
@@ -489,17 +542,20 @@ export async function renderEffectFrame(page, effectId, options = {}) {
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
  * @param {string} effectId - Effect identifier
  * @param {object} options
+ * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @param {number} [options.targetFps=60] - Target FPS to compare against
  * @param {number} [options.durationSeconds=5] - Benchmark duration in seconds
  * @param {[number,number]} [options.resolution] - Resolution [width, height]
- * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
  * @param {boolean} [options.skipCompile=false] - Skip compilation if effect already loaded
  * @returns {Promise<{status: 'ok'|'error', backend: string, achieved_fps: number, meets_target: boolean, stats: object}>}
  */
 export async function benchmarkEffectFps(page, effectId, options = {}) {
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
     const targetFps = options.targetFps ?? 60;
     const durationSeconds = options.durationSeconds ?? 5;
-    const backend = options.backend || 'webgl2';
+    const backend = options.backend;
     const skipCompile = options.skipCompile ?? false;
     
     // Compile the effect (unless already done)
@@ -732,12 +788,15 @@ export async function isFilterEffect(effectId) {
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
  * @param {string} effectId - Effect identifier (e.g., "nm/sobel")
  * @param {object} options
- * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
+ * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @param {boolean} [options.skipCompile=false] - Skip compilation if effect already loaded
  * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
  */
 export async function testNoPassthrough(page, effectId, options = {}) {
-    const backend = options.backend || 'webgl2';
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
+    const backend = options.backend;
     const skipCompile = options.skipCompile ?? false;
     
     // Check if this is a filter effect
@@ -1406,11 +1465,14 @@ function checkTextureName(name) {
  * 
  * @param {string} effectId - Effect identifier (e.g., "nm/worms")
  * @param {object} options
- * @param {'webgl2'|'webgpu'} [options.backend='webgpu'] - Backend to check (affects which shader dir to scan)
+ * @param {'webgl2'|'webgpu'} options.backend - Backend to check (REQUIRED - affects which shader dir to scan)
  * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[], computePassExempt: boolean, computePassExemptReason?: string, leakedInternalUniforms: string[], namingIssues: Array<{type: string, name: string, reason: string}>}>}
  */
 export async function checkEffectStructure(effectId, options = {}) {
-    const backend = options.backend || 'webgpu';
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
+    const backend = options.backend;
     const shaderDir = backend === 'webgpu' ? 'wgsl' : 'glsl';
     const shaderExt = backend === 'webgpu' ? '.wgsl' : '.glsl';
     

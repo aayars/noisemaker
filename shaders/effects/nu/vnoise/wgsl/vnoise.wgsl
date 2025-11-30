@@ -22,10 +22,6 @@ var<private> noiseType : i32;
 var<private> octaves : i32;
 var<private> ridges : bool;
 var<private> wrap : bool;
-var<private> refractMode : i32;
-var<private> refractAmt : f32;
-var<private> kaleido : f32;
-var<private> metric : i32;
 var<private> colorMode : i32;
 
 const PI : f32 = 3.14159265359;
@@ -333,36 +329,6 @@ fn shape(st: vec2<f32>, sides: i32, blend: f32) -> f32 {
     return cos(floor(0.5 + a / r) * r - a) * length(stt) * blend;
 }
 
-fn getMetric(st: vec2<f32>) -> f32 {
-    var stt = st;
-    stt.y = 1.0 - stt.y;
-    let diff = vec2<f32>(0.5 * aspectRatio, 0.5) - stt;
-    var r = 1.0;
-    if (metric == 0) { r = length(stt - vec2<f32>(0.5 * aspectRatio, 0.5)); }
-    else if (metric == 1) { r = abs(diff.x) + abs(diff.y); }
-    else if (metric == 2) { r = max(max(abs(diff.x) - diff.y * -0.5, -1.0 * diff.y), max(abs(diff.x) - diff.y * 0.5, 1.0 * diff.y)); }
-    else if (metric == 3) { r = max((abs(diff.x) + abs(diff.y)) / sqrt(2.0), max(abs(diff.x), abs(diff.y))); }
-    else if (metric == 4) { r = max(abs(diff.x), abs(diff.y)); }
-    else if (metric == 5) { r = max(abs(diff.x) - (diff.y) * -0.5, -1.0 * (diff.y)); }
-    return r;
-}
-
-fn rotate2D(st: vec2<f32>, rot: f32) -> vec2<f32> {
-    let angle = rot * PI;
-    return mat2x2<f32>(cos(angle), -sin(angle), sin(angle), cos(angle)) * st;
-}
-
-fn kaleidoscope(st: vec2<f32>, sides: f32, blendy: f32) -> vec2<f32> {
-    if (sides == 1.0) { return st; }
-    let r = getMetric(st) + blendy;
-    var stt = st - vec2<f32>(0.5 * aspectRatio, 0.5);
-    stt = rotate2D(stt, 0.5);
-    let a = atan2(stt.y, stt.x);
-    var ma = modulo(a - radians(360.0 / sides), TAU/sides);
-    ma = abs(ma - PI/sides);
-    return r * vec2<f32>(cos(ma), sin(ma));
-}
-
 fn offset(st: vec2<f32>, freq: vec2<f32>, pos: vec2<f32>) -> f32 {
     if (loopOffset == 10) { return circles(st, freq.x); }
     if (loopOffset == 20) { return shape(st, 3, freq.x * 0.5); }
@@ -396,45 +362,16 @@ fn generate_octave(st: vec2<f32>, freq: vec2<f32>, s: f32, blend: f32, layer: f3
 }
 
 fn multires(st_in: vec2<f32>, freq: vec2<f32>, oct: i32, s: f32, blend: f32) -> vec3<f32> {
-    var st = st_in;
+    let st = st_in;
     var color = vec3<f32>(0.0);
     var multiplicand = 0.0;
-    var nominalFreq = vec2<f32>(1.0);
-
-    if (noiseType == 11) {
-        let base = map(75.0, 1.0, 100.0, 40.0, 1.0);
-        nominalFreq = vec2<f32>(base);
-    } else if (noiseType == 10) {
-        let base = map(75.0, 1.0, 100.0, 6.0, 0.5);
-        nominalFreq = vec2<f32>(base);
-    } else {
-        let base = map(75.0, 1.0, 100.0, 20.0, 3.0);
-        nominalFreq = vec2<f32>(base);
-    }
 
     for (var i = 1; i <= oct; i++) {
         let multiplier = pow(2.0, f32(i));
         let baseFreq = freq * 0.5 * multiplier;
-        let nominalBase = nominalFreq.x * 0.5 * multiplier;
         multiplicand += 1.0 / multiplier;
-        
-        if (refractMode == 1 || refractMode == 2) {
-            let xRefractFreq = vec2<f32>(baseFreq.x, nominalBase);
-            let yRefractFreq = vec2<f32>(nominalBase, baseFreq.y);
-            let xRef = value(st, xRefractFreq, s + 10.0 * f32(i), blend) - 0.5;
-            let yRef = value(st, yRefractFreq, s + 20.0 * f32(i), blend) - 0.5;
-            let ref = map(refractAmt, 0.0, 100.0, 0.0, 1.0) / multiplier;
-            st = vec2<f32>(st.x + xRef * ref, st.y + yRef * ref);
-        }
 
-        var layer = generate_octave(st, baseFreq, s + 10.0 * f32(i), blend, f32(i));
-        
-        if (refractMode == 0 || refractMode == 2) {
-            let xOff = cos(layer.b) * 0.5 + 0.5;
-            let yOff = sin(layer.b) * 0.5 + 0.5;
-            let ref = generate_octave(vec2<f32>(st.x + xOff, st.y + yOff), baseFreq, s + 15.0 * f32(i), blend, f32(i));
-            layer = mix(layer, ref, map(refractAmt, 0.0, 100.0, 0.0, 1.0));
-        }
+        let layer = generate_octave(st, baseFreq, s + 10.0 * f32(i), blend, f32(i));
 
         color = color + layer / multiplier;
     }
@@ -474,16 +411,11 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     octaves = i32(uniforms.data[2].w);
     ridges = uniforms.data[3].x > 0.5;
     wrap = uniforms.data[3].y > 0.5;
-    refractMode = i32(uniforms.data[3].z);
-    refractAmt = uniforms.data[3].w;
-    kaleido = uniforms.data[4].x;
-    metric = i32(uniforms.data[4].y);
-    colorMode = i32(uniforms.data[4].z);
+    colorMode = i32(uniforms.data[3].z);
 
     var color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     var st = position.xy / resolution.y;
     st.y = 1.0 - st.y;
-    st = kaleidoscope(st, kaleido, 0.5);
     let centered = st - vec2<f32>(aspectRatio * 0.5, 0.5);
 
     var freq = vec2<f32>(1.0);

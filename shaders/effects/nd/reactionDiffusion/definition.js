@@ -205,11 +205,11 @@ export default class ReactionDiffusion extends Effect {
       default: 8,
       uniform: "zoom",
       choices: {
-        "1x": 1,
-        "2x": 2,
-        "4x": 4,
-        "8x": 8,
-        "16x": 16
+        x1: 1,
+        x2: 2,
+        x4: 4,
+        x8: 8,
+        x16: 16
       },
       ui: {
         label: "zoom",

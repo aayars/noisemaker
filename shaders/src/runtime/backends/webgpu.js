@@ -181,6 +181,43 @@ export class WebGPUBackend extends Backend {
         return texture
     }
 
+    /**
+     * Create a 3D texture for volumetric data.
+     * WebGPU has full 3D texture support including storage textures for compute shaders.
+     */
+    createTexture3D(id, spec) {
+        const format = this.resolveFormat(spec.format)
+        // Include storage usage for compute shader write access
+        const usage = this.resolveUsage(spec.usage || ['storage', 'sample', 'copySrc'])
+        
+        const texture = this.device.createTexture({
+            size: {
+                width: spec.width,
+                height: spec.height,
+                depthOrArrayLayers: spec.depth
+            },
+            dimension: '3d',
+            format,
+            usage
+        })
+        
+        const view = texture.createView({ dimension: '3d' })
+        
+        this.textures.set(id, {
+            handle: texture,
+            view,
+            width: spec.width,
+            height: spec.height,
+            depth: spec.depth,
+            format: spec.format,
+            gpuFormat: format,
+            usage,
+            is3D: true
+        })
+        
+        return texture
+    }
+
     destroyTexture(id) {
         const tex = this.textures.get(id)
         if (tex) {
@@ -1472,7 +1509,9 @@ export class WebGPUBackend extends Backend {
         }
         
         // Get merged uniforms
-        const uniforms = { ...state.globalUniforms, ...pass.uniforms }
+        // Pass uniforms first (from DSL/effect defaults), then globalUniforms on top
+        // This allows runtime overrides (like test uniforms) to take precedence
+        const uniforms = { ...pass.uniforms, ...state.globalUniforms }
         
         // Map input names to texture views
         const textureMap = new Map()
@@ -1927,7 +1966,9 @@ export class WebGPUBackend extends Backend {
      * - mat4: 64 bytes (4 x vec4)
      */
     createUniformBuffer(pass, state, program = null) {
-        const uniforms = { ...state.globalUniforms, ...pass.uniforms }
+        // Pass uniforms first (from DSL/effect defaults), then globalUniforms on top
+        // This allows runtime overrides (like test uniforms) to take precedence
+        const uniforms = { ...pass.uniforms, ...state.globalUniforms }
         
         if (Object.keys(uniforms).length === 0) {
             return null

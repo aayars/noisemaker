@@ -72,7 +72,7 @@ export default class Noise3d extends Effect {
       uniform: "colorMode",
       choices: {
         "Depth Map": 8,
-        Grayscale: 0,
+        mono: 0,
         Hsv: 6,
         "Surface Normal": 7
       },

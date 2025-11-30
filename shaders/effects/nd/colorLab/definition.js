@@ -28,10 +28,9 @@ export default class ColorLab extends Effect {
       default: 2,
       uniform: "colorMode",
       choices: {
-        Grayscale: 0,
+        mono: 0,
         "Linear Rgb": 1,
         "Srgb (default)": 2,
-        uniform: "colorMode",
         Oklab: 3,
         Palette: 4
       },

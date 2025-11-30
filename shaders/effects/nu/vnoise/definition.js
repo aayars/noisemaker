@@ -21,11 +21,7 @@ export default class VNoise extends Effect {
     octaves: { slot: 2, components: 'w' },
     ridges: { slot: 3, components: 'x' },
     wrap: { slot: 3, components: 'y' },
-    refractMode: { slot: 3, components: 'z' },
-    refractAmt: { slot: 3, components: 'w' },
-    kaleido: { slot: 4, components: 'x' },
-    metric: { slot: 4, components: 'y' },
-    colorMode: { slot: 4, components: 'z' }
+    colorMode: { slot: 3, components: 'z' }
   };
 
   globals = {
@@ -109,31 +105,6 @@ export default class VNoise extends Effect {
         control: "checkbox"
       }
     },
-    refractMode: {
-      type: "int",
-      default: 2,
-      uniform: "refractMode",
-      choices: {
-        Color: 0,
-        Topology: 1,
-        "Color + Topology": 2
-      },
-      ui: {
-        label: "refract mode",
-        control: "dropdown"
-      }
-    },
-    refractAmt: {
-      type: "float",
-      default: 0,
-      uniform: "refractAmt",
-      min: 0,
-      max: 100,
-      ui: {
-        label: "refract",
-        control: "slider"
-      }
-    },
     seed: {
       type: "int",
       default: 1,
@@ -196,34 +167,6 @@ export default class VNoise extends Effect {
       ui: {
         label: "loop power",
         control: "slider"
-      }
-    },
-    kaleido: {
-      type: "int",
-      default: 1,
-      uniform: "kaleido",
-      min: 1,
-      max: 32,
-      ui: {
-        label: "kaleido sides",
-        control: "slider"
-      }
-    },
-    metric: {
-      type: "int",
-      default: 0,
-      uniform: "metric",
-      choices: {
-        Circle: 0,
-        Diamond: 1,
-        Hexagon: 2,
-        Octagon: 3,
-        Square: 4,
-        Triangle: 5
-      },
-      ui: {
-        label: "kaleido shape",
-        control: "dropdown"
       }
     },
     colorMode: {

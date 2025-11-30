@@ -437,7 +437,6 @@
                             <select id="fps-select" class="control-select">
                                 <option value="30">30</option>
                                 <option value="60" selected>60</option>
-                                <option value="120">120</option>
                             </select>
                         </label>
                         <span id="fps-counter" style="font-size: 0.75rem; color: var(--color5); font-variant-numeric: tabular-nums; min-width: 5ch;">-- fps</span>
@@ -511,8 +510,10 @@
         let fpsLastUpdateTime = performance.now();
         const fpsCounterEl = document.getElementById('fps-counter');
         let enums = {};
+        let pendingEnumRegistrations = []; // Collect enum values during effect loading
         let uniformBindings = new Map();
         let currentDsl = '';
+        let parsedDslStructure = []; // Stores parsed effect info for DSL regeneration
 
         function resetCanvasElement() {
             if (!canvasContainer || !canvas) {
@@ -805,7 +806,7 @@
                         if (value === undefined || value === null) {
                             continue;
                         }
-                        params.push(`${key}: ${formatValue(value, spec.type)}`);
+                        params.push(`${key}: ${formatValue(value, spec)}`);
                     }
                 }
                 const paramString = params.join(', ');
@@ -840,7 +841,7 @@
                         if (value === undefined || value === null) {
                             continue;
                         }
-                        params.push(`${key}: ${formatValue(value, spec.type)}`);
+                        params.push(`${key}: ${formatValue(value, spec)}`);
                     }
                 }
                 const paramString = params.join(', ');
@@ -855,7 +856,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                         if (value === undefined || value === null) {
                             continue;
                         }
-                        params.push(`${key}: ${formatValue(value, spec.type)}`);
+                        params.push(`${key}: ${formatValue(value, spec)}`);
                     }
                 }
                 const paramString = params.join(', ');
@@ -915,6 +916,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             effectParameterValues = {};
 
             const effects = extractEffectsFromDsl(dsl);
+            parsedDslStructure = effects; // Store for DSL regeneration
             if (effects.length === 0) return;
 
             for (const effectInfo of effects) {
@@ -1034,6 +1036,52 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                         });
 
                         controlGroup.appendChild(select);
+                    } else if (spec.enum && spec.type === 'int') {
+                        // Integer enum - lookup from global enums
+                        const enumPath = spec.enum;
+                        const parts = enumPath.split('.');
+                        let node = enums;
+                        for (const part of parts) {
+                            if (node && node[part]) {
+                                node = node[part];
+                            } else {
+                                node = null;
+                                break;
+                            }
+                        }
+
+                        if (node && typeof node === 'object') {
+                            const select = document.createElement('select');
+                            select.className = 'control-select';
+                            
+                            Object.entries(node).forEach(([name, val]) => {
+                                const option = document.createElement('option');
+                                // Extract numeric value from enum entry
+                                const numVal = (val && typeof val === 'object' && 'value' in val) ? val.value : val;
+                                option.value = numVal;
+                                option.textContent = name;
+                                option.selected = value === numVal;
+                                select.appendChild(option);
+                            });
+                            
+                            select.addEventListener('change', (e) => {
+                                effectParameterValues[effectKey][key] = parseInt(e.target.value, 10);
+                                updateDslFromEffectParams();
+                            });
+                            controlGroup.appendChild(select);
+                        } else {
+                            // Fallback to slider if enum not found
+                            const slider = document.createElement('input');
+                            slider.type = 'range';
+                            slider.min = spec.min || 0;
+                            slider.max = spec.max || 10;
+                            slider.value = value;
+                            slider.addEventListener('change', (e) => {
+                                effectParameterValues[effectKey][key] = parseInt(e.target.value, 10);
+                                updateDslFromEffectParams();
+                            });
+                            controlGroup.appendChild(slider);
+                        }
                     } else if (spec.type === 'member') {
                         let enumPath = spec.enum || spec.enumPath;
                         if (!enumPath && typeof spec.default === 'string') {
@@ -1139,48 +1187,173 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
             let zoomChanged = false;
 
+            // Collect all parameter values into a flat map for easier matching
+            const allParams = {};
             for (const [effectKey, params] of Object.entries(effectParameterValues)) {
-                const stepIndex = parseInt(effectKey.replace('step_', ''), 10);
+                for (const [paramName, value] of Object.entries(params)) {
+                    allParams[paramName] = value;
+                    if (paramName === 'zoom') {
+                        zoomChanged = true;
+                    }
+                }
+            }
+
+            // Update uniforms in all passes that have matching uniform names
+            for (const pass of pipeline.graph.passes) {
+                if (!pass.uniforms) continue;
                 
-                // Check if zoom parameter changed
-                if (params.zoom !== undefined) {
-                    zoomChanged = true;
+                // Get effect definition for type conversion
+                const passEffect = pass.effectKey || pass.effectFunc;
+                let effectDef = null;
+                if (passEffect) {
+                    effectDef = getEffect(passEffect);
                 }
                 
-                for (const pass of pipeline.graph.passes) {
-                    if (!pass.uniforms) continue;
+                // For each parameter, check if this pass has a matching uniform
+                for (const [paramName, value] of Object.entries(allParams)) {
+                    if (value === undefined || value === null) continue;
                     
-                    // Try to match pass to effect by nodeId
-                    const nodeId = `node_${stepIndex}`;
-                    if (pass.nodeId === nodeId) {
-                        for (const [paramName, value] of Object.entries(params)) {
-                            const effectDef = getEffect(pass.effectKey) || getEffect(pass.effectFunc);
-                            if (!effectDef || !effectDef.globals) continue;
-                            
-                            const spec = effectDef.globals[paramName];
-                            if (!spec || !spec.uniform) continue;
-                            
-                            const converted = convertParameterForUniform(value, spec);
-                            pass.uniforms[spec.uniform] = Array.isArray(converted) ? converted.slice() : converted;
-                        }
+                    // Get the spec for type conversion
+                    let spec = null;
+                    if (effectDef && effectDef.globals) {
+                        spec = effectDef.globals[paramName];
+                    }
+                    
+                    // Try the uniform name from spec, or fall back to param name
+                    const uniformName = spec?.uniform || paramName;
+                    
+                    // Update if this pass has this uniform
+                    if (uniformName in pass.uniforms) {
+                        const converted = convertParameterForUniform(value, spec);
+                        pass.uniforms[uniformName] = Array.isArray(converted) ? converted.slice() : converted;
                     }
                 }
             }
 
             // Zoom affects texture sizes, not uniforms - need to recreate surfaces
             if (zoomChanged && pipeline.resize) {
-                pipeline.resize(pipeline.width, pipeline.height);
+                const zoomValue = allParams.zoom || 1;
+                pipeline.resize(pipeline.width, pipeline.height, zoomValue);
+            }
+            
+            // volumeSize affects internal effect textures - need to recreate them
+            if ('volumeSize' in allParams && pipeline.updateParameterTextures) {
+                pipeline.updateParameterTextures({ volumeSize: allParams.volumeSize });
             }
         }
 
         /**
+         * Regenerate DSL source text from the current effectParameterValues
+         * Uses the stored parsedDslStructure to maintain the original DSL shape
+         */
+        function regenerateDslFromEffectParams() {
+            if (!parsedDslStructure || parsedDslStructure.length === 0) {
+                return null;
+            }
+
+            const currentDslText = dslEditor.value.trim();
+            const lines = currentDslText.split('\n');
+            
+            // Extract search directive if present
+            let searchDirective = '';
+            let contentLines = lines;
+            if (lines[0] && lines[0].trim().startsWith('search ')) {
+                searchDirective = lines[0] + '\n';
+                contentLines = lines.slice(1);
+            }
+
+            // Rebuild each line by updating effect parameters
+            const rebuiltLines = [];
+            
+            for (const line of contentLines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+                
+                let rebuiltLine = trimmedLine;
+                
+                // For each effect in our parsed structure, update its parameters
+                for (const effectInfo of parsedDslStructure) {
+                    const effectKey = `step_${effectInfo.stepIndex}`;
+                    const params = effectParameterValues[effectKey];
+                    if (!params) continue;
+                    
+                    // Get effect definition for type info
+                    let effectDef = getEffect(effectInfo.effectKey);
+                    if (!effectDef && effectInfo.namespace) {
+                        effectDef = getEffect(`${effectInfo.namespace}.${effectInfo.name}`);
+                    }
+                    if (!effectDef) {
+                        effectDef = getEffect(effectInfo.name);
+                    }
+                    
+                    // Extract just the function name (e.g., "nu.noise" -> "noise")
+                    let effectName = effectInfo.name;
+                    if (effectName.includes('.')) {
+                        effectName = effectName.split('.').pop();
+                    }
+                    
+                    // Build the replacement with new parameters
+                    const paramParts = [];
+                    for (const [key, value] of Object.entries(params)) {
+                        if (value === undefined || value === null) continue;
+                        
+                        let spec = null;
+                        if (effectDef && effectDef.globals && effectDef.globals[key]) {
+                            spec = effectDef.globals[key];
+                        }
+                        
+                        paramParts.push(`${key}: ${formatValue(value, spec)}`);
+                    }
+                    const newCall = `${effectName}(${paramParts.join(', ')})`;
+                    
+                    // Match effectName followed by balanced parentheses
+                    // Use a function to handle nested parens
+                    const startPattern = new RegExp(`(^|\\.)${effectName}\\(`);
+                    const match = rebuiltLine.match(startPattern);
+                    if (match) {
+                        const startIndex = match.index + match[0].length - 1; // position of opening paren
+                        let depth = 0;
+                        let endIndex = -1;
+                        for (let i = startIndex; i < rebuiltLine.length; i++) {
+                            if (rebuiltLine[i] === '(') depth++;
+                            else if (rebuiltLine[i] === ')') {
+                                depth--;
+                                if (depth === 0) {
+                                    endIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        if (endIndex !== -1) {
+                            const prefix = match[0].startsWith('.') ? '.' : '';
+                            const before = rebuiltLine.substring(0, match.index + (prefix ? 1 : 0));
+                            const after = rebuiltLine.substring(endIndex + 1);
+                            rebuiltLine = before + newCall + after;
+                        }
+                    }
+                }
+                
+                rebuiltLines.push(rebuiltLine);
+            }
+            
+            return searchDirective + rebuiltLines.join('\n');
+        }
+
+        /**
          * Update DSL text from effect parameter values
-         * For uniform-only changes, just apply values without recompiling
+         * Syncs the DSL editor with UI control changes
          */
         function updateDslFromEffectParams() {
-            // Just apply the parameter values to the running pipeline
-            // No need to recompile - uniforms can be updated at runtime
+            // Apply the parameter values to the running pipeline
             applyEffectParameterValues();
+            
+            // Regenerate DSL text to keep editor in sync
+            const newDsl = regenerateDslFromEffectParams();
+            if (newDsl !== null && newDsl !== dslEditor.value) {
+                dslEditor.value = newDsl;
+                currentDsl = newDsl;
+                window.__noisemakerCurrentDsl = newDsl;
+            }
         }
 
         /**
@@ -1198,13 +1371,18 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             currentDsl = dsl;
             window.__noisemakerCurrentDsl = dsl;
 
+            // Get zoom value from current effect parameters
+            const zoomValue = parameterValues.zoom || 
+                (currentEffect?.instance?.globals?.zoom?.default) || 1;
+
             try {
                 if (!pipeline) {
                     pipeline = await createRuntime(dsl, {
                         canvas: canvas,
                         width: 1024,
                         height: 1024,
-                        preferWebGPU: currentBackend === 'wgsl'
+                        preferWebGPU: currentBackend === 'wgsl',
+                        zoom: zoomValue
                     });
                 } else {
                     const newGraph = recompile(pipeline, dsl);
@@ -1214,7 +1392,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                             canvas: canvas,
                             width: 1024,
                             height: 1024,
-                            preferWebGPU: currentBackend === 'wgsl'
+                            preferWebGPU: currentBackend === 'wgsl',
+                            zoom: zoomValue
                         });
                         try {
                             previousPipeline?.backend?.destroy?.();
@@ -1271,22 +1450,19 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             // Update DSL editor
             dslEditor.value = dsl || '';
 
+            // Get zoom value from current effect parameters
+            const zoomValue = parameterValues.zoom || 
+                (currentEffect?.instance?.globals?.zoom?.default) || 1;
+
             try {
                 if (!pipeline) {
                     pipeline = await createRuntime(dsl, {
                         canvas: canvas,
                         width: 1024,
                         height: 1024,
-                        preferWebGPU: currentBackend === 'wgsl'
+                        preferWebGPU: currentBackend === 'wgsl',
+                        zoom: zoomValue
                     });
-                    
-                    // Provide zoom accessor
-                    pipeline.getGlobalZoom = () => {
-                        if (currentEffect && currentEffect.instance && currentEffect.instance.globals && currentEffect.instance.globals.zoom) {
-                            return parameterValues.zoom || currentEffect.instance.globals.zoom.default || 1;
-                        }
-                        return 1;
-                    };
                 } else {
                     const newGraph = recompile(pipeline, dsl);
                     if (!newGraph) {
@@ -1295,7 +1471,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                             canvas: canvas,
                             width: 1024,
                             height: 1024,
-                            preferWebGPU: currentBackend === 'wgsl'
+                            preferWebGPU: currentBackend === 'wgsl',
+                            zoom: zoomValue
                         });
                         pipeline = rebuiltPipeline;
 
@@ -1304,14 +1481,6 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                         } catch (err) {
                             console.warn('Failed to release previous pipeline backend', err);
                         }
-                        
-                        // Provide zoom accessor
-                        pipeline.getGlobalZoom = () => {
-                            if (currentEffect && currentEffect.instance && currentEffect.instance.globals && currentEffect.instance.globals.zoom) {
-                                return parameterValues.zoom || currentEffect.instance.globals.zoom.default || 1;
-                            }
-                            return 1;
-                        };
                     } else {
                         await pipeline.compilePrograms();
                     }
@@ -1457,16 +1626,47 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
                                 // Register as operator
                                 if (instance.func) {
-                                    const args = Object.entries(instance.globals || {}).map(([key, spec]) => ({
-                                        name: key,
-                                        type: spec.type === 'vec4' ? 'color' : spec.type,
-                                        default: spec.default,
-                                        enum: spec.enum,
-                                        enumPath: spec.enumPath,
-                                        min: spec.min,
-                                        max: spec.max,
-                                        uniform: spec.uniform
-                                    }));
+                                    // Collect choices to register as enums immediately
+                                    const choicesToRegister = {};
+                                    
+                                    const args = Object.entries(instance.globals || {}).map(([key, spec]) => {
+                                        // For inline choices without enum, set the enum path now
+                                        // This allows the validator to resolve bare enum names
+                                        let enumPath = spec.enum || spec.enumPath;
+                                        if (spec.choices && !enumPath) {
+                                            enumPath = `${dir.namespace}.${instance.func}.${key}`;
+                                            
+                                            // Build the enum values to register
+                                            if (!choicesToRegister[dir.namespace]) {
+                                                choicesToRegister[dir.namespace] = {};
+                                            }
+                                            if (!choicesToRegister[dir.namespace][instance.func]) {
+                                                choicesToRegister[dir.namespace][instance.func] = {};
+                                            }
+                                            choicesToRegister[dir.namespace][instance.func][key] = {};
+                                            
+                                            for (const [name, val] of Object.entries(spec.choices)) {
+                                                if (name.endsWith(':')) continue; // skip group labels
+                                                const sanitized = sanitizeEnumName(name);
+                                                choicesToRegister[dir.namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
+                                            }
+                                        }
+                                        return {
+                                            name: key,
+                                            type: spec.type === 'vec4' ? 'color' : spec.type,
+                                            default: spec.default,
+                                            enum: enumPath,
+                                            enumPath: enumPath,
+                                            min: spec.min,
+                                            max: spec.max,
+                                            uniform: spec.uniform
+                                        };
+                                    });
+                                    
+                                    // Register enum values immediately so they're available for validation
+                                    if (Object.keys(choicesToRegister).length > 0) {
+                                        pendingEnumRegistrations.push(choicesToRegister);
+                                    }
                                     
                                     const opSpec = {
                                         name: instance.func,
@@ -1484,6 +1684,14 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 } catch (err) {
                     console.warn(`Failed to load effects from ${dir.path}:`, err);
                 }
+            }
+
+            // Process pending enum registrations - merge all collected enum values
+            if (pendingEnumRegistrations.length > 0) {
+                for (const choicesToRegister of pendingEnumRegistrations) {
+                    enums = await mergeIntoEnums(choicesToRegister);
+                }
+                pendingEnumRegistrations = [];
             }
 
             return effects;
@@ -1553,17 +1761,61 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 effectSelect.appendChild(optgroup);
             });
 
-            // Select 'noise' effect by default
-            for (let i = 0; i < effectSelect.options.length; i++) {
-                if (effectSelect.options[i].value === 'basics/noise') {
-                    effectSelect.selectedIndex = i;
-                    break;
-                }
-            }
+            // NO DEFAULT SELECTION - effect must be explicitly specified
+            // This prevents test harness from silently testing the wrong effect
+        }
+
+        // Sanitize a name to be a valid identifier (no spaces, valid chars)
+        // Returns null if the name cannot be made into a valid identifier
+        function sanitizeEnumName(name) {
+            // Convert spaces to camelCase: "Cell Scale" -> "CellScale"
+            let result = name.replace(/\s+(.)/g, (_, c) => c.toUpperCase()).replace(/\s+/g, '');
+            // Remove any invalid characters
+            result = result.replace(/[^a-zA-Z0-9_]/g, '');
+            return result;
         }
 
         // Helper to format values for DSL
-        function formatValue(value, type) {
+        // Uses the global enum registry to look up names for enum values
+        function formatValue(value, spec) {
+            const type = spec?.type || (typeof spec === 'string' ? spec : 'float');
+            
+            // If spec has inline choices, look up the sanitized enum name
+            // Use just the short name - the validator resolves it via the param's enum path
+            // Fall back to numeric value if name isn't a valid identifier
+            if (spec?.choices && typeof value === 'number') {
+                for (const [name, val] of Object.entries(spec.choices)) {
+                    if (name.endsWith(':')) continue; // skip group labels
+                    if (val === value) {
+                        return sanitizeEnumName(name);
+                    }
+                }
+            }
+            
+            // If spec has enum (global enum reference), look up the name from the global enums registry
+            if (spec?.enum && typeof value === 'number') {
+                const enumPath = spec.enum;
+                const parts = enumPath.split('.');
+                let node = enums;
+                for (const part of parts) {
+                    if (node && node[part]) {
+                        node = node[part];
+                    } else {
+                        node = null;
+                        break;
+                    }
+                }
+                if (node && typeof node === 'object') {
+                    for (const [name, val] of Object.entries(node)) {
+                        const numVal = (val && typeof val === 'object' && 'value' in val) ? val.value : val;
+                        if (numVal === value) {
+                            // Return as qualified path: color.mono
+                            return `${enumPath}.${name}`;
+                        }
+                    }
+                }
+            }
+            
             if (type === 'boolean' || type === 'button') {
                 return value ? 'true' : 'false';
             }
@@ -1673,7 +1925,16 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 });
 
                 showStatus(`switched to ${currentBackend}`, 'success');
-                await rebuildPipeline({ silent: true });
+                
+                // Use rebuildPipelineFromDsl to preserve the current DSL content
+                // (rebuildPipeline would regenerate DSL from currentEffect, wiping custom DSL)
+                // Fall back to rebuildPipeline if DSL editor is empty
+                const dsl = dslEditor.value.trim();
+                if (dsl) {
+                    await rebuildPipelineFromDsl({ rebuildControls: false });
+                } else if (currentEffect) {
+                    await rebuildPipeline({ silent: true });
+                }
             });
         });
 
@@ -1735,11 +1996,69 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             return null;
         }
 
+        // Register inline choices from effect definitions as enums
+        // This unifies choices with the enum system so DSL can reference them
+        // Uses class-specific paths: {namespace}.{effectFunc}.{paramName}.{valueName}
+        async function registerEffectChoicesAsEnums(effects) {
+            const choicesAsEnums = {};
+            
+            for (const effect of effects) {
+                const effectFunc = effect.instance?.func;
+                const namespace = effect.namespace;
+                if (!effectFunc || !namespace) continue;
+                
+                // Use namespace.func as the top-level key to avoid conflicts
+                const effectKey = `${namespace}.${effectFunc}`;
+                
+                const globals = effect.instance?.globals || {};
+                for (const [paramName, spec] of Object.entries(globals)) {
+                    if (spec.choices && !spec.enum) {
+                        // Convert inline choices to enum format
+                        // Use namespace.effectFunc.paramName as the enum path
+                        if (!choicesAsEnums[namespace]) {
+                            choicesAsEnums[namespace] = {};
+                        }
+                        if (!choicesAsEnums[namespace][effectFunc]) {
+                            choicesAsEnums[namespace][effectFunc] = {};
+                        }
+                        if (!choicesAsEnums[namespace][effectFunc][paramName]) {
+                            choicesAsEnums[namespace][effectFunc][paramName] = {};
+                        }
+                        
+                        // Build a mapping from sanitized name to original name
+                        const sanitizedToOriginal = {};
+                        for (const [name, val] of Object.entries(spec.choices)) {
+                            if (name.endsWith(':')) continue; // skip group labels
+                            const sanitized = sanitizeEnumName(name);
+                            // Only add if not already defined (first definition wins)
+                            if (!(sanitized in choicesAsEnums[namespace][effectFunc][paramName])) {
+                                choicesAsEnums[namespace][effectFunc][paramName][sanitized] = { type: 'Number', value: val };
+                                sanitizedToOriginal[sanitized] = name;
+                            }
+                        }
+                        // Store the mapping for reverse lookup (display names)
+                        spec._sanitizedNames = sanitizedToOriginal;
+                        // Update the spec to reference the namespace-qualified enum path
+                        spec.enum = `${namespace}.${effectFunc}.${paramName}`;
+                    }
+                }
+            }
+            
+            if (Object.keys(choicesAsEnums).length > 0) {
+                enums = await mergeIntoEnums(choicesAsEnums);
+            }
+        }
+
         // Initialize the demo
         async function init() {
             try {
                 enums = await mergeIntoEnums(stdEnums);
                 const effects = await loadEffects();
+                
+                // Register inline choices from effects as enums
+                // This unifies the enum system - all choices can be referenced by path
+                await registerEffectChoicesAsEnums(effects);
+                
                 allLoadedEffects = effects;
                 initStarterOps(effects);
                 populateEffectSelector(effects);

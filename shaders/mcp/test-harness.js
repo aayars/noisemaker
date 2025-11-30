@@ -331,8 +331,8 @@ async function testEffect(harness, effectId, options = {}) {
     }
     console.log(`  ✓ compile`);
     
-    // Render (skip compile since already loaded)
-    const renderResult = await harness.renderEffectFrame(effectId, { skipCompile: true, backend });
+    // Render (skip compile and reload since already loaded)
+    const renderResult = await harness.renderEffectFrame(effectId, { skipCompile: true, skipReload: true, backend });
     timings.push(`render:${Date.now() - t0}ms`);
     t0 = Date.now();
     results.render = renderResult.status;
@@ -409,7 +409,7 @@ async function testEffect(harness, effectId, options = {}) {
     // Uniform responsiveness test
     if (options.uniforms) {
         t0 = Date.now();
-        const uniformResult = await harness.testUniformResponsiveness(effectId, { backend, skipCompile: true });
+        const uniformResult = await harness.testUniformResponsiveness(effectId, { backend, skipCompile: true, skipReload: true });
         timings.push(`uniforms:${Date.now() - t0}ms`);
         results.uniforms = uniformResult.status;
         
@@ -432,7 +432,7 @@ async function testEffect(harness, effectId, options = {}) {
             results.passthrough = 'skipped';
             console.log(`  ⊘ passthrough: exempt (effect preserves average colors by design)`);
         } else {
-            const passthroughResult = await harness.testNoPassthrough(effectId, { backend, skipCompile: true });
+            const passthroughResult = await harness.testNoPassthrough(effectId, { backend, skipCompile: true, skipReload: true });
             timings.push(`passthrough:${Date.now() - t0}ms`);
             results.passthrough = passthroughResult.status;
             
@@ -463,6 +463,7 @@ async function testEffect(harness, effectId, options = {}) {
             targetFps: 30,
             durationSeconds: 0.5,  // 500ms - enough to catch ~30 frames
             skipCompile: true,
+            skipReload: true,
             backend
         });
         results.benchmark = benchResult.achieved_fps;
@@ -494,7 +495,7 @@ Do NOT tag colorful patterns or mosaics as problematic - those are valid outputs
         const visionResult = await harness.describeEffectFrame(
             effectId,
             prompt,
-            { skipCompile: true, backend, captureImage: true }
+            { skipCompile: true, skipReload: true, backend, captureImage: true }
         );
         results.vision = visionResult.status;
         

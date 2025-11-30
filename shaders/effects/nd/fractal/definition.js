@@ -184,7 +184,7 @@ export default class Fractal extends Effect {
       default: 4,
       uniform: "colorMode",
       choices: {
-        Grayscale: 0,
+        mono: 0,
         Palette: 4,
         Hsv: 6
       },

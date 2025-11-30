@@ -30,6 +30,16 @@ export class Backend {
     }
 
     /**
+     * Create a 3D texture for volumetric data
+     * @param {string} id - Physical texture ID
+     * @param {object} spec - { width, height, depth, format, usage }
+     * @returns {object} Texture handle
+     */
+    createTexture3D(_id, _spec) {
+        throw new Error('Backend.createTexture3D() must be implemented')
+    }
+
+    /**
      * Destroy a texture
      * @param {string} id - Physical texture ID
      */

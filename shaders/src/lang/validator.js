@@ -7,7 +7,7 @@ import { resolveCallTarget } from './namespaceRuntime.js'
 const stateSurfaces = new Set(['time','frame','mouse','resolution','seed','a'])
 const stateValues = new Set(['time','frame','mouse','resolution','seed','a','u1','u2','u3','u4','s1','s2','b1','b2','a1','a2','deltaTime'])
 const STARTER_OPS = new Set([
-    'cell','fractal','n','n3','pattern','rd','shapes','noisemaker',
+    'cell','fractal','n','n3','pattern','shapes','noisemaker',
     'gradient','noise','osc','solid'
 ])
 
@@ -687,6 +687,19 @@ export function validate(ast) {
                         } else if (node && node.type === 'Ident' && stateValues.has(node.name)) {
                             const key = node.name
                             value = {fn: (state) => state[key], min:def.min, max:def.max}
+                        } else if (node && node.type === 'Ident' && def.enum) {
+                            // Try to resolve bare identifier as enum value within the param's enum path
+                            const prefix = normalizeMemberPath(def.enum)
+                            const path = prefix ? prefix.concat([node.name]) : [node.name]
+                            const resolved = resolveEnum(path)
+                            if (typeof resolved === 'number') {
+                                value = clamp(resolved, def.min, def.max)
+                            } else if (resolved && resolved.type === 'Number') {
+                                value = clamp(resolved.value, def.min, def.max)
+                            } else {
+                                pushDiag('S003', node)
+                                value = def.default
+                            }
                         } else {
                             if (node && node.type === 'Ident' && !stateValues.has(node.name)) {
                                 pushDiag('S003', node)

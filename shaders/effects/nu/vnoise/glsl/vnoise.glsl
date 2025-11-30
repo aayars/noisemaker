@@ -17,10 +17,6 @@ uniform float yScale;
 uniform int noiseType;
 uniform int octaves;
 uniform bool ridges;
-uniform int refractMode;
-uniform float refractAmt;
-uniform float kaleido;
-uniform int metric;
 uniform float loopScale;
 uniform float loopAmp;
 uniform int loopOffset;
@@ -354,37 +350,6 @@ float shape(vec2 st, int sides, float blend) {
     return cos(floor(0.5 + a / r) * r - a) * length(st) * blend;
 }
 
-float getMetric(vec2 st) {
-    st.y = 1.0 - st.y;
-    vec2 diff = vec2(0.5 * aspectRatio, 0.5) - st;
-    float r = 1.0;
-    if (metric == 0) r = length(st - vec2(0.5 * aspectRatio, 0.5));
-    else if (metric == 1) r = abs(diff.x) + abs(diff.y);
-    else if (metric == 2) r = max(max(abs(diff.x) - diff.y * -0.5, -1.0 * diff.y), max(abs(diff.x) - diff.y * 0.5, 1.0 * diff.y));
-    else if (metric == 3) r = max((abs(diff.x) + abs(diff.y)) / sqrt(2.0), max(abs(diff.x), abs(diff.y)));
-    else if (metric == 4) r = max(abs(diff.x), abs(diff.y));
-    else if (metric == 5) r = max(abs(diff.x) - (diff.y) * -0.5, -1.0 * (diff.y));
-    return r;
-}
-
-vec2 rotate2D(vec2 st, float rot) {
-    float angle = rot * PI;
-    st = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * st;
-    return st;
-}
-
-vec2 kaleidoscope(vec2 st, float sides, float blendy) {
-    if (sides == 1.0) return st;
-    float r = getMetric(st) + blendy;
-    st = st - vec2(0.5 * aspectRatio, 0.5);
-    st = rotate2D(st, 0.5);
-    float a = atan(st.y, st.x);
-    float ma = mod(a - radians(360.0 / sides), TAU/sides);
-    ma = abs(ma - PI/sides);
-    st = r * vec2(cos(ma), sin(ma));
-    return st;
-}
-
 float offset(vec2 st, vec2 freq) {
     if (loopOffset == 10) return circles(st, freq.x);
     if (loopOffset == 20) return shape(st, 3, freq.x * 0.5);
@@ -420,42 +385,13 @@ vec3 generate_octave(vec2 st, vec2 freq, float s, float blend, float layer) {
 vec3 multires(vec2 st, vec2 freq, int oct, float s, float blend) {
     vec3 color = vec3(0.0);
     float multiplicand = 0.0;
-    vec2 nominalFreq = vec2(1.0);
-
-    if (noiseType == 11) {
-        float base = map(75.0, 1.0, 100.0, 40.0, 1.0);
-        nominalFreq = vec2(base);
-    } else if (noiseType == 10) {
-        float base = map(75.0, 1.0, 100.0, 6.0, 0.5);
-        nominalFreq = vec2(base);
-    } else {
-        float base = map(75.0, 1.0, 100.0, 20.0, 3.0);
-        nominalFreq = vec2(base);
-    }
 
     for (int i = 1; i <= oct; i++) {
         float multiplier = pow(2.0, float(i));
         vec2 baseFreq = freq * 0.5 * multiplier;
-        float nominalBase = nominalFreq.x * 0.5 * multiplier;
         multiplicand += 1.0 / multiplier;
-        
-        if (refractMode == 1 || refractMode == 2) {
-            vec2 xRefractFreq = vec2(baseFreq.x, nominalBase);
-            vec2 yRefractFreq = vec2(nominalBase, baseFreq.y);
-            float xRef = value(st, xRefractFreq, s + 10.0 * float(i), blend) - 0.5;
-            float yRef = value(st, yRefractFreq, s + 20.0 * float(i), blend) - 0.5;
-            float ref = map(refractAmt, 0.0, 100.0, 0.0, 1.0) / multiplier;
-            st = vec2(st.x + xRef * ref, st.y + yRef * ref);
-        }
 
         vec3 layer = generate_octave(st, baseFreq, s + 10.0 * float(i), blend, float(i));
-        
-        if (refractMode == 0 || refractMode == 2) {
-            float xOff = cos(layer.b) * 0.5 + 0.5;
-            float yOff = sin(layer.b) * 0.5 + 0.5;
-            vec3 ref = generate_octave(vec2(st.x + xOff, st.y + yOff), baseFreq, s + 15.0 * float(i), blend, float(i));
-            layer = mix(layer, ref, map(refractAmt, 0.0, 100.0, 0.0, 1.0));
-        }
 
         color.rgb += layer / multiplier;
     }
@@ -481,7 +417,6 @@ vec3 multires(vec2 st, vec2 freq, int oct, float s, float blend) {
 void main() {
     vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
     vec2 st = gl_FragCoord.xy / resolution.y;
-    st = kaleidoscope(st, kaleido, 0.5);
     vec2 centered = st - vec2(aspectRatio * 0.5, 0.5);
 
     vec2 freq = vec2(1.0);

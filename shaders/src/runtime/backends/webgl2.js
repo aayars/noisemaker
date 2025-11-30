@@ -215,6 +215,57 @@ export class WebGL2Backend extends Backend {
         return fbo
     }
 
+    /**
+     * Create a 3D texture for volume data.
+     * Note: WebGL2 supports sampling from 3D textures but cannot render to them directly.
+     * 3D textures are used for volumetric caching and lookup.
+     */
+    createTexture3D(id, spec) {
+        const gl = this.gl
+        const texture = gl.createTexture()
+        
+        gl.bindTexture(gl.TEXTURE_3D, texture)
+        
+        // Resolve format
+        const glFormat = this.resolveFormat(spec.format)
+        
+        // Allocate 3D texture storage
+        gl.texImage3D(
+            gl.TEXTURE_3D,
+            0,
+            glFormat.internalFormat,
+            spec.width,
+            spec.height,
+            spec.depth,
+            0,
+            glFormat.format,
+            glFormat.type,
+            null
+        )
+        
+        // Set texture parameters - use LINEAR for trilinear filtering support
+        const filterMode = spec.filter === 'nearest' ? gl.NEAREST : gl.LINEAR
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, filterMode)
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, filterMode)
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+        
+        gl.bindTexture(gl.TEXTURE_3D, null)
+        
+        this.textures.set(id, {
+            handle: texture,
+            width: spec.width,
+            height: spec.height,
+            depth: spec.depth,
+            format: spec.format,
+            glFormat,
+            is3D: true
+        })
+        
+        return texture
+    }
+
     destroyTexture(id) {
         const gl = this.gl
         const tex = this.textures.get(id)
@@ -673,8 +724,12 @@ export class WebGL2Backend extends Backend {
                 }
             }
             
+            // Check if this is a 3D texture
+            const texInfo = this.textures.get(texId)
+            const is3D = texInfo?.is3D
+            
             gl.activeTexture(gl.TEXTURE0 + unit)
-            gl.bindTexture(gl.TEXTURE_2D, texture || null)
+            gl.bindTexture(is3D ? gl.TEXTURE_3D : gl.TEXTURE_2D, texture || null)
             
             // Bind sampler uniform
             const uniform = program.uniforms[samplerName]
@@ -688,7 +743,9 @@ export class WebGL2Backend extends Backend {
 
     bindUniforms(pass, program, state) {
         const gl = this.gl
-        const uniforms = { ...state.globalUniforms, ...pass.uniforms }
+        // Pass uniforms first (from DSL/effect defaults), then globalUniforms on top
+        // This allows runtime overrides (like test uniforms) to take precedence
+        const uniforms = { ...pass.uniforms, ...state.globalUniforms }
         
         for (const [name, value] of Object.entries(uniforms)) {
             const uniform = program.uniforms[name]

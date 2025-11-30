@@ -133,8 +133,8 @@ export default class CellNoise extends Effect {
       default: 0,
       uniform: "colorMode",
       choices: {
-        Grayscale: 0,
-        "Grayscale Inverse": 1,
+        mono: 0,
+        monoInverse: 1,
         Palette: 2
       },
       ui: {

@@ -67,11 +67,10 @@ const TOOLS = [
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    default: 'webgl2',
                     description: 'Rendering backend to use'
                 }
             },
-            required: ['effect_id']
+            required: ['effect_id', 'backend']
         }
     },
     {
@@ -83,6 +82,11 @@ const TOOLS = [
                 effect_id: {
                     type: 'string',
                     description: 'Effect identifier (e.g., "basics/noise")'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    description: 'Rendering backend to use'
                 },
                 test_case: {
                     type: 'object',
@@ -111,7 +115,7 @@ const TOOLS = [
                     }
                 }
             },
-            required: ['effect_id']
+            required: ['effect_id', 'backend']
         }
     },
     {
@@ -127,6 +131,11 @@ const TOOLS = [
                 prompt: {
                     type: 'string',
                     description: 'Vision prompt - what to analyze or look for in the image'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    description: 'Rendering backend to use'
                 },
                 test_case: {
                     type: 'object',
@@ -155,7 +164,7 @@ const TOOLS = [
                     }
                 }
             },
-            required: ['effect_id', 'prompt']
+            required: ['effect_id', 'prompt', 'backend']
         }
     },
     {
@@ -188,11 +197,10 @@ const TOOLS = [
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    default: 'webgl2',
                     description: 'Rendering backend'
                 }
             },
-            required: ['effect_id', 'target_fps']
+            required: ['effect_id', 'target_fps', 'backend']
         }
     },
     {
@@ -222,11 +230,10 @@ const TOOLS = [
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    default: 'webgl2',
                     description: 'Rendering backend to use'
                 }
             },
-            required: ['effect_id']
+            required: ['effect_id', 'backend']
         }
     }
 ];
@@ -266,6 +273,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const result = await harness.renderEffectFrame(
                     args.effect_id,
                     {
+                        backend: args.backend,
                         time: testCase.time,
                         resolution: testCase.resolution,
                         seed: testCase.seed,
@@ -286,6 +294,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     args.effect_id,
                     args.prompt,
                     {
+                        backend: args.backend,
                         time: testCase.time,
                         resolution: testCase.resolution,
                         seed: testCase.seed,

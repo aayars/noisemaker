@@ -17,17 +17,20 @@ export class Pipeline {
         this.globalUniforms = {}
         this.width = 0
         this.height = 0
+        this.zoom = 1  // Zoom factor for effect surfaces
         this.frameReadTextures = null
-        this.getGlobalZoom = null  // Function to get zoom from effect
     }
 
     /**
      * Initialize the pipeline
+     * @param {number} width - Width in pixels
+     * @param {number} height - Height in pixels
+     * @param {number} [zoom=1] - Zoom factor for effect surfaces
      */
-    async init(width, height) {
+    async init(width, height, zoom = 1) {
         await this.backend.init()
         await this.compilePrograms()
-        this.resize(width, height)
+        this.resize(width, height, zoom)
     }
 
     /**
@@ -75,18 +78,40 @@ export class Pipeline {
 
     /**
      * Resize the pipeline
+     * @param {number} width - Width in pixels
+     * @param {number} height - Height in pixels  
+     * @param {number} [zoom=1] - Zoom factor for effect surfaces
      */
-    resize(width, height) {
+    resize(width, height, zoom = 1) {
         this.width = width
         this.height = height
+        this.zoom = zoom
         
         // Create/recreate global surfaces
         this.createSurfaces()
         
         // Recreate textures with screen-relative dimensions
-        this.recreateTextures()
+        // Collect default uniforms from passes for parameter-based texture sizing
+        const defaultUniforms = this.collectDefaultUniforms()
+        this.recreateTextures(defaultUniforms)
         
         this.backend.resize(width, height)
+    }
+    
+    /**
+     * Collect default uniform values from all passes
+     * Used for resolving parameter-based texture dimensions
+     */
+    collectDefaultUniforms() {
+        const uniforms = {}
+        if (this.graph && this.graph.passes) {
+            for (const pass of this.graph.passes) {
+                if (pass.uniforms) {
+                    Object.assign(uniforms, pass.uniforms)
+                }
+            }
+        }
+        return uniforms
     }
 
     /**
@@ -168,9 +193,8 @@ export class Pipeline {
             }
         }
 
-        // Get zoom value if available
-        const zoom = this.getGlobalZoom ? this.getGlobalZoom() : 1
-        const effectiveZoom = (typeof zoom === 'number' && zoom > 0) ? zoom : 1
+        // Use stored zoom value
+        const effectiveZoom = (typeof this.zoom === 'number' && this.zoom > 0) ? this.zoom : 1
 
         // Create global surfaces (o0-o7 and dynamic globals)
         for (const name of surfaceNames) {
@@ -280,35 +304,67 @@ export class Pipeline {
     }
 
     /**
-     * Recreate textures with new dimensions
+     * Recreate textures with new dimensions based on current uniform values
+     * @param {object} [uniforms] - Current uniform values for parameter-based sizing
      */
-    recreateTextures() {
+    recreateTextures(uniforms = {}) {
         if (!this.graph || !this.graph.textures) return
         
         for (const [texId, spec] of this.graph.textures.entries()) {
             // Skip global surfaces
             if (texId.startsWith('global_')) continue
             
-            // Resolve dimensions
-            const width = this.resolveDimension(spec.width, this.width)
-            const height = this.resolveDimension(spec.height, this.height)
+            // Resolve dimensions with current uniforms
+            const width = this.resolveDimension(spec.width, this.width, uniforms)
+            const height = this.resolveDimension(spec.height, this.height, uniforms)
+            
+            // Check if size changed
+            const existingTex = this.backend.textures?.get?.(texId)
+            if (existingTex && existingTex.width === width && existingTex.height === height) {
+                // For 3D textures, also check depth
+                if (!spec.is3D || existingTex.depth === this.resolveDimension(spec.depth, width, uniforms)) {
+                    continue  // No change needed
+                }
+            }
             
             // Destroy old texture
             this.backend.destroyTexture(texId)
             
-            // Create new texture
-            this.backend.createTexture(texId, {
-                ...spec,
-                width,
-                height
-            })
+            // Create texture (2D or 3D based on spec)
+            if (spec.is3D) {
+                const depth = this.resolveDimension(spec.depth, width, uniforms)
+                this.backend.createTexture3D(texId, {
+                    ...spec,
+                    width,
+                    height,
+                    depth
+                })
+            } else {
+                this.backend.createTexture(texId, {
+                    ...spec,
+                    width,
+                    height
+                })
+            }
         }
     }
 
     /**
-     * Resolve dimension spec to actual pixel value
+     * Update parameter-dependent textures when uniforms change
+     * Call this when volumeSize or similar sizing parameters change
+     * @param {object} uniforms - Current uniform values
      */
-    resolveDimension(spec, screenSize) {
+    updateParameterTextures(uniforms = {}) {
+        this.recreateTextures(uniforms)
+    }
+
+    /**
+     * Resolve dimension spec to actual pixel value
+     * @param {number|string|object} spec - Dimension specification
+     * @param {number} screenSize - Screen dimension for relative specs
+     * @param {object} [uniforms] - Current uniform values for param references
+     */
+    resolveDimension(spec, screenSize, uniforms = {}) {
         if (typeof spec === 'number') {
             return Math.max(1, Math.floor(spec))
         }
@@ -322,17 +378,38 @@ export class Pipeline {
             return Math.max(1, Math.floor(screenSize * percent / 100))
         }
         
-        if (typeof spec === 'object' && spec.scale !== undefined) {
-            let computed = Math.floor(screenSize * spec.scale)
-            if (spec.clamp) {
-                if (spec.clamp.min !== undefined) {
-                    computed = Math.max(spec.clamp.min, computed)
+        if (typeof spec === 'object') {
+            // Handle parameter reference: { param: 'volumeSize' }
+            if (spec.param !== undefined) {
+                const paramValue = uniforms[spec.param] ?? spec.default ?? 64
+                let value = paramValue
+                
+                // Apply multiplier if specified: { param: 'volumeSize', multiply: 2 }
+                if (spec.multiply !== undefined) {
+                    value *= spec.multiply
                 }
-                if (spec.clamp.max !== undefined) {
-                    computed = Math.min(spec.clamp.max, computed)
+                
+                // Apply power if specified: { param: 'volumeSize', power: 2 } means value^2
+                if (spec.power !== undefined) {
+                    value = Math.pow(value, spec.power)
                 }
+                
+                return Math.max(1, Math.floor(value))
             }
-            return Math.max(1, computed)
+            
+            // Handle scale-based spec
+            if (spec.scale !== undefined) {
+                let computed = Math.floor(screenSize * spec.scale)
+                if (spec.clamp) {
+                    if (spec.clamp.min !== undefined) {
+                        computed = Math.max(spec.clamp.min, computed)
+                    }
+                    if (spec.clamp.max !== undefined) {
+                        computed = Math.min(spec.clamp.max, computed)
+                    }
+                }
+                return Math.max(1, computed)
+            }
         }
         
         return screenSize
@@ -425,7 +502,9 @@ export class Pipeline {
      */
     updateGlobalUniforms(time, deltaTime) {
         const aspectValue = this.width / this.height
+        // Preserve existing uniforms (like effect parameters) while updating time/frame/etc
         this.globalUniforms = {
+            ...this.globalUniforms,  // Preserve existing uniforms
             time: time,
             deltaTime: deltaTime,
             frame: this.frameIndex,
@@ -689,6 +768,13 @@ export class Pipeline {
 
 /**
  * Create a pipeline with the appropriate backend
+ * @param {object} graph - Compiled shader graph
+ * @param {object} options - Options
+ * @param {HTMLCanvasElement} options.canvas - Canvas element
+ * @param {number} options.width - Width in pixels
+ * @param {number} options.height - Height in pixels
+ * @param {boolean} options.preferWebGPU - Use WebGPU if available
+ * @param {number} [options.zoom=1] - Zoom factor for effect surfaces
  */
 export async function createPipeline(graph, options = {}) {
     let backend
@@ -720,7 +806,7 @@ export async function createPipeline(graph, options = {}) {
     }
     
     const pipeline = new Pipeline(graph, backend)
-    await pipeline.init(options.width || 800, options.height || 600)
+    await pipeline.init(options.width || 800, options.height || 600, options.zoom || 1)
     
     return pipeline
 }

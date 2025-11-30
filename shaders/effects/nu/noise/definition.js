@@ -26,8 +26,8 @@ export default class Noise extends Effect {
         "default": 0,
         "uniform": "colorMode",
         "choices": {
-            "Mono": 0,
-            "RGB": 1
+            "mono": 0,
+            "rgb": 1
         },
         "ui": {
             "label": "color mode",
@@ -37,7 +37,7 @@ export default class Noise extends Effect {
     "ridges": {
         "type": "boolean",
         "default": false,
-        "uniform": "ridged"
+        "uniform": "ridges"
     },
     "seed": {
         "type": "float",
