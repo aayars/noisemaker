@@ -214,6 +214,22 @@
       display: none;
     }
 
+    #dsl-run-btn:hover {
+      background: color-mix(in srgb, var(--accent3) 50%, transparent 50%);
+      border-color: var(--accent3);
+    }
+
+    #dsl-run-btn:active {
+      background: color-mix(in srgb, var(--accent3) 70%, transparent 30%);
+      transform: translateY(1px);
+    }
+
+    #dsl-editor:focus {
+      outline: none;
+      border-color: color-mix(in srgb, var(--accent3) 50%, transparent 50%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent3) 20%, transparent 80%);
+    }
+
     #status {
       display: none;
       min-height: 20px;
@@ -429,17 +445,17 @@
             </div>
 
             <div class="shader-module">
-                <div class="module-title">Parameters</div>
+                <div class="module-title">DSL Program</div>
                 <div class="module-content">
-                    <div id="parameters"></div>
+                    <textarea id="dsl-editor" spellcheck="false" style="margin: 0; padding: 0.5rem; width: 100%; min-height: 120px; resize: vertical; background: color-mix(in srgb, var(--color1) 60%, transparent 40%); border: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%); border-radius: var(--ui-corner-radius-small); font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace; font-size: 0.6875rem; line-height: 1.4; color: var(--color5); box-sizing: border-box;"></textarea>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button id="dsl-run-btn" style="flex: 1; padding: 0.375rem 0.75rem; background: color-mix(in srgb, var(--accent3) 30%, transparent 70%); border: 1px solid color-mix(in srgb, var(--accent3) 50%, transparent 50%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease;">run</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="shader-module">
-                <div class="module-title">DSL Program</div>
-                <div class="module-content">
-                    <pre id="dsl-display" style="margin: 0; padding: 0.5rem; background: color-mix(in srgb, var(--color1) 60%, transparent 40%); border-radius: var(--ui-corner-radius-small); font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace; font-size: 0.6875rem; line-height: 1.4; color: var(--color5); white-space: pre-wrap; word-break: break-all; overflow-x: auto;"></pre>
-                </div>
+            <div id="effect-controls-container">
+                <!-- Dynamic effect controls will be inserted here -->
             </div>
         </div>
 
@@ -457,18 +473,22 @@
         import { registerEffect, getEffect } from '../../shaders/src/runtime/registry.js';
         import { mergeIntoEnums } from '../../shaders/src/lang/enums.js';
         import { stdEnums } from '../../shaders/src/lang/std_enums.js';
+        import { compile } from '../../shaders/src/lang/index.js';
 
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app-container');
         const statusEl = document.getElementById('status');
         const effectSelect = document.getElementById('effect-select');
-        const parametersEl = document.getElementById('parameters');
+        const effectControlsContainer = document.getElementById('effect-controls-container');
+        const dslEditor = document.getElementById('dsl-editor');
+        const dslRunBtn = document.getElementById('dsl-run-btn');
         const canvasContainer = document.getElementById('canvas-container');
         let canvas = document.getElementById('canvas');
 
         let currentEffect = null;
         let currentBackend = 'glsl';
         let parameterValues = {};
+        let effectParameterValues = {}; // Map: effectKey -> {param: value}
         let pipeline = null;
 
         // Expose backend and registry for testing
@@ -792,18 +812,19 @@
                 // noise(seed: 1, ridged: true).out(o1)
                 // noise(seed: 2, ridged: true).effectName(tex: src(o1), ...).out(o0)
                 const params = [];
+                // Always include tex: src(o1) for mixer effects
+                params.push(`tex: src(o1)`);
                 if (effect.instance.globals) {
                     for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        // Skip tex - we already added it above
+                        if (key === 'tex' && spec.type === 'surface') {
+                            continue;
+                        }
                         const value = parameterValues[key];
                         if (value === undefined || value === null) {
                             continue;
                         }
-                        // Override 'tex' param to use src(o1) (intermediate surface)
-                        if (key === 'tex' && spec.type === 'surface') {
-                            params.push(`tex: src(o1)`);
-                        } else {
-                            params.push(`${key}: ${formatValue(value, spec.type)}`);
-                        }
+                        params.push(`${key}: ${formatValue(value, spec.type)}`);
                     }
                 }
                 const paramString = params.join(', ');
@@ -826,6 +847,383 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             }
         }
 
+        /**
+         * Extract effect calls from DSL source by parsing it
+         * Returns array of { effectKey, namespace, name, args, stepIndex }
+         */
+        function extractEffectsFromDsl(dsl) {
+            const effects = [];
+            if (!dsl || typeof dsl !== 'string') return effects;
+
+            try {
+                const result = compile(dsl);
+                if (!result || !result.plans) return effects;
+
+                let globalStepIndex = 0;
+                for (const plan of result.plans) {
+                    if (!plan.chain) continue;
+                    for (const step of plan.chain) {
+                        const opName = step.op;
+                        const namespace = step.namespace?.namespace || step.namespace?.call?.resolved || null;
+                        
+                        // Build the effect key for lookup
+                        let effectKey = opName;
+                        if (namespace) {
+                            effectKey = `${namespace}/${opName}`;
+                        }
+                        
+                        effects.push({
+                            effectKey,
+                            namespace,
+                            name: opName,
+                            args: step.args || {},
+                            stepIndex: globalStepIndex,
+                            temp: step.temp
+                        });
+                        globalStepIndex++;
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to parse DSL for effect extraction:', err);
+            }
+
+            return effects;
+        }
+
+        /**
+         * Create effect controls from parsed DSL
+         * Each effect gets its own visual container
+         */
+        function createEffectControlsFromDsl(dsl) {
+            effectControlsContainer.innerHTML = '';
+            effectParameterValues = {};
+
+            const effects = extractEffectsFromDsl(dsl);
+            if (effects.length === 0) return;
+
+            for (const effectInfo of effects) {
+                // Try to get the effect definition
+                let effectDef = getEffect(effectInfo.effectKey);
+                if (!effectDef && effectInfo.namespace) {
+                    effectDef = getEffect(`${effectInfo.namespace}.${effectInfo.name}`);
+                }
+                if (!effectDef) {
+                    effectDef = getEffect(effectInfo.name);
+                }
+
+                if (!effectDef || !effectDef.globals) continue;
+
+                // Create container for this effect
+                const moduleDiv = document.createElement('div');
+                moduleDiv.className = 'shader-module';
+                moduleDiv.dataset.stepIndex = effectInfo.stepIndex;
+                moduleDiv.dataset.effectName = effectInfo.name;
+
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'module-title';
+                titleDiv.textContent = effectInfo.namespace ? `${effectInfo.namespace}.${effectInfo.name}` : effectInfo.name;
+                titleDiv.addEventListener('click', () => {
+                    moduleDiv.classList.toggle('collapsed');
+                });
+                moduleDiv.appendChild(titleDiv);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'module-content';
+
+                const controlsDiv = document.createElement('div');
+                controlsDiv.id = `controls-${effectInfo.stepIndex}`;
+                controlsDiv.style.cssText = 'background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); border-radius: var(--ui-corner-radius); padding: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;';
+
+                // Initialize parameter values for this effect from the DSL args
+                const effectKey = `step_${effectInfo.stepIndex}`;
+                effectParameterValues[effectKey] = {};
+
+                // Create controls for each parameter
+                for (const [key, spec] of Object.entries(effectDef.globals)) {
+                    if (spec.ui && spec.ui.control === false) continue;
+                    if (spec.type === 'surface') continue; // Skip surfaces for now
+
+                    const controlGroup = document.createElement('div');
+                    controlGroup.className = 'control-group';
+
+                    const header = document.createElement('div');
+                    header.className = 'control-header';
+                    
+                    const label = document.createElement('label');
+                    label.className = 'control-label';
+                    label.textContent = spec.ui?.label || key;
+                    header.appendChild(label);
+                    
+                    controlGroup.appendChild(header);
+
+                    // Get value from DSL args or use default
+                    let value = effectInfo.args[key];
+                    if (value === undefined) {
+                        value = cloneParamValue(spec.default);
+                    }
+                    effectParameterValues[effectKey][key] = value;
+
+                    // Create the appropriate control based on type
+                    if (spec.type === 'boolean') {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = !!value;
+                        checkbox.addEventListener('change', (e) => {
+                            effectParameterValues[effectKey][key] = e.target.checked;
+                            updateDslFromEffectParams();
+                        });
+                        controlGroup.appendChild(checkbox);
+                    } else if (spec.choices) {
+                        const select = document.createElement('select');
+                        select.className = 'control-select';
+
+                        let selectedValue = null;
+                        let optionIndex = 0;
+
+                        Object.entries(spec.choices).forEach(([name, val]) => {
+                            if (name.endsWith(':')) return;
+
+                            const option = document.createElement('option');
+                            option.value = String(optionIndex);
+                            option.textContent = name;
+                            option.dataset.paramValue = JSON.stringify(val);
+                            if ((value === null && val === null) || value === val) {
+                                option.selected = true;
+                                selectedValue = option.value;
+                            }
+                            select.appendChild(option);
+                            optionIndex += 1;
+                        });
+
+                        if (selectedValue !== null) {
+                            select.value = selectedValue;
+                        }
+
+                        select.addEventListener('change', (e) => {
+                            const target = e.target;
+                            const option = target.options[target.selectedIndex];
+                            const raw = option?.dataset?.paramValue;
+
+                            let parsedValue = null;
+                            if (raw !== undefined) {
+                                try {
+                                    parsedValue = JSON.parse(raw);
+                                } catch (_err) {
+                                    parsedValue = raw;
+                                }
+                            }
+
+                            effectParameterValues[effectKey][key] = parsedValue;
+                            updateDslFromEffectParams();
+                        });
+
+                        controlGroup.appendChild(select);
+                    } else if (spec.type === 'member') {
+                        let enumPath = spec.enum || spec.enumPath;
+                        if (!enumPath && typeof spec.default === 'string') {
+                            const parts = spec.default.split('.');
+                            if (parts.length > 1) {
+                                enumPath = parts.slice(0, -1).join('.');
+                            }
+                        }
+
+                        if (enumPath) {
+                            const parts = enumPath.split('.');
+                            let node = enums;
+                            for (const part of parts) {
+                                if (node && node[part]) {
+                                    node = node[part];
+                                } else {
+                                    node = null;
+                                    break;
+                                }
+                            }
+
+                            if (node) {
+                                const select = document.createElement('select');
+                                select.className = 'control-select';
+                                Object.keys(node).forEach(k => {
+                                    const option = document.createElement('option');
+                                    const fullPath = `${enumPath}.${k}`;
+                                    option.value = fullPath;
+                                    option.textContent = k;
+                                    option.selected = fullPath === value;
+                                    select.appendChild(option);
+                                });
+                                
+                                select.addEventListener('change', (e) => {
+                                    effectParameterValues[effectKey][key] = e.target.value;
+                                    updateDslFromEffectParams();
+                                });
+                                controlGroup.appendChild(select);
+                            }
+                        }
+                    } else if (spec.type === 'float' || spec.type === 'int') {
+                        const valueDisplay = document.createElement('span');
+                        valueDisplay.className = 'control-value';
+                        valueDisplay.textContent = value !== null ? value : '';
+                        header.appendChild(valueDisplay);
+
+                        const slider = document.createElement('input');
+                        slider.className = 'control-slider';
+                        slider.type = 'range';
+                        slider.min = spec.min !== undefined ? spec.min : 0;
+                        slider.max = spec.max !== undefined ? spec.max : 100;
+                        slider.step = spec.step !== undefined ? spec.step : (spec.type === 'int' ? 1 : 0.01);
+                        slider.value = value !== null ? value : slider.min;
+
+                        slider.addEventListener('input', (e) => {
+                            const numVal = spec.type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
+                            valueDisplay.textContent = numVal;
+                            effectParameterValues[effectKey][key] = numVal;
+                            applyEffectParameterValues();
+                        });
+                        
+                        slider.addEventListener('change', () => {
+                            updateDslFromEffectParams();
+                        });
+
+                        controlGroup.appendChild(slider);
+                    } else if (spec.type === 'vec4') {
+                        const colorInput = document.createElement('input');
+                        colorInput.type = 'color';
+                        
+                        if (Array.isArray(value)) {
+                            const toHex = (n) => Math.round(n * 255).toString(16).padStart(2, '0');
+                            colorInput.value = `#${toHex(value[0])}${toHex(value[1])}${toHex(value[2])}`;
+                        }
+
+                        colorInput.addEventListener('input', (e) => {
+                            const hex = e.target.value;
+                            const r = parseInt(hex.slice(1, 3), 16) / 255;
+                            const g = parseInt(hex.slice(3, 5), 16) / 255;
+                            const b = parseInt(hex.slice(5, 7), 16) / 255;
+                            const a = Array.isArray(effectParameterValues[effectKey][key]) ? effectParameterValues[effectKey][key][3] : 1;
+                            effectParameterValues[effectKey][key] = [r, g, b, a];
+                            updateDslFromEffectParams();
+                        });
+                        controlGroup.appendChild(colorInput);
+                    }
+
+                    controlsDiv.appendChild(controlGroup);
+                }
+
+                contentDiv.appendChild(controlsDiv);
+                moduleDiv.appendChild(contentDiv);
+                effectControlsContainer.appendChild(moduleDiv);
+            }
+        }
+
+        /**
+         * Apply effect parameter values to the running pipeline
+         * This is for real-time updates without recompiling
+         */
+        function applyEffectParameterValues() {
+            if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
+
+            for (const [effectKey, params] of Object.entries(effectParameterValues)) {
+                const stepIndex = parseInt(effectKey.replace('step_', ''), 10);
+                
+                for (const pass of pipeline.graph.passes) {
+                    if (!pass.uniforms) continue;
+                    
+                    // Try to match pass to effect by nodeId
+                    const nodeId = `node_${stepIndex}`;
+                    if (pass.nodeId === nodeId) {
+                        for (const [paramName, value] of Object.entries(params)) {
+                            const effectDef = getEffect(pass.effectKey) || getEffect(pass.effectFunc);
+                            if (!effectDef || !effectDef.globals) continue;
+                            
+                            const spec = effectDef.globals[paramName];
+                            if (!spec || !spec.uniform) continue;
+                            
+                            const converted = convertParameterForUniform(value, spec);
+                            pass.uniforms[spec.uniform] = Array.isArray(converted) ? converted.slice() : converted;
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Update DSL text from effect parameter values
+         */
+        function updateDslFromEffectParams() {
+            const currentDslText = dslEditor.value;
+            
+            // For now, just rebuild the pipeline with current DSL
+            // More sophisticated DSL text updating could be done by regenerating the DSL
+            rebuildPipelineFromDsl();
+        }
+
+        /**
+         * Rebuild pipeline from DSL editor content
+         */
+        async function rebuildPipelineFromDsl() {
+            const dsl = dslEditor.value.trim();
+            if (!dsl) {
+                showStatus('DSL is empty', 'error');
+                return;
+            }
+
+            currentDsl = dsl;
+            window.__noisemakerCurrentDsl = dsl;
+
+            try {
+                if (!pipeline) {
+                    pipeline = await createRuntime(dsl, {
+                        canvas: canvas,
+                        width: 1024,
+                        height: 1024,
+                        preferWebGPU: currentBackend === 'wgsl'
+                    });
+                } else {
+                    const newGraph = recompile(pipeline, dsl);
+                    if (!newGraph) {
+                        const previousPipeline = pipeline;
+                        pipeline = await createRuntime(dsl, {
+                            canvas: canvas,
+                            width: 1024,
+                            height: 1024,
+                            preferWebGPU: currentBackend === 'wgsl'
+                        });
+                        try {
+                            previousPipeline?.backend?.destroy?.();
+                        } catch (err) {
+                            console.warn('Failed to release previous pipeline backend', err);
+                        }
+                    } else {
+                        await pipeline.compilePrograms();
+                    }
+                }
+
+                window.__noisemakerRenderingPipeline = pipeline;
+                
+                // Rebuild effect controls based on new DSL
+                createEffectControlsFromDsl(dsl);
+                
+                showStatus('compiled successfully', 'success');
+            } catch (err) {
+                console.error('DSL compilation error:', err);
+                let errMsg;
+                if (err.code === 'ERR_COMPILATION_FAILED' && Array.isArray(err.diagnostics)) {
+                    errMsg = err.diagnostics
+                        .filter(d => d.severity === 'error')
+                        .map(d => {
+                            let msg = d.message || 'Unknown error';
+                            if (d.location) {
+                                msg += ` (line ${d.location.line}, col ${d.location.column})`;
+                            }
+                            return msg;
+                        })
+                        .join('; ') || 'Unknown compilation error';
+                } else {
+                    errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+                }
+                showStatus(`compilation failed: ${errMsg}`, 'error');
+            }
+        }
+
         async function rebuildPipeline({ silent = false } = {}) {
             if (!currentEffect) {
                 return;
@@ -839,10 +1237,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             window.__noisemakerCurrentDsl = dsl;
             console.log('DSL', currentEffect.namespace + '/' + currentEffect.name, '\n' + dsl);
 
-            const dslDisplayEl = document.getElementById('dsl-display');
-            if (dslDisplayEl) {
-                dslDisplayEl.textContent = dsl || '(no program)';
-            }
+            // Update DSL editor
+            dslEditor.value = dsl || '';
 
             try {
                 if (!pipeline) {
@@ -896,6 +1292,9 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 uniformBindings = new Map();
                 buildUniformBindings();
                 applyParameterValues({ silent: true });
+                
+                // Create effect controls from the generated DSL
+                createEffectControlsFromDsl(dsl);
 
                 if (!silent) {
                     showStatus(`compiled ${currentEffect.name}`, 'success');
@@ -1132,258 +1531,6 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             }
         }
 
-        // Create parameter controls
-        function createParameterControls(effect) {
-            parametersEl.innerHTML = '';
-            parameterValues = {};
-
-            if (!effect.instance.globals) {
-                return;
-            }
-
-            Object.entries(effect.instance.globals).forEach(([key, spec]) => {
-                if (spec.ui && spec.ui.control === false) return;
-
-                const controlGroup = document.createElement('div');
-                controlGroup.className = 'control-group';
-
-                const header = document.createElement('div');
-                header.className = 'control-header';
-                
-                const label = document.createElement('label');
-                label.className = 'control-label';
-                label.textContent = spec.ui?.label || key;
-                header.appendChild(label);
-                
-                controlGroup.appendChild(header);
-
-                const value = cloneParamValue(spec.default);
-                parameterValues[key] = value;
-
-                if (spec.type === 'boolean' && spec.ui?.control === 'button') {
-                    // Boolean rendered as a button (momentary)
-                    const button = document.createElement('button');
-                    button.textContent = spec.ui?.buttonLabel || spec.ui?.label || key;
-                    button.style.width = '100%';
-                    button.style.padding = '8px';
-                    button.style.background = '#333';
-                    button.style.color = '#fff';
-                    button.style.border = '1px solid #444';
-                    button.style.cursor = 'pointer';
-                    
-                    button.addEventListener('mousedown', () => {
-                        parameterValues[key] = true;
-                        applyParameterValues({ silent: true });
-                    });
-                    
-                    button.addEventListener('mouseup', () => {
-                        parameterValues[key] = false;
-                        applyParameterValues({ silent: true });
-                    });
-                    
-                    button.addEventListener('mouseleave', () => {
-                        if (parameterValues[key]) {
-                            parameterValues[key] = false;
-                            applyParameterValues({ silent: true });
-                        }
-                    });
-                    
-                    controlGroup.appendChild(button);
-                } else if (spec.type === 'boolean') {
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.checked = value;
-                    checkbox.addEventListener('change', (e) => {
-                        parameterValues[key] = e.target.checked;
-                        applyParameterValues();
-                    });
-                    controlGroup.appendChild(checkbox);
-                } else if (spec.type === 'surface') {
-                    const select = document.createElement('select');
-                    select.className = 'control-select';
-                    const surfaces = spec.options?.surfaces || ['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'];
-
-                    surfaces.forEach(surfaceName => {
-                        const option = document.createElement('option');
-                        option.value = surfaceName;
-                        option.textContent = surfaceName;
-                        option.selected = surfaceName === value;
-                        select.appendChild(option);
-                    });
-
-                    select.addEventListener('change', async (e) => {
-                        parameterValues[key] = e.target.value;
-                        await rebuildPipeline({ silent: true });
-                    });
-
-                    controlGroup.appendChild(select);
-                    
-                    // When default is "inputTex" for non-starter effects, use o1 instead of o0
-                    // to ensure variety in the demo (different noise sources for different surface params)
-                    let normalized;
-                    if (value === 'inputTex' && surfaces.includes('o1')) {
-                        normalized = 'o1';
-                    } else {
-                        normalized = typeof value === 'string' && surfaces.includes(value) ? value : surfaces[0];
-                    }
-                    select.value = normalized;
-                    parameterValues[key] = normalized;
-                } else if (spec.choices) {
-                    const select = document.createElement('select');
-                    select.className = 'control-select';
-
-                    let selectedValue = null;
-                    let optionIndex = 0;
-
-                    Object.entries(spec.choices).forEach(([name, val]) => {
-                        if (name.endsWith(':')) return; // Skip category headers
-
-                        const option = document.createElement('option');
-                        option.value = String(optionIndex);
-                        option.textContent = name;
-                        option.dataset.paramValue = JSON.stringify(val);
-                        if ((value === null && val === null) || value === val) {
-                            option.selected = true;
-                            selectedValue = option.value;
-                        }
-                        select.appendChild(option);
-                        optionIndex += 1;
-                    });
-
-                    if (selectedValue !== null) {
-                        select.value = selectedValue;
-                    }
-
-                    select.addEventListener('change', (e) => {
-                        const target = e.target;
-                        const option = target.options[target.selectedIndex];
-                        const raw = option?.dataset?.paramValue;
-
-                        let parsedValue = null;
-                        if (raw !== undefined) {
-                            try {
-                                parsedValue = JSON.parse(raw);
-                            } catch (_err) {
-                                parsedValue = raw;
-                            }
-                        }
-
-                        if (parsedValue !== null) {
-                            if (spec.type === 'int') {
-                                parsedValue = Number.isFinite(parsedValue) ? Math.round(parsedValue) : parseInt(String(parsedValue), 10);
-                            } else if (spec.type === 'float') {
-                                parsedValue = Number(parsedValue);
-                            }
-                        }
-
-                        parameterValues[key] = parsedValue;
-                        
-                        // If zoom changed, recreate surfaces
-                        if (key === 'zoom' && pipeline) {
-                            pipeline.createSurfaces();
-                        }
-                        
-                        applyParameterValues();
-                    });
-
-                    controlGroup.appendChild(select);
-                } else if (spec.type === 'member') {
-                    // Resolve enum path
-                    let enumPath = spec.enum || spec.enumPath;
-                    if (!enumPath && typeof spec.default === 'string') {
-                        // Infer from default value like "noise.color.rgb" -> "noise.color"
-                        const parts = spec.default.split('.');
-                        if (parts.length > 1) {
-                            enumPath = parts.slice(0, -1).join('.');
-                        }
-                    }
-
-                    if (enumPath) {
-                        // Traverse enums
-                        const parts = enumPath.split('.');
-                        let node = enums;
-                        for (const part of parts) {
-                            if (node && node[part]) {
-                                node = node[part];
-                            } else {
-                                node = null;
-                                break;
-                            }
-                        }
-
-                        if (node) {
-                            const select = document.createElement('select');
-                            select.className = 'control-select';
-                            // Iterate over keys
-                            Object.keys(node).forEach(key => {
-                                const option = document.createElement('option');
-                                const fullPath = `${enumPath}.${key}`;
-                                option.value = fullPath;
-                                option.textContent = key;
-                                option.selected = fullPath === value;
-                                select.appendChild(option);
-                            });
-                            
-                            select.addEventListener('change', (e) => {
-                                parameterValues[key] = e.target.value;
-                                applyParameterValues();
-                            });
-                            controlGroup.appendChild(select);
-                        }
-                    }
-                } else if (spec.type === 'float' || spec.type === 'int') {
-                    // Add value display to header
-                    const valueDisplay = document.createElement('span');
-                    valueDisplay.className = 'control-value';
-                    valueDisplay.textContent = value !== null ? value : '';
-                    header.appendChild(valueDisplay);
-
-                    const slider = document.createElement('input');
-                    slider.className = 'control-slider';
-                    slider.type = 'range';
-                    slider.min = spec.min !== undefined ? spec.min : 0;
-                    slider.max = spec.max !== undefined ? spec.max : 100;
-                    slider.step = spec.step !== undefined ? spec.step : (spec.type === 'int' ? 1 : 0.01);
-                    slider.value = value !== null ? value : slider.min;
-
-                    const updateValue = (val) => {
-                        const numVal = spec.type === 'int' ? parseInt(val) : parseFloat(val);
-                        slider.value = numVal;
-                        valueDisplay.textContent = numVal;
-                        parameterValues[key] = numVal;
-                        applyParameterValues();
-                    };
-
-                    slider.addEventListener('input', (e) => updateValue(e.target.value));
-                    controlGroup.appendChild(slider);
-                } else if (spec.type === 'vec4') {
-                    const colorInput = document.createElement('input');
-                    colorInput.type = 'color';
-                    
-                    // Convert [r,g,b,a] to #RRGGBB for the input
-                    const toHex = (n) => Math.round(n * 255).toString(16).padStart(2, '0');
-                    const r = toHex(value[0]);
-                    const g = toHex(value[1]);
-                    const b = toHex(value[2]);
-                    colorInput.value = `#${r}${g}${b}`;
-
-                    colorInput.addEventListener('input', (e) => {
-                        const hex = e.target.value;
-                        const r = parseInt(hex.slice(1, 3), 16) / 255;
-                        const g = parseInt(hex.slice(3, 5), 16) / 255;
-                        const b = parseInt(hex.slice(5, 7), 16) / 255;
-                        // Preserve original alpha
-                        const a = Array.isArray(parameterValues[key]) ? parameterValues[key][3] : 1;
-                        parameterValues[key] = [r, g, b, a];
-                        applyParameterValues();
-                    });
-                    controlGroup.appendChild(colorInput);
-                }
-
-                parametersEl.appendChild(controlGroup);
-            });
-        }
-
         // Helper to format values for DSL
         function formatValue(value, type) {
             if (type === 'boolean' || type === 'button') {
@@ -1458,7 +1605,6 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             }
 
             currentEffect = effect;
-            createParameterControls(currentEffect);
             showStatus(`selected ${namespace}/${name}`, 'success');
             
             // Properly dispose of the old pipeline before creating a new one
@@ -1502,6 +1648,19 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 loopDuration = newDuration;
                 loopStartTime = performance.now(); // Reset loop to start
                 showStatus(`duration set to ${loopDuration}s`, 'success');
+            }
+        });
+
+        // DSL run button
+        dslRunBtn.addEventListener('click', async () => {
+            await rebuildPipelineFromDsl();
+        });
+
+        // DSL editor keyboard shortcut (Ctrl+Enter or Cmd+Enter to run)
+        dslEditor.addEventListener('keydown', async (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                await rebuildPipelineFromDsl();
             }
         });
 
