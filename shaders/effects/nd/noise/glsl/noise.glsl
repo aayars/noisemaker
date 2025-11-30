@@ -2,8 +2,6 @@
 
 /*
  * Noise synthesizer shader.
- * Implements deterministic value and ridged noise variants with PCG jitter so looped animations reproduce precisely across runs.
- * Wrap-aware lattice math and optional refraction reuse the previous frame to keep tiling seamless even when motion blur is enabled.
  */
 
 precision highp float;

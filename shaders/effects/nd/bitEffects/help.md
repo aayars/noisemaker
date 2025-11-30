@@ -1,3 +1,3 @@
 # BitEffects
 
-Bitwise field and mask synthesizer with motion blur capable feedback.
+Bitwise field and mask synthesizer.

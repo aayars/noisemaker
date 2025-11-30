@@ -1,7 +1,5 @@
 /*
  * WGSL port of the animated noise synthesizer.
- * Uses the same PCG-backed lattice noise and palette cycling as the GLSL version so feedback loops remain frame-perfect.
- * Wrap-aware indexing prevents seams when the refract option samples the previous frame for motion blurred distortion.
  */
 
 struct Uniforms {
