@@ -1,0 +1,75 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * nu/polar - Polar and vortex coordinate transforms
+ */
+export default class Polar extends Effect {
+  name = "Polar";
+  namespace = "nu";
+  func = "polar";
+
+  globals = {
+    mode: {
+      type: "int",
+      default: 0,
+      uniform: "polarMode",
+      choices: {
+        Polar: 0,
+        Vortex: 1
+      },
+      ui: {
+        label: "Mode",
+        control: "dropdown"
+      }
+    },
+    speed: {
+      type: "float",
+      default: 0,
+      uniform: "polarSpeed",
+      min: -2,
+      max: 2,
+      step: 0.1,
+      ui: {
+        label: "Speed",
+        control: "slider"
+      }
+    },
+    rotation: {
+      type: "float",
+      default: 0,
+      uniform: "polarRotation",
+      min: -2,
+      max: 2,
+      step: 0.1,
+      ui: {
+        label: "Rotation",
+        control: "slider"
+      }
+    },
+    scale: {
+      type: "float",
+      default: 0,
+      uniform: "polarScale",
+      min: -2,
+      max: 2,
+      step: 0.1,
+      ui: {
+        label: "Scale",
+        control: "slider"
+      }
+    }
+  };
+
+  passes = [
+    {
+      name: "render",
+      program: "polar",
+      inputs: {
+        inputTex: "inputTex"
+      },
+      outputs: {
+        fragColor: "outputTex"
+      }
+    }
+  ];
+}

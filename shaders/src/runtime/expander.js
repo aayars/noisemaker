@@ -167,7 +167,6 @@ export function expand(compilationResult) {
                         // Handle standard and legacy pipeline inputs
                         const isPipelineInput = 
                             texRef === 'inputTex' ||
-                            texRef === 'inputColor' || 
                             texRef === 'src' ||
                             (texRef.startsWith('o') && !isNaN(parseInt(texRef.slice(1))));
 

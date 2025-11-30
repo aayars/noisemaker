@@ -404,6 +404,7 @@ export class Pipeline {
         this.blitFeedbackSurfaces()
         
         // Present o0 to screen
+        // XXX Assumes 'o0' is the main output surface (it won't always be)
         const o0 = this.surfaces.get('o0')
         if (o0 && this.backend.present) {
             this.backend.present(o0.write)
