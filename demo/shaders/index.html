@@ -440,6 +440,7 @@
                                 <option value="120">120</option>
                             </select>
                         </label>
+                        <span id="fps-counter" style="font-size: 0.75rem; color: var(--color5); font-variant-numeric: tabular-nums; min-width: 5ch;">-- fps</span>
                     </div>
                 </div>
             </div>
@@ -504,6 +505,11 @@
         let loopDuration = 10; // Duration in seconds for one complete loop (time goes from 0 to 1)
         let lastFrameTime = performance.now();
         let loopStartTime = performance.now();
+        
+        // FPS counter tracking
+        let fpsFrameCount = 0;
+        let fpsLastUpdateTime = performance.now();
+        const fpsCounterEl = document.getElementById('fps-counter');
         let enums = {};
         let uniformBindings = new Map();
         let currentDsl = '';
@@ -578,6 +584,16 @@
                     console.error('Render loop error:', err);
                 }
                 window.__noisemakerFrameCount++;
+            }
+
+            // Update FPS counter every 1 second
+            fpsFrameCount++;
+            const fpsElapsed = time - fpsLastUpdateTime;
+            if (fpsElapsed >= 1000) {
+                const currentFps = Math.round((fpsFrameCount * 1000) / fpsElapsed);
+                fpsCounterEl.textContent = `${currentFps} fps`;
+                fpsFrameCount = 0;
+                fpsLastUpdateTime = time;
             }
 
             lastFrameTime = time - (delta % TARGET_FRAME_TIME);
