@@ -1121,8 +1121,15 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         function applyEffectParameterValues() {
             if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
 
+            let zoomChanged = false;
+
             for (const [effectKey, params] of Object.entries(effectParameterValues)) {
                 const stepIndex = parseInt(effectKey.replace('step_', ''), 10);
+                
+                // Check if zoom parameter changed
+                if (params.zoom !== undefined) {
+                    zoomChanged = true;
+                }
                 
                 for (const pass of pipeline.graph.passes) {
                     if (!pass.uniforms) continue;
@@ -1142,6 +1149,11 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                         }
                     }
                 }
+            }
+
+            // Zoom affects texture sizes, not uniforms - need to recreate surfaces
+            if (zoomChanged && pipeline.resize) {
+                pipeline.resize(pipeline.width, pipeline.height);
             }
         }
 
@@ -1608,6 +1620,18 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             }
 
             currentEffect = effect;
+            
+            // Initialize parameterValues from effect defaults BEFORE building DSL
+            // This ensures zoom and other params are correctly set when pipeline is created
+            parameterValues = {};
+            if (effect.instance && effect.instance.globals) {
+                for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                    if (spec.default !== undefined) {
+                        parameterValues[key] = cloneParamValue(spec.default);
+                    }
+                }
+            }
+            
             showStatus(`selected ${namespace}/${name}`, 'success');
             
             // Properly dispose of the old pipeline before creating a new one

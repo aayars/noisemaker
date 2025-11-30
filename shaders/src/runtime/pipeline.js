@@ -195,10 +195,11 @@ export class Pipeline {
                 surfaceHeight = this.resolveDimension(texSpec.height, this.height)
                 if (texSpec.format) surfaceFormat = texSpec.format
             } else {
-                // Apply zoom scaling for CA-specific surfaces
-                // Match both "ca_state"/"physarum" and "caState"/"physarumState" patterns
-                const lowerName = name.toLowerCase()
-                if (lowerName.includes('ca') || lowerName.includes('physarum') || lowerName.includes('reaction')) {
+                // Apply zoom scaling to non-standard global surfaces
+                // Standard outputs (o0-o7) are always screen-sized
+                // Custom effect surfaces get zoom scaling if the effect has a zoom control
+                const isStandardOutput = /^o[0-7]$/.test(name)
+                if (!isStandardOutput && effectiveZoom > 1) {
                     surfaceWidth = Math.max(1, Math.round(this.width / effectiveZoom))
                     surfaceHeight = Math.max(1, Math.round(this.height / effectiveZoom))
                 }
