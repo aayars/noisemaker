@@ -16,11 +16,30 @@
 
 const TAU: f32 = 6.283185307179586;
 
-// Fast hash function
+// Improved 4D hash using multiple rounds of mixing
+// Based on techniques from "Hash Functions for GPU Rendering" (Jarzynski & Olano, 2020)
 fn hash4(p: vec4<f32>) -> f32 {
-    var q = fract(p * vec4<f32>(443.8975, 397.2973, 491.1871, 289.6247));
-    q = q + dot(q, q.wzxy + 19.19);
-    return fract((q.x + q.y) * q.z + (q.z + q.w) * q.x);
+    // Add seed to input to vary the noise pattern
+    let ps = p + seed * 0.1;
+    
+    // Convert to unsigned integer values via large multipliers
+    var q = vec4<u32>(vec4<i32>(ps * 1000.0) + 65536);
+    
+    // Multiple rounds of mixing for thorough decorrelation
+    q = q * 1664525u + 1013904223u;  // LCG constants
+    q.x = q.x + q.y * q.w;
+    q.y = q.y + q.z * q.x;
+    q.z = q.z + q.x * q.y;
+    q.w = q.w + q.y * q.z;
+    
+    q = q ^ (q >> vec4<u32>(16u));
+    
+    q.x = q.x + q.y * q.w;
+    q.y = q.y + q.z * q.x;
+    q.z = q.z + q.x * q.y;
+    q.w = q.w + q.y * q.z;
+    
+    return f32(q.x ^ q.y ^ q.z ^ q.w) / 4294967295.0;
 }
 
 // Gradient from hash - returns normalized 4D vector
@@ -30,11 +49,13 @@ fn grad4(p: vec4<f32>) -> vec4<f32> {
     let h3 = hash4(p + 269.5);
     let h4 = hash4(p + 419.2);
     
+    // Generate independent gradient components - each component is [-1, 1]
+    // This avoids the spherical coordinate approach which creates correlations
     let g = vec4<f32>(
-        cos(h1 * TAU),
-        sin(h1 * TAU) * cos(h2 * 3.14159),
-        sin(h1 * TAU) * sin(h2 * 3.14159) * cos(h3 * TAU),
-        sin(h1 * TAU) * sin(h2 * 3.14159) * sin(h3 * TAU)
+        h1 * 2.0 - 1.0,
+        h2 * 2.0 - 1.0,
+        h3 * 2.0 - 1.0,
+        h4 * 2.0 - 1.0
     );
     
     return normalize(g);
@@ -114,7 +135,7 @@ fn fbm(st: vec2<f32>, timeAngle: f32, channelOffset: f32, ridgedMode: i32) -> f3
     
     for (var i: i32 = 0; i < MAX_OCT; i = i + 1) {
         if (i >= oct) { break; }
-        let p = vec4<f32>(st * frequency + seed, tc, ts);
+        let p = vec4<f32>(st * frequency, tc, ts);
         var n = noise4D(p);  // -1..1
         // Scale up by ~1.5 to spread the gaussian-ish distribution
         // Perlin noise rarely hits +-1, so this expands the usable range

@@ -20,11 +20,30 @@ out vec4 fragColor;
 
 const float TAU = 6.283185307179586;
 
-// Fast hash function
+// Improved 4D hash using multiple rounds of mixing
+// Based on techniques from "Hash Functions for GPU Rendering" (Jarzynski & Olano, 2020)
 float hash4(vec4 p) {
-    p = fract(p * vec4(443.8975, 397.2973, 491.1871, 289.6247));
-    p += dot(p, p.wzxy + 19.19);
-    return fract((p.x + p.y) * p.z + (p.z + p.w) * p.x);
+    // Add seed to input to vary the noise pattern
+    p = p + seed * 0.1;
+    
+    // Convert to unsigned integer-like values via large multipliers
+    uvec4 q = uvec4(ivec4(p * 1000.0) + 65536);
+    
+    // Multiple rounds of mixing for thorough decorrelation
+    q = q * 1664525u + 1013904223u;  // LCG constants
+    q.x += q.y * q.w;
+    q.y += q.z * q.x;
+    q.z += q.x * q.y;
+    q.w += q.y * q.z;
+    
+    q ^= q >> 16u;
+    
+    q.x += q.y * q.w;
+    q.y += q.z * q.x;
+    q.z += q.x * q.y;
+    q.w += q.y * q.z;
+    
+    return float(q.x ^ q.y ^ q.z ^ q.w) / 4294967295.0;
 }
 
 // Gradient from hash - returns normalized 4D vector
@@ -35,12 +54,13 @@ vec4 grad4(vec4 p) {
     float h3 = hash4(p + 269.5);
     float h4 = hash4(p + 419.2);
     
-    // Map to sphere using cosine
+    // Generate independent gradient components - each component is [-1, 1]
+    // This avoids the spherical coordinate approach which creates correlations
     vec4 g = vec4(
-        cos(h1 * TAU),
-        sin(h1 * TAU) * cos(h2 * 3.14159),
-        sin(h1 * TAU) * sin(h2 * 3.14159) * cos(h3 * TAU),
-        sin(h1 * TAU) * sin(h2 * 3.14159) * sin(h3 * TAU)
+        h1 * 2.0 - 1.0,
+        h2 * 2.0 - 1.0,
+        h3 * 2.0 - 1.0,
+        h4 * 2.0 - 1.0
     );
     
     return normalize(g);
@@ -126,7 +146,7 @@ float fbm(vec2 st, float timeAngle, float channelOffset, int ridgedMode) {
     
     for (int i = 0; i < MAX_OCT; i++) {
         if (i >= oct) break;
-        vec4 p = vec4(st * frequency + seed, tc, ts);
+        vec4 p = vec4(st * frequency, tc, ts);
         float n = noise4D(p);  // -1..1
         // Scale up by ~1.5 to spread the gaussian-ish distribution
         // Perlin noise rarely hits +-1, so this expands the usable range
