@@ -437,7 +437,6 @@
                             <select id="fps-select" class="control-select">
                                 <option value="30">30</option>
                                 <option value="60" selected>60</option>
-                                <option value="120">120</option>
                             </select>
                         </label>
                         <span id="fps-counter" style="font-size: 0.75rem; color: var(--color5); font-variant-numeric: tabular-nums; min-width: 5ch;">-- fps</span>
@@ -497,13 +496,9 @@
         window.__noisemakerRegistry = { getEffect };
         window.__noisemakerFrameCount = 0;
         window.__noisemakerGetLoopDuration = () => loopDuration;
-        window.__noisemakerGetFPS = () => TARGET_FPS;
+        window.__noisemakerGetFPS = () => null;  // Uses native refresh rate
         let animationFrameId = null;
-        let animationTimerId = null;
-        let TARGET_FPS = 60;
-        let TARGET_FRAME_TIME = 1000 / TARGET_FPS;
         let loopDuration = 10; // Duration in seconds for one complete loop (time goes from 0 to 1)
-        let lastFrameTime = performance.now();
         let loopStartTime = performance.now();
         
         // FPS counter tracking
@@ -552,27 +547,9 @@
             }
         }
 
-        // Render loop
-        function scheduleNextFrame(targetTime) {
-            if (animationTimerId !== null) {
-                clearTimeout(animationTimerId);
-            }
-
-            const now = performance.now();
-            const delay = Math.max(0, targetTime - now);
-
-            animationTimerId = setTimeout(() => {
-                animationFrameId = requestAnimationFrame(renderLoop);
-            }, delay);
-        }
-
+        // Render loop - pure rAF, native refresh rate
         function renderLoop(time) {
-            const delta = time - lastFrameTime;
-
-            if (delta < TARGET_FRAME_TIME - 0.5) {
-                scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
-                return;
-            }
+            animationFrameId = requestAnimationFrame(renderLoop);
 
             if (pipeline) {
                 try {
@@ -595,12 +572,9 @@
                 fpsFrameCount = 0;
                 fpsLastUpdateTime = time;
             }
-
-            lastFrameTime = time - (delta % TARGET_FRAME_TIME);
-            scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
         }
 
-        scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
+        animationFrameId = requestAnimationFrame(renderLoop);
 
         // Show status message
         function showStatus(message, type = 'info') {

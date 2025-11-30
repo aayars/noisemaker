@@ -577,16 +577,6 @@ export class WebGL2Backend extends Backend {
             gl.bindVertexArray(null)
         }
         
-        // Check for errors - drain all errors from the queue
-        let error = gl.getError()
-        while (error !== gl.NO_ERROR) {
-            // Build detailed error context
-            const outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0] || 'unknown'
-            const inputIds = effectivePass.inputs ? Object.entries(effectivePass.inputs).map(([k,v]) => `${k}=${v}`).join(', ') : 'none'
-            console.error(`WebGL Error ${error} in pass ${effectivePass.id} (effect: ${effectivePass.effectKey || 'unknown'}, program: ${effectivePass.program}, output: ${outputId}, inputs: ${inputIds})`)
-            error = gl.getError()
-        }
-        
         // Unbind
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.useProgram(null)
@@ -770,12 +760,6 @@ export class WebGL2Backend extends Backend {
         
         gl.bindVertexArray(this.fullscreenVAO)
         gl.drawArrays(gl.TRIANGLES, 0, FULLSCREEN_TRIANGLE_VERTEX_COUNT)
-        
-        const error = gl.getError()
-        if (error !== gl.NO_ERROR) {
-            console.error(`WebGL Error in present: ${error}`)
-        }
-
         gl.bindVertexArray(null)
         
         gl.useProgram(null)
