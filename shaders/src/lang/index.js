@@ -1,6 +1,7 @@
 import {lex} from './lexer.js'
 import {parse} from './parser.js'
 import {validate} from './validator.js'
+import {unparse, applyParameterUpdates, formatValue} from './unparser.js'
 
 /**
  * Compiles source string into a validated AST (Planned Chain)
@@ -13,4 +14,4 @@ export function compile(src) {
     return validate(ast)
 }
 
-export { lex, parse, validate }
+export { lex, parse, validate, unparse, applyParameterUpdates, formatValue }

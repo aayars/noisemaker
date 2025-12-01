@@ -19,7 +19,7 @@ Animated simplex noise.
 - **Allowed values:** `mono`, `rgb`, `hsv` (can be specified as identifiers or full paths like `color.rgb`).
 - **Default:** `rgb`.
 - **Description:** Color space or gradient mode selection.
-### `hueRot`
+### `hueRotation`
 - **Type:** Number.
 - **Default:** `0`.
 - **Range:** 0–360.

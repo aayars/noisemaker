@@ -13,6 +13,9 @@
 @group(0) @binding(5) var<uniform> volumeSize: i32;
 @group(0) @binding(6) var<uniform> filtering: i32;
 @group(0) @binding(7) var volumeCache: texture_2d<f32>;
+@group(0) @binding(8) var<uniform> orbitSpeed: i32;
+@group(0) @binding(9) var<uniform> bgColor: vec3<f32>;
+@group(0) @binding(10) var<uniform> bgAlpha: f32;
 
 const TAU: f32 = 6.283185307179586;
 const PI: f32 = 3.141592653589793;
@@ -205,16 +208,16 @@ fn voxelTrace(ro: vec3<f32>, rd: vec3<f32>) -> VoxelHit {
     return result;
 }
 
-// Compute smooth normal using central differences on the volume field
+// Compute smooth normal using central differences on the SDF field
+// Uses getField() which properly incorporates threshold and invert
 fn calcNormal(p: vec3<f32>) -> vec3<f32> {
     let eps = 3.0 / f32(volumeSize);
     
-    let dx = sampleVolume(p + vec3<f32>(eps, 0.0, 0.0)).r - sampleVolume(p - vec3<f32>(eps, 0.0, 0.0)).r;
-    let dy = sampleVolume(p + vec3<f32>(0.0, eps, 0.0)).r - sampleVolume(p - vec3<f32>(0.0, eps, 0.0)).r;
-    let dz = sampleVolume(p + vec3<f32>(0.0, 0.0, eps)).r - sampleVolume(p - vec3<f32>(0.0, 0.0, eps)).r;
+    let dx = getField(p + vec3<f32>(eps, 0.0, 0.0)) - getField(p - vec3<f32>(eps, 0.0, 0.0));
+    let dy = getField(p + vec3<f32>(0.0, eps, 0.0)) - getField(p - vec3<f32>(0.0, eps, 0.0));
+    let dz = getField(p + vec3<f32>(0.0, 0.0, eps)) - getField(p - vec3<f32>(0.0, 0.0, eps));
     
     var n = vec3<f32>(dx, dy, dz);
-    if (invert == 1) { n = -n; }
     
     let len = length(n);
     if (len < 0.0001) { return vec3<f32>(0.0, 1.0, 0.0); }
@@ -366,7 +369,7 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     let uvFlipped = vec2<f32>(uv.x, -uv.y);
     
     // Camera orbit
-    let camAngle = time * TAU;
+    let camAngle = time * TAU * f32(orbitSpeed);
     let camDist: f32 = 4.0;
     let ro = vec3<f32>(sin(camAngle) * camDist, 0.5, cos(camAngle) * camDist);
     let lookAt = vec3<f32>(0.0);
@@ -380,6 +383,7 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     var col: vec3<f32>;
     var normal = vec3<f32>(0.0, 0.0, 1.0);  // Default normal
     var depth: f32 = 1.0;  // Default depth (far)
+    var alpha: f32 = 1.0;
     
     if (filtering == 1) {
         // Voxel mode - use DDA
@@ -390,7 +394,8 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
             normal = hit.normal;
             depth = hit.dist / MAX_DIST;
         } else {
-            col = mix(vec3<f32>(0.02), vec3<f32>(0.08), uvFlipped.y + 0.5);
+            col = bgColor;
+            alpha = bgAlpha;
         }
     } else {
         // Smooth mode - use isosurface raymarching
@@ -400,7 +405,8 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
             normal = calcNormal(hit.pos);
             depth = hit.dist / MAX_DIST;
         } else {
-            col = mix(vec3<f32>(0.02), vec3<f32>(0.08), uvFlipped.y + 0.5);
+            col = bgColor;
+            alpha = bgAlpha;
         }
     }
     
@@ -408,7 +414,7 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     col = pow(col, vec3<f32>(1.0 / 2.2));
     
     var output: FragmentOutput;
-    output.color = vec4<f32>(col, 1.0);
+    output.color = vec4<f32>(col, alpha);
     // Geometry buffer: RGB = normal (remapped to 0-1), A = depth
     output.geoOut = vec4<f32>(normal * 0.5 + 0.5, depth);
     return output;

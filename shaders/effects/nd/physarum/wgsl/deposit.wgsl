@@ -18,7 +18,6 @@ struct Uniforms {
     aspect: f32,
     depositAmount: f32,
     weight: f32,
-    source: i32,
 }
 
 struct VertexOutput {
@@ -62,9 +61,6 @@ fn sampleInputAt(x: i32, y: i32, width: i32, height: i32) -> vec3f {
 }
 
 fn sampleInputLuminance(uv: vec2f, width: i32, height: i32) -> f32 {
-    if (u.source <= 0) {
-        return 0.0;
-    }
     let x = i32(uv.x * f32(width));
     let y = i32(uv.y * f32(height));
     return luminance(sampleInputAt(x, y, width, height));
@@ -77,7 +73,7 @@ fn fragmentMain(in: VertexOutput) -> @location(0) vec4f {
     
     let blend = clamp(u.weight * 0.01, 0.0, 1.0);
     var deposit = u.depositAmount;
-    if (u.source > 0 && blend > 0.0) {
+    if (blend > 0.0) {
         let inputValue = sampleInputLuminance(in.vUV, width, height);
         let gain = mix(1.0, mix(0.25, 2.0, inputValue), blend);
         deposit *= gain;

@@ -7,18 +7,13 @@ uniform vec2 resolution;
 uniform sampler2D bufTex;
 uniform float time;
 uniform float inputIntensity;
-uniform int source;
 uniform sampler2D inputTex;
 
 out vec4 fragColor;
 
 vec3 sampleInputColor(vec2 uv) {
     vec2 flippedUV = vec2(uv.x, 1.0 - uv.y);
-    vec3 sampleColor = vec3(0.0);
-    if (source == 3) {
-        sampleColor = texture(inputTex, flippedUV).rgb;
-    }
-    return sampleColor;
+    return texture(inputTex, flippedUV).rgb;
 }
 
 void main() {
@@ -28,7 +23,7 @@ void main() {
     vec3 color = vec3(tone);
     
     // Blend input texture at output stage (like worms), not in feedback loop
-    if (source > 0) {
+    if (inputIntensity > 0.0) {
         float intensity = clamp(inputIntensity * 0.01, 0.0, 1.0);
         vec3 inputColor = sampleInputColor(uv);
         color = clamp(inputColor * intensity + color, 0.0, 1.0);

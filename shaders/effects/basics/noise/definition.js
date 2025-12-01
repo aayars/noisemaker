@@ -26,12 +26,11 @@ export default class Noise extends Effect {
         "enum": "color",
         "uniform": "colorMode"
     },
-    "hueRot": {
+    "hueRotation": {
         "type": "float",
         "default": 0,
         "min": 0,
-        "max": 360,
-        "uniform": "hueRotation"
+        "max": 360
     },
     "hueRange": {
         "type": "float",

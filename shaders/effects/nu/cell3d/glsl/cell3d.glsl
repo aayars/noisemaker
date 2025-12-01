@@ -18,6 +18,9 @@ uniform int invert;
 uniform int colorMode;
 uniform int volumeSize;
 uniform int filtering;
+uniform int orbitSpeed;
+uniform vec3 bgColor;
+uniform float bgAlpha;
 uniform sampler2D volumeCache;
 
 // MRT outputs: color and geometry buffer
@@ -225,21 +228,18 @@ VoxelHit voxelTrace(vec3 ro, vec3 rd) {
     return result;
 }
 
-// Compute smooth normal using central differences on the volume field
-// This gives genuinely smooth normals based on the actual volume gradient
+// Compute smooth normal using central differences on the SDF field
+// Uses getField() which properly incorporates threshold and invert
 vec3 calcNormal(vec3 p) {
     // Use smaller epsilon for finer detail
     float eps = 2.0 / float(volumeSize);
     
-    // Central differences on the raw field (not on threshold-derived SDF)
-    float dx = sampleVolume(p + vec3(eps, 0.0, 0.0)).r - sampleVolume(p - vec3(eps, 0.0, 0.0)).r;
-    float dy = sampleVolume(p + vec3(0.0, eps, 0.0)).r - sampleVolume(p - vec3(0.0, eps, 0.0)).r;
-    float dz = sampleVolume(p + vec3(0.0, 0.0, eps)).r - sampleVolume(p - vec3(0.0, 0.0, eps)).r;
+    // Central differences on the actual SDF field (includes threshold and invert)
+    float dx = getField(p + vec3(eps, 0.0, 0.0)) - getField(p - vec3(eps, 0.0, 0.0));
+    float dy = getField(p + vec3(0.0, eps, 0.0)) - getField(p - vec3(0.0, eps, 0.0));
+    float dz = getField(p + vec3(0.0, 0.0, eps)) - getField(p - vec3(0.0, 0.0, eps));
     
     vec3 n = vec3(dx, dy, dz);
-    
-    // Invert normal direction if inverted mode
-    if (invert == 1) n = -n;
     
     // Handle degenerate case
     float len = length(n);
@@ -379,7 +379,7 @@ void main() {
     
     // Camera setup - orbiting view
     float camDist = 3.5;
-    float angle = time * TAU;
+    float angle = time * TAU * float(orbitSpeed);
     vec3 ro = vec3(sin(angle) * camDist, 0.5, cos(angle) * camDist);
     vec3 lookAt = vec3(0.0);
     
@@ -393,6 +393,8 @@ void main() {
     vec3 normal = vec3(0.0, 0.0, 1.0);  // Default normal (facing camera)
     float depth = 1.0;  // Default depth (far)
     
+    float alpha = 1.0;
+    
     if (filtering == 1) {
         // Voxel mode - use DDA traversal
         VoxelHit hit = voxelTrace(ro, rd);
@@ -402,7 +404,8 @@ void main() {
             normal = hit.normal;
             depth = hit.dist / MAX_DIST;
         } else {
-            color = mix(vec3(0.02), vec3(0.1), uv.y + 0.5);
+            color = bgColor;
+            alpha = bgAlpha;
         }
     } else {
         // Smooth mode - analytic isosurface raymarching
@@ -412,14 +415,15 @@ void main() {
             normal = calcNormal(hit.pos);
             depth = hit.dist / MAX_DIST;
         } else {
-            color = mix(vec3(0.02), vec3(0.1), uv.y + 0.5);
+            color = bgColor;
+            alpha = bgAlpha;
         }
     }
     
     // Gamma correction
     color = pow(color, vec3(1.0 / 2.2));
     
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(color, alpha);
     // Geometry buffer: RGB = normal (remapped to 0-1), A = depth
     geoOut = vec4(normal * 0.5 + 0.5, depth);
 }

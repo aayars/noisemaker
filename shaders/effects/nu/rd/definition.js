@@ -200,7 +200,9 @@ export default class Rd extends Effect {
         x2: 2,
         x4: 4,
         x8: 8,
-        x16: 16
+        x16: 16,
+        x32: 32,
+        x64: 64
       },
       ui: {
         label: "zoom",

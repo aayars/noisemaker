@@ -1,6 +1,7 @@
 #version 300 es
 precision highp float;
 
+uniform float time;
 uniform float scale;
 uniform float seed;
 uniform int octaves;
@@ -13,30 +14,37 @@ out vec4 fragColor;
 // Atlas layout: volumeSize x (volumeSize * volumeSize)
 // Pixel (x, y) maps to 3D coordinate (x, y % volumeSize, y / volumeSize)
 
-// Improved hash using multiple rounds of mixing
-float hash3(vec3 p) {
-    vec3 ps = p + seed * 0.1;
-    uvec3 q = uvec3(ivec3(ps * 1000.0) + 65536);
+const float TAU = 6.283185307179586;
+const float W_PERIOD = 4.0;  // Period length in w-axis lattice units for seamless time loop
+
+// Improved hash using multiple rounds of mixing (4D version)
+float hash4(vec4 p) {
+    vec4 ps = p + seed * 0.1;
+    uvec4 q = uvec4(ivec4(ps * 1000.0) + 65536);
     q = q * 1664525u + 1013904223u;
     q.x += q.y * q.z;
-    q.y += q.z * q.x;
-    q.z += q.x * q.y;
+    q.y += q.z * q.w;
+    q.z += q.w * q.x;
+    q.w += q.x * q.y;
     q ^= q >> 16u;
     q.x += q.y * q.z;
-    q.y += q.z * q.x;
-    q.z += q.x * q.y;
-    return float(q.x ^ q.y ^ q.z) / 4294967295.0;
+    q.y += q.z * q.w;
+    q.z += q.w * q.x;
+    q.w += q.x * q.y;
+    return float(q.x ^ q.y ^ q.z ^ q.w) / 4294967295.0;
 }
 
-// Gradient from hash - returns normalized 3D vector
-vec3 grad3(vec3 p) {
-    float h1 = hash3(p);
-    float h2 = hash3(p + 127.1);
-    float h3 = hash3(p + 269.5);
-    vec3 g = vec3(
+// Gradient from hash - returns normalized 4D vector
+vec4 grad4(vec4 p) {
+    float h1 = hash4(p);
+    float h2 = hash4(p + 127.1);
+    float h3 = hash4(p + 269.5);
+    float h4 = hash4(p + 419.2);
+    vec4 g = vec4(
         h1 * 2.0 - 1.0,
         h2 * 2.0 - 1.0,
-        h3 * 2.0 - 1.0
+        h3 * 2.0 - 1.0,
+        h4 * 2.0 - 1.0
     );
     return normalize(g);
 }
@@ -46,35 +54,70 @@ float quintic(float t) {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
-// 3D gradient noise - Perlin-style with quintic interpolation
-float noise3D(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    
-    vec3 u = vec3(quintic(f.x), quintic(f.y), quintic(f.z));
-    
-    float n000 = dot(grad3(i + vec3(0,0,0)), f - vec3(0,0,0));
-    float n100 = dot(grad3(i + vec3(1,0,0)), f - vec3(1,0,0));
-    float n010 = dot(grad3(i + vec3(0,1,0)), f - vec3(0,1,0));
-    float n110 = dot(grad3(i + vec3(1,1,0)), f - vec3(1,1,0));
-    float n001 = dot(grad3(i + vec3(0,0,1)), f - vec3(0,0,1));
-    float n101 = dot(grad3(i + vec3(1,0,1)), f - vec3(1,0,1));
-    float n011 = dot(grad3(i + vec3(0,1,1)), f - vec3(0,1,1));
-    float n111 = dot(grad3(i + vec3(1,1,1)), f - vec3(1,1,1));
-    
-    float nx00 = mix(n000, n100, u.x);
-    float nx10 = mix(n010, n110, u.x);
-    float nx01 = mix(n001, n101, u.x);
-    float nx11 = mix(n011, n111, u.x);
-    
-    float nxy0 = mix(nx00, nx10, u.y);
-    float nxy1 = mix(nx01, nx11, u.y);
-    
-    return mix(nxy0, nxy1, u.z);
+// Wrap w index for periodicity at lattice level
+float wrapW(float w) {
+    return mod(w, W_PERIOD);
 }
 
-// FBM using 3D noise
-float fbm3D(vec3 p, int ridgedMode) {
+// 4D gradient noise - Perlin-style with quintic interpolation
+// w-axis is periodic with period W_PERIOD for seamless time looping
+float noise4D(vec4 p) {
+    vec4 i = floor(p);
+    vec4 f = fract(p);
+    
+    vec4 u = vec4(quintic(f.x), quintic(f.y), quintic(f.z), quintic(f.w));
+    
+    // Wrap w indices for periodicity
+    float iw0 = wrapW(i.w);
+    float iw1 = wrapW(i.w + 1.0);
+    
+    // 16 corners of 4D hypercube with wrapped w
+    // w=0 corners
+    float n0000 = dot(grad4(vec4(i.xyz, iw0) + vec4(0,0,0,0)), f - vec4(0,0,0,0));
+    float n1000 = dot(grad4(vec4(i.xyz, iw0) + vec4(1,0,0,0)), f - vec4(1,0,0,0));
+    float n0100 = dot(grad4(vec4(i.xyz, iw0) + vec4(0,1,0,0)), f - vec4(0,1,0,0));
+    float n1100 = dot(grad4(vec4(i.xyz, iw0) + vec4(1,1,0,0)), f - vec4(1,1,0,0));
+    float n0010 = dot(grad4(vec4(i.xyz, iw0) + vec4(0,0,1,0)), f - vec4(0,0,1,0));
+    float n1010 = dot(grad4(vec4(i.xyz, iw0) + vec4(1,0,1,0)), f - vec4(1,0,1,0));
+    float n0110 = dot(grad4(vec4(i.xyz, iw0) + vec4(0,1,1,0)), f - vec4(0,1,1,0));
+    float n1110 = dot(grad4(vec4(i.xyz, iw0) + vec4(1,1,1,0)), f - vec4(1,1,1,0));
+    // w=1 corners
+    float n0001 = dot(grad4(vec4(i.xyz, iw1) + vec4(0,0,0,0)), f - vec4(0,0,0,1));
+    float n1001 = dot(grad4(vec4(i.xyz, iw1) + vec4(1,0,0,0)), f - vec4(1,0,0,1));
+    float n0101 = dot(grad4(vec4(i.xyz, iw1) + vec4(0,1,0,0)), f - vec4(0,1,0,1));
+    float n1101 = dot(grad4(vec4(i.xyz, iw1) + vec4(1,1,0,0)), f - vec4(1,1,0,1));
+    float n0011 = dot(grad4(vec4(i.xyz, iw1) + vec4(0,0,1,0)), f - vec4(0,0,1,1));
+    float n1011 = dot(grad4(vec4(i.xyz, iw1) + vec4(1,0,1,0)), f - vec4(1,0,1,1));
+    float n0111 = dot(grad4(vec4(i.xyz, iw1) + vec4(0,1,1,0)), f - vec4(0,1,1,1));
+    float n1111 = dot(grad4(vec4(i.xyz, iw1) + vec4(1,1,1,0)), f - vec4(1,1,1,1));
+    
+    // Quadrilinear interpolation
+    // First along x
+    float nx000 = mix(n0000, n1000, u.x);
+    float nx100 = mix(n0100, n1100, u.x);
+    float nx010 = mix(n0010, n1010, u.x);
+    float nx110 = mix(n0110, n1110, u.x);
+    float nx001 = mix(n0001, n1001, u.x);
+    float nx101 = mix(n0101, n1101, u.x);
+    float nx011 = mix(n0011, n1011, u.x);
+    float nx111 = mix(n0111, n1111, u.x);
+    
+    // Then along y
+    float nxy00 = mix(nx000, nx100, u.y);
+    float nxy10 = mix(nx010, nx110, u.y);
+    float nxy01 = mix(nx001, nx101, u.y);
+    float nxy11 = mix(nx011, nx111, u.y);
+    
+    // Then along z
+    float nxyz0 = mix(nxy00, nxy10, u.z);
+    float nxyz1 = mix(nxy01, nxy11, u.z);
+    
+    // Finally along w
+    return mix(nxyz0, nxyz1, u.w);
+}
+
+// FBM using 4D noise with periodic w for time
+float fbm4D(vec4 p, int ridgedMode) {
     const int MAX_OCT = 8;
     float amplitude = 0.5;
     float frequency = 1.0;
@@ -85,8 +128,8 @@ float fbm3D(vec3 p, int ridgedMode) {
     
     for (int i = 0; i < MAX_OCT; i++) {
         if (i >= oct) break;
-        vec3 pos = p * frequency;
-        float n = noise3D(pos);
+        vec4 pos = vec4(p.xyz * frequency, p.w);
+        float n = noise4D(pos);
         n = clamp(n * 1.5, -1.0, 1.0);
         if (ridgedMode == 1) {
             n = 1.0 - abs(n);
@@ -128,15 +171,18 @@ void main() {
     // Scale for noise density (same as main shader)
     vec3 scaledP = p * scale;
     
-    // Compute FBM noise at this point
-    float noiseVal = fbm3D(scaledP, ridged);
+    // Linear time traversal with periodic w-axis
+    // time goes 0->1, map to 0->W_PERIOD for one complete loop
+    float w = time * W_PERIOD;
     
-    // Store noise value in R channel
-    // G, B, A can store additional data if needed (e.g., for RGB mode)
-    // For RGB color mode, we compute 3 different noise channels
+    // Compute 4D FBM noise at this point with time as w
+    vec4 p4d = vec4(scaledP, w);
+    float noiseVal = fbm4D(p4d, ridged);
+    
+    // For RGB color mode, compute 3 different noise channels with offsets
     float r = noiseVal;
-    float g = fbm3D(scaledP + vec3(100.0, 0.0, 0.0), ridged);
-    float b = fbm3D(scaledP + vec3(0.0, 100.0, 0.0), ridged);
+    float g = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 1.33), ridged);
+    float b = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 2.67), ridged);
     
     fragColor = vec4(r, g, b, 1.0);
 }

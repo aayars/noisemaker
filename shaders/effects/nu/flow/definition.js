@@ -107,7 +107,7 @@ export default class Flow extends Effect {
     },
     inputIntensity: {
       type: "float",
-      default: 100,
+      default: 50,
       uniform: "inputIntensity",
       min: 0,
       max: 100,

@@ -1,0 +1,32 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Darken extends Effect {
+  name = "Darken";
+  namespace = "nu";
+  func = "darken";
+
+  globals = {
+    tex: {
+      type: "surface",
+      default: "inputTex",
+      ui: { label: "source B" }
+    },
+    mixAmt: {
+      type: "float",
+      default: 0,
+      uniform: "mixAmt",
+      min: -100,
+      max: 100,
+      ui: { label: "mix", control: "slider" }
+    }
+  };
+
+  passes = [
+    {
+      name: "render",
+      program: "darken",
+      inputs: { tex0: "inputTex", tex1: "tex" },
+      outputs: { fragColor: "outputTex" }
+    }
+  ];
+}

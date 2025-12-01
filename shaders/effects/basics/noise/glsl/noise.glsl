@@ -15,10 +15,11 @@ uniform int ridged;
 out vec4 fragColor;
 
 /* 3D gradient noise with quintic interpolation
-   Animated using circular time coordinate for seamless looping
+   Animated using periodic z-axis for seamless looping
    2D output is a cross-section through 3D noise volume */
 
 const float TAU = 6.283185307179586;
+const float Z_PERIOD = 4.0;  // Period length in z-axis lattice units
 
 // 3D hash using multiple rounds of mixing
 // Based on techniques from "Hash Functions for GPU Rendering" (Jarzynski & Olano, 2020)
@@ -66,7 +67,13 @@ float quintic(float t) {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
+// Wrap z index for periodicity at lattice level
+float wrapZ(float z) {
+    return mod(z, Z_PERIOD);
+}
+
 // 3D gradient noise - Perlin-style with quintic interpolation
+// z-axis is periodic with period Z_PERIOD
 float noise3D(vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
@@ -74,15 +81,19 @@ float noise3D(vec3 p) {
     // Quintic interpolation curves
     vec3 u = vec3(quintic(f.x), quintic(f.y), quintic(f.z));
     
-    // 8 corners of 3D cube
-    float n000 = dot(grad3(i + vec3(0,0,0)), f - vec3(0,0,0));
-    float n100 = dot(grad3(i + vec3(1,0,0)), f - vec3(1,0,0));
-    float n010 = dot(grad3(i + vec3(0,1,0)), f - vec3(0,1,0));
-    float n110 = dot(grad3(i + vec3(1,1,0)), f - vec3(1,1,0));
-    float n001 = dot(grad3(i + vec3(0,0,1)), f - vec3(0,0,1));
-    float n101 = dot(grad3(i + vec3(1,0,1)), f - vec3(1,0,1));
-    float n011 = dot(grad3(i + vec3(0,1,1)), f - vec3(0,1,1));
-    float n111 = dot(grad3(i + vec3(1,1,1)), f - vec3(1,1,1));
+    // Wrap z indices for periodicity - gradients at z=0 and z=Z_PERIOD will match
+    float iz0 = wrapZ(i.z);
+    float iz1 = wrapZ(i.z + 1.0);
+    
+    // 8 corners of 3D cube with wrapped z
+    float n000 = dot(grad3(vec3(i.xy, iz0) + vec3(0,0,0)), f - vec3(0,0,0));
+    float n100 = dot(grad3(vec3(i.xy, iz0) + vec3(1,0,0)), f - vec3(1,0,0));
+    float n010 = dot(grad3(vec3(i.xy, iz0) + vec3(0,1,0)), f - vec3(0,1,0));
+    float n110 = dot(grad3(vec3(i.xy, iz0) + vec3(1,1,0)), f - vec3(1,1,0));
+    float n001 = dot(grad3(vec3(i.xy, iz1) + vec3(0,0,0)), f - vec3(0,0,1));
+    float n101 = dot(grad3(vec3(i.xy, iz1) + vec3(1,0,0)), f - vec3(1,0,1));
+    float n011 = dot(grad3(vec3(i.xy, iz1) + vec3(0,1,0)), f - vec3(0,1,1));
+    float n111 = dot(grad3(vec3(i.xy, iz1) + vec3(1,1,0)), f - vec3(1,1,1));
     
     // Trilinear interpolation along x
     float nx00 = mix(n000, n100, u.x);
@@ -116,11 +127,9 @@ float fbm(vec2 st, float timeAngle, float channelOffset, int ridgedMode) {
     int oct = octaves;
     if (oct < 1) oct = 1;
     
-    // Circular time coordinate for seamless looping
-    // z = cos(timeAngle) traces a circle in z, giving seamless loop
-    // Radius 0.4, centered at 0.5 so circle stays within [0.1, 0.9] - no cell crossings
-    float timeRadius = 0.4;
-    float z = cos(timeAngle) * timeRadius + 0.5 + channelOffset;
+    // Linear time traversal with periodic z-axis
+    // time goes 0->1, map to 0->Z_PERIOD for one complete loop
+    float z = timeAngle / TAU * Z_PERIOD + channelOffset;
     
     for (int i = 0; i < MAX_OCT; i++) {
         if (i >= oct) break;
@@ -155,12 +164,12 @@ void main() {
     float r, g, b;
     if (colorMode == 2 && ridged != 0) {
         r = fbm(st, timeAngle, 0.0, 0);
-        g = fbm(st, timeAngle, 100.0, 0);
-        b = fbm(st, timeAngle, 200.0, ridged);
+        g = fbm(st, timeAngle, 1.33, 0);
+        b = fbm(st, timeAngle, 2.67, ridged);
     } else {
         r = fbm(st, timeAngle, 0.0, ridged);
-        g = fbm(st, timeAngle, 100.0, ridged);
-        b = fbm(st, timeAngle, 200.0, ridged);
+        g = fbm(st, timeAngle, 1.33, ridged);
+        b = fbm(st, timeAngle, 2.67, ridged);
     }
     
     vec3 col;

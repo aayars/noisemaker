@@ -97,7 +97,9 @@ export class BrowserHarness {
                 text.includes('[executePass]') || text.includes('[executeComputePass]') || text.includes('[copyBufferToTexture]') ||
                 text.includes('[createBindGroup]') || text.includes('[createUniformBuffer]') ||
                 text.includes('[compileEffect]') || text.includes('[expand]') || text.includes('[EXPANDER') ||
-                text.includes('[Pipeline') ||
+                text.includes('[Pipeline') || text.includes('[setUniform]') ||
+                text.includes('[recreateTextures]') || text.includes('[updateParameterTextures]') ||
+                text.includes('[MCP-UNIFORM]') ||
                 msg.type() === 'error' || msg.type() === 'warning') {
                 this.consoleMessages.push({ type: msg.type(), text });
             }
@@ -688,27 +690,40 @@ export class BrowserHarness {
             const globals = effect.instance.globals;
             
             // Reset all uniforms to their default values
+            // Use setUniform if available to trigger texture resizing for dimension params
             for (const [_key, spec] of Object.entries(globals)) {
                 if (!spec.uniform) continue;
                 
                 const defaultVal = spec.default ?? spec.min ?? 0;
                 
-                // Apply to pipeline.globalUniforms (source of truth)
-                if (pipeline.globalUniforms) {
-                    pipeline.globalUniforms[spec.uniform] = defaultVal;
-                }
-                
-                // Also apply to all passes
-                for (const pass of pipeline.graph?.passes || []) {
-                    if (pass.uniforms && spec.uniform in pass.uniforms) {
-                        pass.uniforms[spec.uniform] = defaultVal;
+                // Use setUniform method if available (triggers texture resizing)
+                if (pipeline.setUniform) {
+                    pipeline.setUniform(spec.uniform, defaultVal);
+                } else {
+                    // Fallback: Apply to pipeline.globalUniforms directly
+                    if (pipeline.globalUniforms) {
+                        pipeline.globalUniforms[spec.uniform] = defaultVal;
+                    }
+                    
+                    // Also apply to all passes
+                    for (const pass of pipeline.graph?.passes || []) {
+                        if (pass.uniforms && spec.uniform in pass.uniforms) {
+                            pass.uniforms[spec.uniform] = defaultVal;
+                        }
                     }
                 }
             }
             
             // Also reset built-in time to known values
             // NOTE: Do NOT reset seed here - it's an effect-specific parameter set by DSL
-            if (pipeline.globalUniforms) {
+            if (pipeline.setUniform) {
+                if ('time' in (pipeline.globalUniforms || {})) {
+                    pipeline.setUniform('time', 0);
+                }
+                if ('u_time' in (pipeline.globalUniforms || {})) {
+                    pipeline.setUniform('u_time', 0);
+                }
+            } else if (pipeline.globalUniforms) {
                 if ('time' in pipeline.globalUniforms) {
                     pipeline.globalUniforms.time = 0;
                 }

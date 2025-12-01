@@ -1,0 +1,32 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+export default class Subtract extends Effect {
+  name = "Subtract";
+  namespace = "nu";
+  func = "subtract";
+
+  globals = {
+    tex: {
+      type: "surface",
+      default: "inputTex",
+      ui: { label: "source B" }
+    },
+    mixAmt: {
+      type: "float",
+      default: 0,
+      uniform: "mixAmt",
+      min: -100,
+      max: 100,
+      ui: { label: "mix", control: "slider" }
+    }
+  };
+
+  passes = [
+    {
+      name: "render",
+      program: "subtract",
+      inputs: { tex0: "inputTex", tex1: "tex" },
+      outputs: { fragColor: "outputTex" }
+    }
+  ];
+}

@@ -22,7 +22,6 @@ struct Uniforms {
     sensorDistance: f32,
     lifetime: f32,
     weight: f32,
-    source: i32,
     resetState: i32,
     spawnPattern: i32,
 }
@@ -73,11 +72,13 @@ fn sampleInputAt(x: i32, y: i32, width: i32, height: i32) -> vec3f {
     return textureLoad(inputTex, vec2<i32>(wx, wy), 0).rgb;
 }
 
-fn sampleExternalField(x: i32, y: i32, width: i32, height: i32, sourceVal: i32) -> f32 {
-    if (sourceVal <= 0) {
+fn sampleExternalField(x: i32, y: i32, width: i32, height: i32, weightVal: f32) -> f32 {
+    if (weightVal <= 0.0) {
         return 0.0;
     }
-    return luminance(sampleInputAt(x, y, width, height));
+    // Scale input influence by weight (0-100 -> 0-1)
+    let blend = clamp(weightVal * 0.01, 0.0, 1.0);
+    return luminance(sampleInputAt(x, y, width, height)) * blend;
 }
 
 @fragment
@@ -160,11 +161,11 @@ fn main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
 
     // Sample trail map + external field using integer coordinates (textureLoad)
     let valF = sampleBufAt(i32(sensorPosF.x), i32(sensorPosF.y), width, height) + 
-               sampleExternalField(i32(sensorPosF.x), i32(sensorPosF.y), width, height, u.source);
+               sampleExternalField(i32(sensorPosF.x), i32(sensorPosF.y), width, height, u.weight);
     let valL = sampleBufAt(i32(sensorPosL.x), i32(sensorPosL.y), width, height) + 
-               sampleExternalField(i32(sensorPosL.x), i32(sensorPosL.y), width, height, u.source);
+               sampleExternalField(i32(sensorPosL.x), i32(sensorPosL.y), width, height, u.weight);
     let valR = sampleBufAt(i32(sensorPosR.x), i32(sensorPosR.y), width, height) + 
-               sampleExternalField(i32(sensorPosR.x), i32(sensorPosR.y), width, height, u.source);
+               sampleExternalField(i32(sensorPosR.x), i32(sensorPosR.y), width, height, u.weight);
 
     // Steering
     if (valF > valL && valF > valR) {
@@ -181,8 +182,9 @@ fn main(@builtin(position) fragCoord: vec4f) -> @location(0) vec4f {
     // Move
     let dir = vec2f(cos(heading), sin(heading));
     var speedScale = 1.0;
-    if (u.source > 0 && blend > 0.0) {
-        let localInput = sampleExternalField(i32(pos.x), i32(pos.y), width, height, u.source);
+    if (blend > 0.0) {
+        // Use raw input luminance for speed modulation (blend already applies weight)
+        let localInput = luminance(sampleInputAt(i32(pos.x), i32(pos.y), width, height));
         speedScale = mix(1.0, mix(1.8, 0.35, localInput), blend);
     }
     pos += dir * (u.moveSpeed * speedScale);

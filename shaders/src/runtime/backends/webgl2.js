@@ -19,6 +19,32 @@ export class WebGL2Backend extends Backend {
         this.maxTextureUnits = 16
     }
 
+    /**
+     * Parse a texture ID to extract the global surface name.
+     * Supports both "global_name" and "globalName" patterns.
+     * Returns null if not a global, otherwise returns the surface name.
+     */
+    parseGlobalName(texId) {
+        if (typeof texId !== 'string') return null
+        
+        // Pattern 1: "global_name" (underscore separator)
+        if (texId.startsWith('global_')) {
+            return texId.replace('global_', '')
+        }
+        
+        // Pattern 2: "globalName" (camelCase)
+        if (texId.startsWith('global') && texId.length > 6) {
+            const suffix = texId.slice(6)
+            // Check it's actually camelCase (next char is uppercase or digit)
+            if (/^[A-Z0-9]/.test(suffix)) {
+                // Convert to surface name: "FlowState" → "flowState"
+                return suffix.charAt(0).toLowerCase() + suffix.slice(1)
+            }
+        }
+        
+        return null
+    }
+
     async init() {
         const gl = this.gl
         
@@ -480,10 +506,10 @@ export class WebGL2Backend extends Backend {
                 let currentOutputId = effectivePass.outputs[outputKey]
                 
                 // Resolve global surface to current write buffer
-                if (currentOutputId.startsWith('global_')) {
-                    const surfaceName = currentOutputId.replace('global_', '')
-                    if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
-                        currentOutputId = state.writeSurfaces[surfaceName]
+                const globalName = this.parseGlobalName(currentOutputId)
+                if (globalName) {
+                    if (state.writeSurfaces && state.writeSurfaces[globalName]) {
+                        currentOutputId = state.writeSurfaces[globalName]
                     }
                 }
                 
@@ -518,10 +544,10 @@ export class WebGL2Backend extends Backend {
             outputId = effectivePass.outputs?.color || Object.values(effectivePass.outputs || {})[0]
             
             // Resolve global surface to current write buffer
-            if (outputId && outputId.startsWith('global_')) {
-                const surfaceName = outputId.replace('global_', '')
-                if (state.writeSurfaces && state.writeSurfaces[surfaceName]) {
-                    outputId = state.writeSurfaces[surfaceName]
+            const globalName = this.parseGlobalName(outputId)
+            if (globalName) {
+                if (state.writeSurfaces && state.writeSurfaces[globalName]) {
+                    outputId = state.writeSurfaces[globalName]
                 }
             }
             
@@ -596,9 +622,9 @@ export class WebGL2Backend extends Backend {
                 if (count === 'input' && effectivePass.inputs && effectivePass.inputs.inputTex) {
                     // Use input texture dimensions
                     const inputId = effectivePass.inputs.inputTex
-                    if (inputId.startsWith('global_')) {
-                        const surfaceName = inputId.replace('global_', '')
-                        const surfaceTex = state.surfaces?.[surfaceName]
+                    const inputGlobalName = this.parseGlobalName(inputId)
+                    if (inputGlobalName) {
+                        const surfaceTex = state.surfaces?.[inputGlobalName]
                         if (surfaceTex) {
                             refTex = surfaceTex
                         }
@@ -703,12 +729,12 @@ export class WebGL2Backend extends Backend {
             
             // Get texture from state or textures map
             let texture
-            if (texId.startsWith('global_')) {
+            const globalName = this.parseGlobalName(texId)
+            if (globalName) {
                 // Global surface
-                const surfaceName = texId.replace('global_', '')
-                texture = state.surfaces?.[surfaceName]?.handle
+                texture = state.surfaces?.[globalName]?.handle
                 if (!texture) {
-                    console.warn(`[bindTextures] Global surface '${surfaceName}' not found for input '${samplerName}' in pass ${pass.id}`)
+                    console.warn(`[bindTextures] Global surface '${globalName}' not found for input '${samplerName}' in pass ${pass.id}`)
                 }
             } else if (texId.startsWith('feedback_')) {
                 // Feedback surface - always read from 'read' buffer (previous frame)

@@ -541,7 +541,7 @@
         import { registerEffect, getEffect } from '../../shaders/src/runtime/registry.js';
         import { mergeIntoEnums } from '../../shaders/src/lang/enums.js';
         import { stdEnums } from '../../shaders/src/lang/std_enums.js';
-        import { compile } from '../../shaders/src/lang/index.js';
+        import { compile, unparse, formatValue as dslFormatValue } from '../../shaders/src/lang/index.js';
 
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app-container');
@@ -575,6 +575,8 @@
         window.__noisemakerFrameCount = 0;
         window.__noisemakerGetLoopDuration = () => loopDuration;
         window.__noisemakerGetFPS = () => TARGET_FPS;
+        // Expose effect parameter values and DSL regeneration for testing
+        window.__noisemakerGetEffectParams = () => effectParameterValues;
         let animationFrameId = null;
         let animationTimerId = null;
         let TARGET_FPS = 60;
@@ -1162,6 +1164,26 @@
             return texSpec && texSpec.type === 'surface';
         }
 
+        // Check if effect needs inputTex3d (3D consumer effects like flow3d)
+        function needsInputTex3d(effect) {
+            if (!effect || !effect.instance) return false;
+            const passes = effect.instance.passes || [];
+            for (const pass of passes) {
+                if (!pass.inputs) continue;
+                const inputs = Object.values(pass.inputs);
+                if (inputs.includes('inputTex3d')) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Check if effect is a 3D generator (has outputTex3d but doesn't need inputTex3d)
+        function is3dGenerator(effect) {
+            if (!effect || !effect.instance) return false;
+            return effect.instance.outputTex3d && !needsInputTex3d(effect);
+        }
+
         function buildDslSource(effect) {
             if (!effect || !effect.instance) {
                 return '';
@@ -1230,6 +1252,30 @@
                 const paramString = params.join(', ');
                 return `${searchDirective}noise(seed: 1, ridges: true).out(o1)
 noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
+            } else if (needsInputTex3d(effect)) {
+                // 3D consumer effect (needs inputTex3d): chain with a 3D generator
+                // noise3d().flow3d().out(o0)
+                const params = [];
+                let consumerVolumeSize = 32;  // default
+                if (effect.instance.globals) {
+                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        const value = parameterValues[key];
+                        if (value === undefined || value === null) {
+                            continue;
+                        }
+                        if (key === 'volumeSize') {
+                            consumerVolumeSize = value;
+                        }
+                        params.push(`${key}: ${formatValue(value, spec)}`);
+                    }
+                }
+                const paramString = params.join(', ');
+                // Use noise3d as the 3D generator - match volumeSize to consumer
+                const generatorDsl = `noise3d(volumeSize: ${consumerVolumeSize})`;
+                if (paramString) {
+                    return `search nu\n${generatorDsl}.${funcName}(${paramString}).out(o0)`;
+                }
+                return `search nu\n${generatorDsl}.${funcName}().out(o0)`;
             } else {
                 // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
                 const params = [];
@@ -1344,19 +1390,20 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 for (const plan of result.plans) {
                     if (!plan.chain) continue;
                     for (const step of plan.chain) {
-                        const opName = step.op;
-                        const namespace = step.namespace?.namespace || step.namespace?.call?.resolved || null;
+                        const fullOpName = step.op;
+                        const namespace = step.namespace?.namespace || step.namespace?.resolved || null;
                         
-                        // Build the effect key for lookup
-                        let effectKey = opName;
-                        if (namespace) {
-                            effectKey = `${namespace}/${opName}`;
+                        // Extract short name from full op name (basics.noise -> noise)
+                        let shortName = fullOpName;
+                        if (fullOpName.includes('.')) {
+                            shortName = fullOpName.split('.').pop();
                         }
                         
                         effects.push({
-                            effectKey,
+                            effectKey: fullOpName,  // Use full name as effect key
                             namespace,
-                            name: opName,
+                            name: shortName,
+                            fullName: fullOpName,
                             args: step.args || {},
                             stepIndex: globalStepIndex,
                             temp: step.temp
@@ -1589,7 +1636,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                     } else if (spec.type === 'float' || spec.type === 'int') {
                         const valueDisplay = document.createElement('span');
                         valueDisplay.className = 'control-value';
-                        valueDisplay.textContent = value !== null ? value : '';
+                        const formatValue = (v, isInt) => isInt ? v : Number(v).toFixed(2);
+                        valueDisplay.textContent = value !== null ? formatValue(value, spec.type === 'int') : '';
                         header.appendChild(valueDisplay);
 
                         const slider = document.createElement('input');
@@ -1602,7 +1650,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
                         slider.addEventListener('input', (e) => {
                             const numVal = spec.type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
-                            valueDisplay.textContent = numVal;
+                            valueDisplay.textContent = formatValue(numVal, spec.type === 'int');
                             effectParameterValues[effectKey][key] = numVal;
                             applyEffectParameterValues();
                         });
@@ -1651,157 +1699,151 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
             let zoomChanged = false;
 
-            // Collect all parameter values into a flat map for easier matching
-            const allParams = {};
+            // Apply parameters only to the passes that belong to each effect step
+            // Each step has its own parameter values keyed by step index
             for (const [effectKey, params] of Object.entries(effectParameterValues)) {
-                for (const [paramName, value] of Object.entries(params)) {
-                    allParams[paramName] = value;
-                    if (paramName === 'zoom') {
-                        zoomChanged = true;
-                    }
-                }
-            }
-
-            // Update uniforms in all passes that have matching uniform names
-            for (const pass of pipeline.graph.passes) {
-                if (!pass.uniforms) continue;
+                // effectKey is "step_N" format - extract the step index
+                const match = effectKey.match(/^step_(\d+)$/);
+                if (!match) continue;
+                const stepIndex = parseInt(match[1], 10);
                 
-                // Get effect definition for type conversion
-                const passEffect = pass.effectKey || pass.effectFunc;
+                // Find passes that belong to this step
+                // Pass IDs are in format "node_N_pass_M" where N is the step index
+                const stepPasses = pipeline.graph.passes.filter(pass => {
+                    if (!pass.id) return false;
+                    const passMatch = pass.id.match(/^node_(\d+)_pass_/);
+                    return passMatch && parseInt(passMatch[1], 10) === stepIndex;
+                });
+                
+                if (stepPasses.length === 0) continue;
+                
+                // Get effect definition for type conversion from the first pass
+                const firstPass = stepPasses[0];
+                const passFunc = firstPass.effectFunc || firstPass.effectKey;
+                const passNamespace = firstPass.effectNamespace;
                 let effectDef = null;
-                if (passEffect) {
-                    effectDef = getEffect(passEffect);
+                if (passFunc) {
+                    if (passNamespace) {
+                        effectDef = getEffect(`${passNamespace}.${passFunc}`) || getEffect(`${passNamespace}/${passFunc}`);
+                    }
+                    if (!effectDef) {
+                        effectDef = getEffect(passFunc);
+                    }
                 }
                 
-                // For each parameter, check if this pass has a matching uniform
-                for (const [paramName, value] of Object.entries(allParams)) {
-                    if (value === undefined || value === null) continue;
+                // Apply this step's parameters only to this step's passes
+                for (const pass of stepPasses) {
+                    if (!pass.uniforms) continue;
                     
-                    // Get the spec for type conversion
-                    let spec = null;
-                    if (effectDef && effectDef.globals) {
-                        spec = effectDef.globals[paramName];
-                    }
-                    
-                    // Try the uniform name from spec, or fall back to param name
-                    const uniformName = spec?.uniform || paramName;
-                    
-                    // Update if this pass has this uniform
-                    if (uniformName in pass.uniforms) {
-                        const converted = convertParameterForUniform(value, spec);
-                        pass.uniforms[uniformName] = Array.isArray(converted) ? converted.slice() : converted;
+                    for (const [paramName, value] of Object.entries(params)) {
+                        if (value === undefined || value === null) continue;
+                        
+                        if (paramName === 'zoom') {
+                            zoomChanged = true;
+                        }
+                        
+                        // Get the spec for type conversion
+                        let spec = null;
+                        if (effectDef && effectDef.globals) {
+                            spec = effectDef.globals[paramName];
+                        }
+                        
+                        // Try the uniform name from spec, or fall back to param name
+                        const uniformName = spec?.uniform || paramName;
+                        
+                        // Update if this pass has this uniform
+                        if (uniformName in pass.uniforms) {
+                            const converted = convertParameterForUniform(value, spec);
+                            pass.uniforms[uniformName] = Array.isArray(converted) ? converted.slice() : converted;
+                        }
                     }
                 }
             }
 
             // Zoom affects texture sizes, not uniforms - need to recreate surfaces
             if (zoomChanged && pipeline.resize) {
-                const zoomValue = allParams.zoom || 1;
+                // Find zoom value from any step that has it
+                let zoomValue = 1;
+                for (const params of Object.values(effectParameterValues)) {
+                    if (params.zoom !== undefined) {
+                        zoomValue = params.zoom;
+                        break;
+                    }
+                }
                 pipeline.resize(pipeline.width, pipeline.height, zoomValue);
             }
             
             // volumeSize affects internal effect textures - need to recreate them
-            if ('volumeSize' in allParams && pipeline.updateParameterTextures) {
-                pipeline.updateParameterTextures({ volumeSize: allParams.volumeSize });
+            for (const params of Object.values(effectParameterValues)) {
+                if ('volumeSize' in params && pipeline.updateParameterTextures) {
+                    pipeline.updateParameterTextures({ volumeSize: params.volumeSize });
+                    break;
+                }
             }
         }
 
         /**
          * Regenerate DSL source text from the current effectParameterValues
-         * Uses the stored parsedDslStructure to maintain the original DSL shape
+         * Uses the DSL unparser to properly serialize the AST with updated parameters
          */
         function regenerateDslFromEffectParams() {
-            if (!parsedDslStructure || parsedDslStructure.length === 0) {
-                return null;
-            }
-
             const currentDslText = dslEditor.value.trim();
-            const lines = currentDslText.split('\n');
+            if (!currentDslText) return null;
             
-            // Extract search directive if present
-            let searchDirective = '';
-            let contentLines = lines;
-            if (lines[0] && lines[0].trim().startsWith('search ')) {
-                searchDirective = lines[0] + '\n';
-                contentLines = lines.slice(1);
-            }
-
-            // Rebuild each line by updating effect parameters
-            const rebuiltLines = [];
-            
-            for (const line of contentLines) {
-                const trimmedLine = line.trim();
-                if (!trimmedLine) continue;
+            try {
+                // Parse the current DSL
+                const compiled = compile(currentDslText);
+                if (!compiled || !compiled.plans) {
+                    return null;
+                }
                 
-                let rebuiltLine = trimmedLine;
-                
-                // For each effect in our parsed structure, update its parameters
-                for (const effectInfo of parsedDslStructure) {
-                    const effectKey = `step_${effectInfo.stepIndex}`;
-                    const params = effectParameterValues[effectKey];
-                    if (!params) continue;
-                    
-                    // Get effect definition for type info
-                    let effectDef = getEffect(effectInfo.effectKey);
-                    if (!effectDef && effectInfo.namespace) {
-                        effectDef = getEffect(`${effectInfo.namespace}.${effectInfo.name}`);
-                    }
-                    if (!effectDef) {
-                        effectDef = getEffect(effectInfo.name);
-                    }
-                    
-                    // Extract just the function name (e.g., "nu.noise" -> "noise")
-                    let effectName = effectInfo.name;
-                    if (effectName.includes('.')) {
-                        effectName = effectName.split('.').pop();
-                    }
-                    
-                    // Build the replacement with new parameters
-                    const paramParts = [];
-                    for (const [key, value] of Object.entries(params)) {
-                        if (value === undefined || value === null) continue;
-                        
-                        let spec = null;
-                        if (effectDef && effectDef.globals && effectDef.globals[key]) {
-                            spec = effectDef.globals[key];
-                        }
-                        
-                        paramParts.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                    const newCall = `${effectName}(${paramParts.join(', ')})`;
-                    
-                    // Match effectName followed by balanced parentheses
-                    // Use a function to handle nested parens
-                    const startPattern = new RegExp(`(^|\\.)${effectName}\\(`);
-                    const match = rebuiltLine.match(startPattern);
+                // Build parameter overrides map indexed by global step index
+                const overrides = {};
+                for (const [key, params] of Object.entries(effectParameterValues)) {
+                    // key is "step_N" format
+                    const match = key.match(/^step_(\d+)$/);
                     if (match) {
-                        const startIndex = match.index + match[0].length - 1; // position of opening paren
-                        let depth = 0;
-                        let endIndex = -1;
-                        for (let i = startIndex; i < rebuiltLine.length; i++) {
-                            if (rebuiltLine[i] === '(') depth++;
-                            else if (rebuiltLine[i] === ')') {
-                                depth--;
-                                if (depth === 0) {
-                                    endIndex = i;
-                                    break;
-                                }
-                            }
-                        }
-                        if (endIndex !== -1) {
-                            const prefix = match[0].startsWith('.') ? '.' : '';
-                            const before = rebuiltLine.substring(0, match.index + (prefix ? 1 : 0));
-                            const after = rebuiltLine.substring(endIndex + 1);
-                            rebuiltLine = before + newCall + after;
-                        }
+                        const stepIndex = parseInt(match[1], 10);
+                        overrides[stepIndex] = params;
                     }
                 }
                 
-                rebuiltLines.push(rebuiltLine);
+                // Extract search namespaces from original source
+                const searchMatch = currentDslText.match(/^search\s+(\S.*?)$/m);
+                if (searchMatch) {
+                    compiled.searchNamespaces = searchMatch[1].split(/\s*,\s*/);
+                }
+                
+                // Callback to get effect definition for proper enum formatting
+                // effectName can be full qualified name like "basics.noise" or short like "noise"
+                const getEffectDefCallback = (effectName, namespace) => {
+                    // Try the effectName as-is first (handles full qualified names like basics.noise)
+                    let def = getEffect(effectName);
+                    if (def) return def;
+                    
+                    // Try namespace-qualified lookups for short names
+                    if (namespace) {
+                        def = getEffect(`${namespace}/${effectName}`) || 
+                              getEffect(`${namespace}.${effectName}`);
+                        if (def) return def;
+                    }
+                    
+                    return null;
+                };
+                
+                // Use the unparser to regenerate DSL with updated parameters
+                // Pass formatValue as custom formatter to handle enums properly
+                return unparse(compiled, overrides, {
+                    customFormatter: formatValue,
+                    getEffectDef: getEffectDefCallback
+                });
+            } catch (err) {
+                console.warn('Failed to regenerate DSL:', err);
+                return null;
             }
-            
-            return searchDirective + rebuiltLines.join('\n');
         }
+        // Expose for testing
+        window.__noisemakerRegenerateDsl = regenerateDslFromEffectParams;
 
         /**
          * Update DSL text from effect parameter values
@@ -2263,7 +2305,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             // This handles effects like clouds which generate noise internally in early passes
             // but need inputTex in later passes for blending
             const pipelineInputs = [
-                'inputTex', 'src',
+                'inputTex', 'inputTex3d', 'src',
                 'o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'
             ];
             

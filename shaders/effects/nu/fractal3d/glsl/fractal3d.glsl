@@ -13,6 +13,9 @@ uniform float threshold;
 uniform int invert;
 uniform int volumeSize;
 uniform int filtering;
+uniform int orbitSpeed;
+uniform vec3 bgColor;
+uniform float bgAlpha;
 uniform sampler2D volumeCache;
 
 // MRT outputs: color and geometry buffer
@@ -196,16 +199,17 @@ VoxelHit voxelTrace(vec3 ro, vec3 rd) {
     return result;
 }
 
-// Compute smooth normal using central differences on the volume field
+// Compute smooth normal using central differences on the SDF field
+// Uses getField() which properly incorporates threshold and invert
 vec3 calcNormal(vec3 p) {
     float eps = 3.0 / float(volumeSize);
     
-    float dx = sampleVolume(p + vec3(eps, 0.0, 0.0)).r - sampleVolume(p - vec3(eps, 0.0, 0.0)).r;
-    float dy = sampleVolume(p + vec3(0.0, eps, 0.0)).r - sampleVolume(p - vec3(0.0, eps, 0.0)).r;
-    float dz = sampleVolume(p + vec3(0.0, 0.0, eps)).r - sampleVolume(p - vec3(0.0, 0.0, eps)).r;
+    // Central differences on the actual SDF field (includes threshold and invert)
+    float dx = getField(p + vec3(eps, 0.0, 0.0)) - getField(p - vec3(eps, 0.0, 0.0));
+    float dy = getField(p + vec3(0.0, eps, 0.0)) - getField(p - vec3(0.0, eps, 0.0));
+    float dz = getField(p + vec3(0.0, 0.0, eps)) - getField(p - vec3(0.0, 0.0, eps));
     
     vec3 n = vec3(dx, dy, dz);
-    if (invert == 1) n = -n;
     
     float len = length(n);
     if (len < 0.0001) return vec3(0.0, 1.0, 0.0);
@@ -353,7 +357,7 @@ void main() {
     
     vec2 uv = (gl_FragCoord.xy - 0.5 * res) / res.y;
     
-    float camAngle = time * TAU;
+    float camAngle = time * TAU * float(orbitSpeed);
     float camDist = 4.0;
     vec3 ro = vec3(sin(camAngle) * camDist, 0.5, cos(camAngle) * camDist);
     vec3 target = vec3(0.0);
@@ -367,6 +371,7 @@ void main() {
     vec3 col;
     vec3 normal = vec3(0.0, 0.0, 1.0);  // Default normal (facing camera)
     float depth = 1.0;  // Default depth (far)
+    float alpha = 1.0;
     
     if (filtering == 1) {
         VoxelHit hit = voxelTrace(ro, rd);
@@ -376,7 +381,8 @@ void main() {
             normal = hit.normal;
             depth = hit.dist / MAX_DIST;
         } else {
-            col = mix(vec3(0.02), vec3(0.08), uv.y + 0.5);
+            col = bgColor;
+            alpha = bgAlpha;
         }
     } else {
         IsoHit hit = isosurfaceTrace(ro, rd);
@@ -385,13 +391,14 @@ void main() {
             normal = calcNormal(hit.pos);
             depth = hit.dist / MAX_DIST;
         } else {
-            col = mix(vec3(0.02), vec3(0.08), uv.y + 0.5);
+            col = bgColor;
+            alpha = bgAlpha;
         }
     }
     
     col = pow(col, vec3(1.0 / 2.2));
     
-    fragColor = vec4(col, 1.0);
+    fragColor = vec4(col, alpha);
     // Geometry buffer: RGB = normal (remapped to 0-1), A = depth
     geoOut = vec4(normal * 0.5 + 0.5, depth);
 }

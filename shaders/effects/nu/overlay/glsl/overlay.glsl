@@ -1,0 +1,43 @@
+#version 300 es
+precision highp float;
+
+uniform sampler2D tex0;
+uniform sampler2D tex1;
+uniform vec2 resolution;
+uniform float mixAmt;
+out vec4 fragColor;
+
+float map(float value, float inMin, float inMax, float outMin, float outMax) {
+    return outMin + (outMax - outMin) * (value - inMin) / (inMax - inMin);
+}
+
+float blendOverlay(float a, float b) {
+    return a < 0.5 ? (2.0 * a * b) : (1.0 - 2.0 * (1.0 - a) * (1.0 - b));
+}
+
+void main() {
+    vec2 st = gl_FragCoord.xy / resolution;
+    st.y = 1.0 - st.y;
+
+    vec4 color1 = texture(tex0, st);
+    vec4 color2 = texture(tex1, st);
+
+    // overlay blend
+    vec4 middle = vec4(
+        blendOverlay(color1.r, color2.r),
+        blendOverlay(color1.g, color2.g),
+        blendOverlay(color1.b, color2.b),
+        mix(color1.a, color2.a, 0.5)
+    );
+
+    float amt = map(mixAmt, -100.0, 100.0, 0.0, 1.0);
+    vec4 color;
+    if (amt < 0.5) {
+        color = mix(color1, middle, amt * 2.0);
+    } else {
+        color = mix(middle, color2, (amt - 0.5) * 2.0);
+    }
+
+    color.a = max(color1.a, color2.a);
+    fragColor = color;
+}

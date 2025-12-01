@@ -304,12 +304,48 @@ export async function renderEffectFrame(page, effectId, options = {}) {
     const FRAME_WAIT_TIMEOUT = 5000;  // 5 seconds should be plenty for 10 frames
     
     // Apply uniform overrides BEFORE warmup so they take effect during rendering
+    // Use setUniform method to trigger texture resizing for dimension params
     if (options.uniforms) {
-        await page.evaluate((uniforms) => {
+        const uniformApplyResult = await page.evaluate((uniforms) => {
             const pipeline = window.__noisemakerRenderingPipeline;
-            if (pipeline && pipeline.globalUniforms) {
-                Object.assign(pipeline.globalUniforms, uniforms);
+            if (!pipeline) {
+                console.log('[MCP-UNIFORM] No pipeline found');
+                return { error: 'No pipeline found' };
             }
+            
+            const results = [];
+            
+            // Use setUniform for each uniform to trigger dimension-dependent texture resizing
+            if (pipeline.setUniform) {
+                console.log('[MCP-UNIFORM] Using setUniform method');
+                for (const [name, value] of Object.entries(uniforms)) {
+                    try {
+                        console.log(`[MCP-UNIFORM] Calling setUniform(${name}, ${value})`);
+                        pipeline.setUniform(name, value);
+                        results.push(`${name}=${value} (via setUniform)`);
+                    } catch (e) {
+                        console.log(`[MCP-UNIFORM] setUniform FAILED: ${e.message}`);
+                        results.push(`${name} FAILED: ${e.message}`);
+                    }
+                }
+            } else if (pipeline.globalUniforms) {
+                console.log('[MCP-UNIFORM] Fallback to direct assign');
+                // Fallback: direct assignment
+                Object.assign(pipeline.globalUniforms, uniforms);
+                for (const [name, value] of Object.entries(uniforms)) {
+                    results.push(`${name}=${value} (direct assign)`);
+                }
+            } else {
+                console.log('[MCP-UNIFORM] Pipeline has neither setUniform nor globalUniforms');
+                return { error: 'Pipeline has neither setUniform nor globalUniforms' };
+            }
+            
+            return { 
+                success: true, 
+                results,
+                hasSetUniform: !!pipeline.setUniform,
+                hasGlobalUniforms: !!pipeline.globalUniforms
+            };
         }, options.uniforms);
     }
     
@@ -862,16 +898,22 @@ export async function testNoPassthrough(page, effectId, options = {}) {
                 testVal = Math.round(testVal);
             }
             
-            // Apply to globalUniforms (which the backend reads from)
-            if (pipeline.globalUniforms) {
-                pipeline.globalUniforms[spec.uniform] = testVal;
-            }
-            
-            // Apply to all passes - create uniform if needed
-            for (const pass of pipeline.graph?.passes || []) {
-                if (!pass.uniforms) pass.uniforms = {};
-                pass.uniforms[spec.uniform] = testVal;
-                uniformsSet.push(`${pass.id || pass.program}:${spec.uniform}=${testVal}`);
+            // Use setUniform method if available (triggers texture resizing for dimension params)
+            if (pipeline.setUniform) {
+                pipeline.setUniform(spec.uniform, testVal);
+                uniformsSet.push(`${spec.uniform}=${testVal} (via setUniform)`);
+            } else {
+                // Fallback: Apply to globalUniforms directly
+                if (pipeline.globalUniforms) {
+                    pipeline.globalUniforms[spec.uniform] = testVal;
+                }
+                
+                // Apply to all passes - create uniform if needed
+                for (const pass of pipeline.graph?.passes || []) {
+                    if (!pass.uniforms) pass.uniforms = {};
+                    pass.uniforms[spec.uniform] = testVal;
+                    uniformsSet.push(`${pass.id || pass.program}:${spec.uniform}=${testVal}`);
+                }
             }
         }
         

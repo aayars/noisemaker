@@ -163,6 +163,9 @@ export class Pipeline {
         const surfaceNames = new Set(['o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'])
         const feedbackNames = new Set(['f0', 'f1', 'f2', 'f3'])
         
+        // Collect default uniforms for parameter-based texture sizing
+        const defaultUniforms = this.collectDefaultUniforms()
+        
         // Scan graph for other globals and feedbacks
         if (this.graph && this.graph.passes) {
             for (const pass of this.graph.passes) {
@@ -212,11 +215,16 @@ export class Pipeline {
             
             // Check if there's a texture spec for this surface in graph.textures
             // This handles effect-defined textures that need ping-pong buffering
-            const globalTexId = `global_${name}`
-            const texSpec = this.graph?.textures?.get?.(globalTexId)
+            // Support both naming conventions: "global_name" and "globalName"
+            const underscoreId = `global_${name}`
+            const camelCaseId = `global${name.charAt(0).toUpperCase()}${name.slice(1)}`
+            let texSpec = this.graph?.textures?.get?.(underscoreId)
+            if (!texSpec) {
+                texSpec = this.graph?.textures?.get?.(camelCaseId)
+            }
             if (texSpec) {
-                surfaceWidth = this.resolveDimension(texSpec.width, this.width)
-                surfaceHeight = this.resolveDimension(texSpec.height, this.height)
+                surfaceWidth = this.resolveDimension(texSpec.width, this.width, defaultUniforms)
+                surfaceHeight = this.resolveDimension(texSpec.height, this.height, defaultUniforms)
                 if (texSpec.format) surfaceFormat = texSpec.format
             } else {
                 // Apply zoom scaling to non-standard global surfaces
@@ -304,6 +312,15 @@ export class Pipeline {
     }
 
     /**
+     * Check if a dimension spec is parameter-dependent
+     * @param {number|string|object} spec - Dimension specification
+     * @returns {boolean} True if the spec references a parameter
+     */
+    isParameterDependentDimension(spec) {
+        return typeof spec === 'object' && spec !== null && spec.param !== undefined
+    }
+
+    /**
      * Recreate textures with new dimensions based on current uniform values
      * @param {object} [uniforms] - Current uniform values for parameter-based sizing
      */
@@ -311,40 +328,108 @@ export class Pipeline {
         if (!this.graph || !this.graph.textures) return
         
         for (const [texId, spec] of this.graph.textures.entries()) {
-            // Skip global surfaces
-            if (texId.startsWith('global_')) continue
+            // Check if this is a global surface (double-buffered)
+            // Global surfaces use naming like "global_node_X_caState" in textures map
+            // but the surface is stored as "caState" with read/write variants
+            const isGlobalSurface = texId.startsWith('global_') || texId.startsWith('global')
+            
+            // For global surfaces, only resize if they have parameter-dependent dimensions
+            if (isGlobalSurface) {
+                const hasParamWidth = this.isParameterDependentDimension(spec.width)
+                const hasParamHeight = this.isParameterDependentDimension(spec.height)
+                if (!hasParamWidth && !hasParamHeight) {
+                    continue  // Fixed-size global, skip
+                }
+            }
             
             // Resolve dimensions with current uniforms
             const width = this.resolveDimension(spec.width, this.width, uniforms)
             const height = this.resolveDimension(spec.height, this.height, uniforms)
             
-            // Check if size changed
-            const existingTex = this.backend.textures?.get?.(texId)
-            if (existingTex && existingTex.width === width && existingTex.height === height) {
-                // For 3D textures, also check depth
-                if (!spec.is3D || existingTex.depth === this.resolveDimension(spec.depth, width, uniforms)) {
+            if (isGlobalSurface) {
+                // Handle double-buffered global surface
+                // Extract the surface name from the texture ID
+                // texId might be "global_node_0_caState" or "globalCaState"
+                let surfaceName = null
+                if (texId.startsWith('global_')) {
+                    // "global_node_0_caState" -> find the surface name after last underscore segment
+                    // Actually, we need to match against our surfaces Map
+                    const parts = texId.replace('global_', '').split('_')
+                    // Try to find matching surface - could be "caState" or "node_0_caState"
+                    for (const name of this.surfaces.keys()) {
+                        if (texId.includes(name) || texId.endsWith(name)) {
+                            surfaceName = name
+                            break
+                        }
+                    }
+                } else if (texId.startsWith('global')) {
+                    // "globalCaState" -> "caState"
+                    const suffix = texId.slice(6)
+                    surfaceName = suffix.charAt(0).toLowerCase() + suffix.slice(1)
+                }
+                
+                if (!surfaceName || !this.surfaces.has(surfaceName)) {
+                    continue  // Can't find matching surface
+                }
+                
+                const surface = this.surfaces.get(surfaceName)
+                const readTexId = surface.read
+                const writeTexId = surface.write
+                
+                // Check if size changed
+                const existingTex = this.backend.textures?.get?.(readTexId)
+                if (existingTex && existingTex.width === width && existingTex.height === height) {
                     continue  // No change needed
                 }
-            }
-            
-            // Destroy old texture
-            this.backend.destroyTexture(texId)
-            
-            // Create texture (2D or 3D based on spec)
-            if (spec.is3D) {
-                const depth = this.resolveDimension(spec.depth, width, uniforms)
-                this.backend.createTexture3D(texId, {
-                    ...spec,
+                
+                // Destroy old textures
+                this.backend.destroyTexture(readTexId)
+                this.backend.destroyTexture(writeTexId)
+                
+                // Recreate double-buffered surface with new dimensions
+                const format = spec.format || 'rgba16f'
+                this.backend.createTexture(readTexId, {
                     width,
                     height,
-                    depth
+                    format,
+                    usage: ['render', 'sample', 'copySrc', 'storage']
+                })
+                this.backend.createTexture(writeTexId, {
+                    width,
+                    height,
+                    format,
+                    usage: ['render', 'sample', 'copySrc', 'storage']
                 })
             } else {
-                this.backend.createTexture(texId, {
-                    ...spec,
-                    width,
-                    height
-                })
+                // Handle regular (non-global) texture
+                // Check if size changed
+                const existingTex = this.backend.textures?.get?.(texId)
+                if (existingTex && existingTex.width === width && existingTex.height === height) {
+                    // For 3D textures, also check depth
+                    if (!spec.is3D || existingTex.depth === this.resolveDimension(spec.depth, width, uniforms)) {
+                        continue  // No change needed
+                    }
+                }
+                
+                // Destroy old texture
+                this.backend.destroyTexture(texId)
+                
+                // Create texture (2D or 3D based on spec)
+                if (spec.is3D) {
+                    const depth = this.resolveDimension(spec.depth, width, uniforms)
+                    this.backend.createTexture3D(texId, {
+                        ...spec,
+                        width,
+                        height,
+                        depth
+                    })
+                } else {
+                    this.backend.createTexture(texId, {
+                        ...spec,
+                        width,
+                        height
+                    })
+                }
             }
         }
     }
@@ -356,6 +441,56 @@ export class Pipeline {
      */
     updateParameterTextures(uniforms = {}) {
         this.recreateTextures(uniforms)
+    }
+
+    /**
+     * Set a global uniform value
+     * Automatically triggers texture resizing if the parameter affects texture dimensions
+     * @param {string} name - Uniform name
+     * @param {any} value - Uniform value
+     */
+    setUniform(name, value) {
+        const oldValue = this.globalUniforms[name]
+        this.globalUniforms[name] = value
+        console.log(`[setUniform] ${name}: ${oldValue} -> ${value}`)
+        
+        // Also update the uniform in all passes that reference it
+        if (this.graph && this.graph.passes) {
+            for (const pass of this.graph.passes) {
+                if (pass.uniforms && name in pass.uniforms) {
+                    pass.uniforms[name] = value
+                }
+            }
+        }
+        
+        // Check if this uniform affects any texture dimensions
+        if (oldValue !== value && this.graph && this.graph.textures) {
+            let affectsTextures = false
+            for (const [texId, spec] of this.graph.textures.entries()) {
+                if (this.dimensionReferencesParam(spec.width, name) ||
+                    this.dimensionReferencesParam(spec.height, name) ||
+                    (spec.depth && this.dimensionReferencesParam(spec.depth, name))) {
+                    affectsTextures = true
+                    console.log(`[setUniform] ${name} affects texture ${texId}`)
+                    break
+                }
+            }
+            
+            if (affectsTextures) {
+                console.log(`[setUniform] triggering updateParameterTextures`)
+                this.updateParameterTextures(this.globalUniforms)
+            }
+        }
+    }
+
+    /**
+     * Check if a dimension spec references a specific parameter
+     * @param {number|string|object} spec - Dimension specification
+     * @param {string} paramName - Parameter name to check for
+     * @returns {boolean} True if the spec references the parameter
+     */
+    dimensionReferencesParam(spec, paramName) {
+        return typeof spec === 'object' && spec !== null && spec.param === paramName
     }
 
     /**
@@ -482,10 +617,12 @@ export class Pipeline {
         this.blitFeedbackSurfaces()
         
         // Present o0 to screen
-        // XXX Assumes 'o0' is the main output surface (it won't always be)
+        // The final result is in the buffer that was written to last
+        // frameReadTextures tracks what was written, so use that for present
         const o0 = this.surfaces.get('o0')
         if (o0 && this.backend.present) {
-            this.backend.present(o0.write)
+            const presentId = this.frameReadTextures?.get('o0') ?? o0.read
+            this.backend.present(presentId)
         }
         
         // Swap double buffers for global surfaces
@@ -634,7 +771,9 @@ export class Pipeline {
             if (tex) {
                 surfaceMap[name] = tex
             }
-            writeSurfaceMap[name] = surface.write
+            // Write to the buffer that's NOT being read from
+            // This ensures no feedback loop when reading and writing the same logical surface
+            writeSurfaceMap[name] = (readTextureId === surface.read) ? surface.write : surface.read
         }
         
         // Build feedback surfaces map

@@ -155,23 +155,9 @@ export default class Physarum extends Effect {
         category: "input"
       }
     },
-    source: {
-      type: "int",
-      default: 0,
-      uniform: "source",
-      choices: {
-        "none": 0,
-        "pipeline": 1
-      },
-      ui: {
-        label: "input source",
-        type: "option",
-        category: "input"
-      }
-    },
     inputIntensity: {
       type: "float",
-      default: 0,
+      default: 50,
       uniform: "inputIntensity",
       min: 0,
       max: 100,

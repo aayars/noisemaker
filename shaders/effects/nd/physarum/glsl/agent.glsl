@@ -12,7 +12,6 @@ uniform float sensorDistance;
 uniform float time;
 uniform float lifetime;
 uniform float weight;
-uniform int source;
 uniform sampler2D inputTex;
 uniform bool resetState;
 uniform int spawnPattern;
@@ -34,18 +33,16 @@ float luminance(vec3 color) {
 
 vec3 sampleInputColor(vec2 uv) {
     vec2 flippedUV = vec2(uv.x, 1.0 - uv.y);
-    vec3 sampleColor = vec3(0.0);
-  if (source == 1) {
-        sampleColor = texture(inputTex, flippedUV).rgb;
-    }
-    return sampleColor;
+    return texture(inputTex, flippedUV).rgb;
 }
 
 float sampleExternalField(vec2 uv) {
-    if (source <= 0) {
+    if (weight <= 0.0) {
         return 0.0;
     }
-    return luminance(sampleInputColor(uv));
+    // Scale input influence by weight (0-100 -> 0-1)
+    float blend = clamp(weight * 0.01, 0.0, 1.0);
+    return luminance(sampleInputColor(uv)) * blend;
 }
 
 void main() {
@@ -146,8 +143,9 @@ void main() {
     // Move
     vec2 dir = vec2(cos(heading), sin(heading));
     float speedScale = 1.0;
-    if (source > 0 && blend > 0.0) {
-        float localInput = sampleExternalField(pos / resolution);
+    if (blend > 0.0) {
+        // Use raw input luminance for speed modulation (blend already applies weight)
+        float localInput = luminance(sampleInputColor(pos / resolution));
         // Invert: slow down in bright areas, speed up in dark areas
         speedScale = mix(1.0, mix(1.8, 0.35, localInput), blend);
     }

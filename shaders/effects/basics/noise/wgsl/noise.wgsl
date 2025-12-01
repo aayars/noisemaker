@@ -12,10 +12,11 @@
 @group(0) @binding(10) var<uniform> ridged: i32;
 
 /* 3D gradient noise with quintic interpolation
-   Animated using circular time coordinate for seamless looping
+   Animated using periodic z-axis for seamless looping
    2D output is a cross-section through 3D noise volume */
 
 const TAU: f32 = 6.283185307179586;
+const Z_PERIOD: f32 = 4.0;  // Period length in z-axis lattice units
 
 // 3D hash using multiple rounds of mixing
 // Based on techniques from "Hash Functions for GPU Rendering" (Jarzynski & Olano, 2020)
@@ -62,21 +63,32 @@ fn quintic(t: f32) -> f32 {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
+// Wrap z index for periodicity at lattice level
+fn wrapZ(z: f32) -> f32 {
+    return z % Z_PERIOD;
+}
+
 // 3D gradient noise - Perlin-style with quintic interpolation
+// z-axis is periodic with period Z_PERIOD
 fn noise3D(p: vec3<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);
     
     let u = vec3<f32>(quintic(f.x), quintic(f.y), quintic(f.z));
     
-    let n000 = dot(grad3(i + vec3<f32>(0.0, 0.0, 0.0)), f - vec3<f32>(0.0, 0.0, 0.0));
-    let n100 = dot(grad3(i + vec3<f32>(1.0, 0.0, 0.0)), f - vec3<f32>(1.0, 0.0, 0.0));
-    let n010 = dot(grad3(i + vec3<f32>(0.0, 1.0, 0.0)), f - vec3<f32>(0.0, 1.0, 0.0));
-    let n110 = dot(grad3(i + vec3<f32>(1.0, 1.0, 0.0)), f - vec3<f32>(1.0, 1.0, 0.0));
-    let n001 = dot(grad3(i + vec3<f32>(0.0, 0.0, 1.0)), f - vec3<f32>(0.0, 0.0, 1.0));
-    let n101 = dot(grad3(i + vec3<f32>(1.0, 0.0, 1.0)), f - vec3<f32>(1.0, 0.0, 1.0));
-    let n011 = dot(grad3(i + vec3<f32>(0.0, 1.0, 1.0)), f - vec3<f32>(0.0, 1.0, 1.0));
-    let n111 = dot(grad3(i + vec3<f32>(1.0, 1.0, 1.0)), f - vec3<f32>(1.0, 1.0, 1.0));
+    // Wrap z indices for periodicity - gradients at z=0 and z=Z_PERIOD will match
+    let iz0 = wrapZ(i.z);
+    let iz1 = wrapZ(i.z + 1.0);
+    
+    // 8 corners of 3D cube with wrapped z
+    let n000 = dot(grad3(vec3<f32>(i.xy, iz0) + vec3<f32>(0.0, 0.0, 0.0)), f - vec3<f32>(0.0, 0.0, 0.0));
+    let n100 = dot(grad3(vec3<f32>(i.xy, iz0) + vec3<f32>(1.0, 0.0, 0.0)), f - vec3<f32>(1.0, 0.0, 0.0));
+    let n010 = dot(grad3(vec3<f32>(i.xy, iz0) + vec3<f32>(0.0, 1.0, 0.0)), f - vec3<f32>(0.0, 1.0, 0.0));
+    let n110 = dot(grad3(vec3<f32>(i.xy, iz0) + vec3<f32>(1.0, 1.0, 0.0)), f - vec3<f32>(1.0, 1.0, 0.0));
+    let n001 = dot(grad3(vec3<f32>(i.xy, iz1) + vec3<f32>(0.0, 0.0, 0.0)), f - vec3<f32>(0.0, 0.0, 1.0));
+    let n101 = dot(grad3(vec3<f32>(i.xy, iz1) + vec3<f32>(1.0, 0.0, 0.0)), f - vec3<f32>(1.0, 0.0, 1.0));
+    let n011 = dot(grad3(vec3<f32>(i.xy, iz1) + vec3<f32>(0.0, 1.0, 0.0)), f - vec3<f32>(0.0, 1.0, 1.0));
+    let n111 = dot(grad3(vec3<f32>(i.xy, iz1) + vec3<f32>(1.0, 1.0, 0.0)), f - vec3<f32>(1.0, 1.0, 1.0));
     
     let nx00 = mix(n000, n100, u.x);
     let nx10 = mix(n010, n110, u.x);
@@ -107,11 +119,9 @@ fn fbm(st: vec2<f32>, timeAngle: f32, channelOffset: f32, ridgedMode: i32) -> f3
     var oct = octaves;
     if (oct < 1) { oct = 1; }
     
-    // Circular time coordinate for seamless looping
-    // z = cos(timeAngle) traces a circle in z, giving seamless loop
-    // Radius 0.4, centered at 0.5 so circle stays within [0.1, 0.9] - no cell crossings
-    let timeRadius: f32 = 0.4;
-    let z = cos(timeAngle) * timeRadius + 0.5 + channelOffset;
+    // Linear time traversal with periodic z-axis
+    // time goes 0->1, map to 0->Z_PERIOD for one complete loop
+    let z = timeAngle / TAU * Z_PERIOD + channelOffset;
     
     for (var i: i32 = 0; i < MAX_OCT; i = i + 1) {
         if (i >= oct) { break; }
@@ -150,12 +160,12 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     var b: f32;
     if (colorMode == 2 && ridged != 0) {
         r = fbm(st, timeAngle, 0.0, 0);
-        g = fbm(st, timeAngle, 100.0, 0);
-        b = fbm(st, timeAngle, 200.0, ridged);
+        g = fbm(st, timeAngle, 1.33, 0);
+        b = fbm(st, timeAngle, 2.67, ridged);
     } else {
         r = fbm(st, timeAngle, 0.0, ridged);
-        g = fbm(st, timeAngle, 100.0, ridged);
-        b = fbm(st, timeAngle, 200.0, ridged);
+        g = fbm(st, timeAngle, 1.33, ridged);
+        b = fbm(st, timeAngle, 2.67, ridged);
     }
     
     var col: vec3<f32>;

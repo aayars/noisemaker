@@ -78,40 +78,38 @@ function extractTextureSpecs(passes, options, textureSpecs = {}) {
     const defaultWidth = options.width || 800
     const defaultHeight = options.height || 600
     
+    // First, add all effect-defined texture specs (including global_ textures)
+    // This ensures custom dimensions are available for pipeline surface creation
+    for (const [texId, effectSpec] of Object.entries(textureSpecs)) {
+        const spec = {
+            width: effectSpec.width || defaultWidth,
+            height: effectSpec.height || defaultHeight,
+            format: effectSpec.format || 'rgba16f',
+            usage: ['render', 'sample', 'copySrc']
+        }
+        // Handle 3D textures
+        if (effectSpec.is3D) {
+            spec.depth = effectSpec.depth || effectSpec.width || 64
+            spec.is3D = true
+            spec.usage = ['storage', 'sample', 'copySrc']
+        }
+        textures.set(texId, spec)
+    }
+    
+    // Then collect output textures from passes that aren't already defined
     for (const pass of passes) {
-        // Collect output textures
         if (pass.outputs) {
             for (const texId of Object.values(pass.outputs)) {
+                // Skip global_ textures (handled via surfaces) and already-defined textures
                 if (texId.startsWith('global_')) continue
+                if (textures.has(texId)) continue
                 
-                if (!textures.has(texId)) {
-                    // Use effect-defined specs if available
-                    const effectSpec = textureSpecs[texId]
-                    if (effectSpec) {
-                        const spec = {
-                            width: effectSpec.width || defaultWidth,
-                            height: effectSpec.height || defaultHeight,
-                            format: effectSpec.format || 'rgba16f',
-                            // Include copySrc to allow readback for testing/debugging
-                            usage: ['render', 'sample', 'copySrc']
-                        }
-                        // Handle 3D textures
-                        if (effectSpec.is3D) {
-                            spec.depth = effectSpec.depth || effectSpec.width || 64
-                            spec.is3D = true
-                            spec.usage = ['storage', 'sample', 'copySrc'] // 3D textures need storage for compute writes
-                        }
-                        textures.set(texId, spec)
-                    } else {
-                        textures.set(texId, {
-                            width: defaultWidth,
-                            height: defaultHeight,
-                            format: 'rgba16f',
-                            // Include copySrc to allow readback for testing/debugging
-                            usage: ['render', 'sample', 'copySrc']
-                        })
-                    }
-                }
+                textures.set(texId, {
+                    width: defaultWidth,
+                    height: defaultHeight,
+                    format: 'rgba16f',
+                    usage: ['render', 'sample', 'copySrc']
+                })
             }
         }
     }

@@ -13,6 +13,9 @@
 @group(0) @binding(5) var<uniform> volumeSize: i32;
 @group(0) @binding(6) var<uniform> filtering: i32;
 @group(0) @binding(7) var volumeCache: texture_2d<f32>;
+@group(0) @binding(8) var<uniform> orbitSpeed: i32;
+@group(0) @binding(9) var<uniform> bgColor: vec3<f32>;
+@group(0) @binding(10) var<uniform> bgAlpha: f32;
 
 const TAU: f32 = 6.283185307179586;
 const PI: f32 = 3.141592653589793;
@@ -223,17 +226,16 @@ fn voxelTrace(ro: vec3<f32>, rd: vec3<f32>) -> VoxelHit {
     return result;
 }
 
-// Compute smooth normal using central differences on the volume field
+// Compute smooth normal using central differences on the SDF field
+// Uses getField() which properly incorporates threshold and invert
 fn calcNormal(p: vec3<f32>) -> vec3<f32> {
     let eps = 2.0 / f32(volumeSize);
     
-    let dx = sampleVolume(p + vec3<f32>(eps, 0.0, 0.0)).r - sampleVolume(p - vec3<f32>(eps, 0.0, 0.0)).r;
-    let dy = sampleVolume(p + vec3<f32>(0.0, eps, 0.0)).r - sampleVolume(p - vec3<f32>(0.0, eps, 0.0)).r;
-    let dz = sampleVolume(p + vec3<f32>(0.0, 0.0, eps)).r - sampleVolume(p - vec3<f32>(0.0, 0.0, eps)).r;
+    let dx = getField(p + vec3<f32>(eps, 0.0, 0.0)) - getField(p - vec3<f32>(eps, 0.0, 0.0));
+    let dy = getField(p + vec3<f32>(0.0, eps, 0.0)) - getField(p - vec3<f32>(0.0, eps, 0.0));
+    let dz = getField(p + vec3<f32>(0.0, 0.0, eps)) - getField(p - vec3<f32>(0.0, 0.0, eps));
     
     var n = vec3<f32>(dx, dy, dz);
-    
-    if (invert == 1) { n = -n; }
     
     let len = length(n);
     if (len < 0.0001) { return vec3<f32>(0.0, 1.0, 0.0); }
@@ -358,7 +360,7 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     let uv = (position.xy - 0.5 * res) / res.y;
     let uvFlipped = vec2<f32>(uv.x, -uv.y);
     
-    let camAngle = time * TAU;
+    let camAngle = time * TAU * f32(orbitSpeed);
     let camDist: f32 = 3.5;
     let ro = vec3<f32>(sin(camAngle) * camDist, 0.5, cos(camAngle) * camDist);
     let lookAt = vec3<f32>(0.0);
@@ -372,6 +374,7 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     var color: vec3<f32>;
     var normal = vec3<f32>(0.0, 0.0, 1.0);
     var depth: f32 = 1.0;
+    var alpha: f32 = 1.0;
     
     if (filtering == 1) {
         let hit = voxelTrace(ro, rd);
@@ -381,7 +384,8 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
             normal = hit.normal;
             depth = hit.dist / MAX_DIST;
         } else {
-            color = mix(vec3<f32>(0.02), vec3<f32>(0.1), uvFlipped.y + 0.5);
+            color = bgColor;
+            alpha = bgAlpha;
         }
     } else {
         let hit = isosurfaceTrace(ro, rd);
@@ -390,14 +394,15 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
             normal = calcNormal(hit.pos);
             depth = hit.dist / MAX_DIST;
         } else {
-            color = mix(vec3<f32>(0.02), vec3<f32>(0.1), uvFlipped.y + 0.5);
+            color = bgColor;
+            alpha = bgAlpha;
         }
     }
     
     color = pow(color, vec3<f32>(1.0 / 2.2));
     
     var output: FragmentOutput;
-    output.color = vec4<f32>(color, 1.0);
+    output.color = vec4<f32>(color, alpha);
     output.geoOut = vec4<f32>(normal * 0.5 + 0.5, depth);
     return output;
 }

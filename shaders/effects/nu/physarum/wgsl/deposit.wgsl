@@ -19,7 +19,6 @@ struct Uniforms {
     aspect: f32,
     depositAmount: f32,
     weight: f32,
-    source: i32,
 }
 
 struct VertexOutput {
@@ -51,16 +50,10 @@ fn luminance(color: vec3f) -> f32 {
 
 fn sampleInputColor(uv: vec2f) -> vec3f {
     let flippedUV = vec2f(uv.x, 1.0 - uv.y);
-    if (u.source == 1) {
-        return textureSample(inputTex, inputSampler, flippedUV).rgb;
-    }
-    return vec3f(0.0);
+    return textureSample(inputTex, inputSampler, flippedUV).rgb;
 }
 
 fn sampleInputLuminance(uv: vec2f) -> f32 {
-    if (u.source <= 0) {
-        return 0.0;
-    }
     return luminance(sampleInputColor(uv));
 }
 
@@ -68,7 +61,7 @@ fn sampleInputLuminance(uv: vec2f) -> f32 {
 fn fragmentMain(in: VertexOutput) -> @location(0) vec4f {
     let blend = clamp(u.weight * 0.01, 0.0, 1.0);
     var deposit = u.depositAmount;
-    if (u.source > 0 && blend > 0.0) {
+    if (blend > 0.0) {
         let inputValue = sampleInputLuminance(in.vUV);
         let gain = mix(1.0, mix(0.25, 2.0, inputValue), blend);
         deposit *= gain;

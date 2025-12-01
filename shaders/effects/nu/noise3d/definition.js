@@ -106,6 +106,35 @@ export default class Noise3D extends Effect {
         "ui": {
             "label": "invert threshold"
         }
+    },
+    "orbitSpeed": {
+        "type": "int",
+        "default": 1,
+        "min": -5,
+        "max": 5,
+        "uniform": "orbitSpeed",
+        "ui": {
+            "label": "orbit speed"
+        }
+    },
+    "bgColor": {
+        "type": "vec3",
+        "default": [0.02, 0.02, 0.02],
+        "uniform": "bgColor",
+        "ui": {
+            "label": "background color",
+            "control": "color"
+        }
+    },
+    "bgAlpha": {
+        "type": "float",
+        "default": 1.0,
+        "min": 0,
+        "max": 1,
+        "uniform": "bgAlpha",
+        "ui": {
+            "label": "background alpha"
+        }
     }
   };
 
