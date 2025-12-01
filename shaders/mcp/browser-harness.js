@@ -296,6 +296,65 @@ export class BrowserHarness {
      * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
      */
     async benchmarkEffectFps(effectId, options = {}) {
+        // Benchmarks MUST run in headed mode for accurate GPU timing
+        // Headless browsers don't have proper vsync/rAF timing
+        if (this.options.headless) {
+            // Launch a temporary headed browser for the benchmark
+            const headedBrowser = await chromium.launch({
+                headless: false,
+                args: [
+                    '--enable-unsafe-webgpu',
+                    '--enable-features=Vulkan',
+                    '--enable-webgpu-developer-features',
+                    '--disable-gpu-sandbox',
+                    process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=vulkan',
+                ]
+            });
+            
+            try {
+                const context = await headedBrowser.newContext({
+                    viewport: { width: 1280, height: 720 },
+                    ignoreHTTPSErrors: true
+                });
+                const page = await context.newPage();
+                page.setDefaultTimeout(STATUS_TIMEOUT);
+                
+                // Capture console messages
+                const consoleMessages = [];
+                page.on('console', msg => {
+                    const text = msg.text();
+                    if (text.includes('Error') || text.includes('error') || 
+                        text.includes('[compileEffect]') || text.includes('[expand]') ||
+                        msg.type() === 'error' || msg.type() === 'warning') {
+                        consoleMessages.push({ type: msg.type(), text });
+                    }
+                });
+                
+                // Navigate to demo
+                await page.goto(`${this.baseUrl}/demo/shaders/`, { waitUntil: 'networkidle' });
+                await page.waitForFunction(() => {
+                    const app = document.getElementById('app-container');
+                    return !!app && window.getComputedStyle(app).display !== 'none';
+                }, { timeout: STATUS_TIMEOUT });
+                await page.waitForFunction(
+                    () => document.querySelectorAll('#effect-select option').length > 0,
+                    { timeout: STATUS_TIMEOUT }
+                );
+                
+                // Run the benchmark
+                const result = await benchmarkEffectFps(page, effectId, options);
+                
+                if (consoleMessages.length > 0) {
+                    result.console_errors = consoleMessages.map(m => m.text);
+                }
+                
+                return result;
+            } finally {
+                await headedBrowser.close();
+            }
+        }
+        
+        // Already in headed mode, use existing page
         if (!options.skipReload) {
             await this.reloadIfDirty();
         }

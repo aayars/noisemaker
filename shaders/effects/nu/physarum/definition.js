@@ -5,6 +5,12 @@ export default class Physarum extends Effect {
   namespace = "nu";
   func = "physarum";
 
+  // Explicit texture definitions for proper ping-pong handling
+  textures = {
+    globalPhysarumState: { width: 1000, height: 1000, format: "rgba32f" },
+    globalPhysarumTrail: { width: "100%", height: "100%", format: "rgba16f" }
+  };
+
   globals = {
     zoom: {
       type: "int",
@@ -95,19 +101,6 @@ export default class Physarum extends Effect {
         label: "decay",
         type: "float",
         step: 0.001,
-        category: "chemistry"
-      }
-    },
-    diffusion: {
-      type: "float",
-      default: 0.25,
-      uniform: "diffusion",
-      min: 0,
-      max: 1,
-      ui: {
-        label: "diffusion",
-        type: "float",
-        step: 0.01,
         category: "chemistry"
       }
     },
@@ -220,6 +213,19 @@ export default class Physarum extends Effect {
 
   passes = [
     {
+      name: "initFromPrev",
+      program: "initFromPrev",
+      inputs: {
+        prevTrailTex: "globalPhysarumTrail"
+      },
+      uniforms: {
+        intensity: "intensity"
+      },
+      outputs: {
+        fragColor: "globalPhysarumTrail"
+      }
+    },
+    {
       name: "agent",
       program: "agent",
       inputs: {
@@ -232,16 +238,6 @@ export default class Physarum extends Effect {
       },
       uniforms: {
         spawnPattern: "spawnPattern"
-      }
-    },
-    {
-      name: "diffuse",
-      program: "diffuse",
-      inputs: {
-        sourceTex: "globalPhysarumTrail"
-      },
-      outputs: {
-        fragColor: "globalPhysarumTrail"
       }
     },
     {

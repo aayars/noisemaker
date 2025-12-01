@@ -84,26 +84,6 @@ fn luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
     return oklab_l(texel.xyz);
 }
 
-fn blurred_luminance_at(x: i32, y: i32, width: i32, height: i32) -> f32 {
-    // 3x3 Gaussian blur for better performance (matches GLSL)
-    let kernel = array<array<f32, 3>, 3>(
-        array<f32, 3>(1.0, 2.0, 1.0),
-        array<f32, 3>(2.0, 4.0, 2.0),
-        array<f32, 3>(1.0, 2.0, 1.0),
-    );
-    var total: f32 = 0.0;
-    var weight_sum: f32 = 0.0;
-    for (var offset_y: i32 = -1; offset_y <= 1; offset_y = offset_y + 1) {
-        for (var offset_x: i32 = -1; offset_x <= 1; offset_x = offset_x + 1) {
-            let sample_val = luminance_at(x + offset_x, y + offset_y, width, height);
-            let weight = kernel[offset_y + 1][offset_x + 1];
-            total = total + sample_val * weight;
-            weight_sum = weight_sum + weight;
-        }
-    }
-    return total / max(weight_sum, 1e-6);
-}
-
 @fragment
 fn main(@builtin(position) position: vec4<f32>) -> Outputs {
     let stateSize = vec2<i32>(textureDimensions(stateTex1, 0));
@@ -220,10 +200,10 @@ fn main(@builtin(position) position: vec4<f32>) -> Outputs {
     let u = x - floor(x);
     let v = y - floor(y);
     
-    let c00 = blurred_luminance_at(xi, yi, width, height);
-    let c10 = blurred_luminance_at(x1i, yi, width, height);
-    let c01 = blurred_luminance_at(xi, y1i, width, height);
-    let c11 = blurred_luminance_at(x1i, y1i, width, height);
+    let c00 = luminance_at(xi, yi, width, height);
+    let c10 = luminance_at(x1i, yi, width, height);
+    let c01 = luminance_at(xi, y1i, width, height);
+    let c11 = luminance_at(x1i, y1i, width, height);
     
     var gx = mix(c01 - c00, c11 - c10, u);
     var gy = mix(c10 - c00, c11 - c01, v);

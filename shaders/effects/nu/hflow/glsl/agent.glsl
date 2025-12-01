@@ -77,30 +77,6 @@ float luminance_at(int x, int y, int width, int height) {
     return oklab_l(texel.xyz);
 }
 
-float blurred_luminance_at(int x, int y, int width, int height) {
-    // 3x3 Gaussian blur for better performance
-    const int kernelRadius = 1;
-    const int kernelSize = 3;
-    const float kernel[9] = float[9](
-        1.0, 2.0, 1.0,
-        2.0, 4.0, 2.0,
-        1.0, 2.0, 1.0
-    );
-    float total = 0.0;
-    float weight_sum = 0.0;
-    for (int offset_y = -kernelRadius; offset_y <= kernelRadius; offset_y++) {
-        for (int offset_x = -kernelRadius; offset_x <= kernelRadius; offset_x++) {
-            float luminanceSample = luminance_at(x + offset_x, y + offset_y, width, height);
-            int row = offset_y + kernelRadius;
-            int col = offset_x + kernelRadius;
-            float weight = kernel[row * kernelSize + col];
-            total += luminanceSample * weight;
-            weight_sum += weight;
-        }
-    }
-    return total / max(weight_sum, 1e-6);
-}
-
 void main() {
     ivec2 stateSize = textureSize(stateTex1, 0);
     ivec2 coord = ivec2(clamp(gl_FragCoord.xy, vec2(0.0), vec2(stateSize) - vec2(1.0)));
@@ -214,10 +190,10 @@ void main() {
     float u = x - floor(x);
     float v = y - floor(y);
     
-    float c00 = blurred_luminance_at(xi, yi, width, height);
-    float c10 = blurred_luminance_at(x1i, yi, width, height);
-    float c01 = blurred_luminance_at(xi, y1i, width, height);
-    float c11 = blurred_luminance_at(x1i, y1i, width, height);
+    float c00 = luminance_at(xi, yi, width, height);
+    float c10 = luminance_at(x1i, yi, width, height);
+    float c01 = luminance_at(xi, y1i, width, height);
+    float c11 = luminance_at(x1i, y1i, width, height);
     
     float gx = mix(c01 - c00, c11 - c10, u);
     float gy = mix(c10 - c00, c11 - c01, v);

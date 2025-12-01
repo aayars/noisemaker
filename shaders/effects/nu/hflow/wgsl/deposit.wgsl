@@ -10,6 +10,7 @@ struct VertexOutput {
 @group(0) @binding(0) var stateTex1: texture_2d<f32>;
 @group(0) @binding(1) var stateTex2: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> resolution: vec2<f32>;
+@group(0) @binding(3) var<uniform> density: f32;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
@@ -23,6 +24,16 @@ fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
     let state2 = textureLoad(stateTex2, vec2<i32>(x, y), 0);
     let pos = state1.xy;
     let color = state2.rgb;
+    
+    // Density control: only render agents up to maxAgents
+    let maxDim = max(i32(resolution.x), i32(resolution.y));
+    let maxAgents = i32(f32(maxDim) * density * 0.2);
+    if (i32(vertexIndex) >= maxAgents) {
+        var output: VertexOutput;
+        output.position = vec4<f32>(2.0, 2.0, 0.0, 1.0);
+        output.color = vec3<f32>(0.0, 0.0, 0.0);
+        return output;
+    }
     
     let clip = pos / resolution * 2.0 - 1.0;
     
