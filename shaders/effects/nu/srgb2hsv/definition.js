@@ -1,13 +1,13 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * nu/oklab - Reinterpret RGB channels as OKLab
- * Treats RGB channels as OKLab values and converts to RGB
+ * nu/srgb2hsv - Reinterpret RGB as HSV
+ * Treats RGB channels as HSV values and converts to RGB
  */
-export default class Oklab extends Effect {
-  name = "Oklab";
+export default class Hsv extends Effect {
+  name = "Hsv";
   namespace = "nu";
-  func = "oklab";
+  func = "srgb2hsv";
 
   uniformLayout = {};
 
@@ -16,7 +16,7 @@ export default class Oklab extends Effect {
   passes = [
     {
       name: "render",
-      program: "oklab",
+      program: "hsv",
       inputs: {
         inputTex: "inputTex"
       },
