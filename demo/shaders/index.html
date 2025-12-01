@@ -403,6 +403,105 @@
         font-size: 12px;
         color: #666;
     }
+
+    /* Loading dialog styles */
+    #loading-dialog {
+        border: 1px solid color-mix(in srgb, var(--accent3) 20%, transparent 80%);
+        border-radius: var(--ui-corner-radius);
+        background: color-mix(in srgb, var(--color1) 85%, transparent 15%);
+        backdrop-filter: blur(10px);
+        padding: 1rem;
+        min-width: 260px;
+        max-width: 320px;
+        color: var(--color6);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+        outline: none;
+    }
+
+    #loading-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(2px);
+    }
+
+    #loading-dialog h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        font-variation-settings: 'wght' 700;
+        color: var(--color6);
+        text-transform: lowercase;
+        letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    #loading-dialog .loading-status {
+        font-size: 0.6875rem;
+        color: var(--color5);
+        margin-bottom: 0.75rem;
+    }
+
+    #loading-dialog .loading-queue {
+        font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+        font-size: 0.625rem;
+        color: var(--color4);
+        max-height: 120px;
+        overflow-y: auto;
+        background: transparent;
+        border-radius: 0;
+        padding: 0;
+        margin-bottom: 0.75rem;
+        border-top: 1px solid color-mix(in srgb, var(--color6) 10%, transparent 90%);
+        padding-top: 0.5rem;
+    }
+
+    #loading-dialog .loading-queue:empty {
+        display: none;
+    }
+
+    #loading-dialog .loading-queue-item {
+        padding: 0.125rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        opacity: 0.8;
+    }
+
+    #loading-dialog .loading-queue-item.pending {
+        color: var(--color4);
+        opacity: 0.5;
+    }
+
+    #loading-dialog .loading-queue-item.loading {
+        color: var(--accent3);
+        opacity: 1;
+        font-weight: bold;
+    }
+
+    #loading-dialog .loading-queue-item.done {
+        color: color-mix(in srgb, var(--accent1) 80%, var(--color6) 20%);
+        opacity: 0.6;
+    }
+
+    #loading-dialog .loading-queue-item.error {
+        color: #d44;
+        opacity: 1;
+    }
+
+    #loading-dialog .loading-progress {
+        height: 2px;
+        background: color-mix(in srgb, var(--accent3) 10%, transparent 90%);
+        border-radius: 1px;
+        overflow: hidden;
+    }
+
+    #loading-dialog .loading-progress-bar {
+        height: 100%;
+        background: var(--accent3);
+        transition: width 0.2s ease;
+        width: 0%;
+    }
     </style>
 </head>
 <body>
@@ -464,6 +563,15 @@
         </div>
     </div>
 
+    <dialog id="loading-dialog">
+        <h3 id="loading-dialog-title">loading effect...</h3>
+        <div id="loading-dialog-status" class="loading-status">preparing...</div>
+        <div id="loading-dialog-queue" class="loading-queue"></div>
+        <div class="loading-progress">
+            <div id="loading-dialog-progress" class="loading-progress-bar"></div>
+        </div>
+    </dialog>
+
     <div id="status" class="status" style="display: none;"></div>
 
     <script type="module">
@@ -483,6 +591,11 @@
         const dslEditor = document.getElementById('dsl-editor');
         const dslRunBtn = document.getElementById('dsl-run-btn');
         const canvasContainer = document.getElementById('canvas-container');
+        const loadingDialog = document.getElementById('loading-dialog');
+        const loadingDialogTitle = document.getElementById('loading-dialog-title');
+        const loadingDialogStatus = document.getElementById('loading-dialog-status');
+        const loadingDialogQueue = document.getElementById('loading-dialog-queue');
+        const loadingDialogProgress = document.getElementById('loading-dialog-progress');
         let canvas = document.getElementById('canvas');
 
         let currentEffect = null;
@@ -490,6 +603,11 @@
         let parameterValues = {};
         let effectParameterValues = {}; // Map: effectKey -> {param: value}
         let pipeline = null;
+        
+        // Lazy loading infrastructure
+        let globalManifest = {}; // Loaded once at startup
+        const loadedEffects = new Map(); // effectId -> effect object (cached after loading)
+        const effectLoadingPromises = new Map(); // effectId -> Promise (for deduplication)
 
         // Expose backend and registry for testing
         window.__noisemakerCurrentBackend = () => currentBackend;
@@ -510,7 +628,6 @@
         let fpsLastUpdateTime = performance.now();
         const fpsCounterEl = document.getElementById('fps-counter');
         let enums = {};
-        let pendingEnumRegistrations = []; // Collect enum values during effect loading
         let uniformBindings = new Map();
         let currentDsl = '';
         let parsedDslStructure = []; // Stores parsed effect info for DSL regeneration
@@ -611,6 +728,309 @@
             setTimeout(() => {
                 statusEl.style.display = 'none';
             }, 3000);
+        }
+
+        // Loading dialog management
+        const loadingState = {
+            queue: [],
+            completed: 0,
+            total: 0
+        };
+
+        function showLoadingDialog(title = 'loading effect...') {
+            loadingDialogTitle.textContent = title;
+            loadingDialogStatus.textContent = 'preparing...';
+            loadingDialogQueue.innerHTML = '';
+            loadingDialogProgress.style.width = '0%';
+            loadingState.queue = [];
+            loadingState.completed = 0;
+            loadingState.total = 0;
+            loadingDialog.showModal();
+        }
+
+        function hideLoadingDialog() {
+            loadingDialog.close();
+        }
+
+        function updateLoadingStatus(status) {
+            loadingDialogStatus.textContent = status;
+        }
+
+        function addToLoadingQueue(id, label) {
+            loadingState.queue.push({ id, label, status: 'pending' });
+            loadingState.total++;
+            renderLoadingQueue();
+        }
+
+        function updateLoadingQueueItem(id, status) {
+            const item = loadingState.queue.find(i => i.id === id);
+            if (item) {
+                item.status = status;
+                if (status === 'done' || status === 'error') {
+                    loadingState.completed++;
+                }
+                renderLoadingQueue();
+                updateLoadingProgress();
+            }
+        }
+
+        function renderLoadingQueue() {
+            loadingDialogQueue.innerHTML = loadingState.queue.map(item => {
+                const icon = item.status === 'done' ? '✓' : 
+                             item.status === 'error' ? '✗' :
+                             item.status === 'loading' ? '⋯' : '○';
+                return `<div class="loading-queue-item ${item.status}"><span>${icon}</span><span>${item.label}</span></div>`;
+            }).join('');
+        }
+
+        function updateLoadingProgress() {
+            const progress = loadingState.total > 0 ? (loadingState.completed / loadingState.total) * 100 : 0;
+            loadingDialogProgress.style.width = `${progress}%`;
+        }
+
+        // Lazy loading functions
+        async function loadEffectDefinition(namespace, effectName) {
+            const effectId = `${namespace}/${effectName}`;
+            const basePath = `../../shaders/effects/${namespace}/${effectName}`;
+            
+            try {
+                const module = await import(`${basePath}/definition.js`);
+                const EffectClass = module.default;
+                
+                if (!EffectClass) {
+                    throw new Error(`No default export in ${effectId}/definition.js`);
+                }
+                
+                const instance = new EffectClass();
+                return { namespace, name: effectName, instance };
+            } catch (err) {
+                console.error(`Failed to load definition for ${effectId}:`, err);
+                throw err;
+            }
+        }
+
+        async function loadEffectShaders(effect, manifest) {
+            const { namespace, name: effectName, instance } = effect;
+            const effectId = `${namespace}/${effectName}`;
+            const basePath = `../../shaders/effects/${namespace}/${effectName}`;
+            const effectManifest = manifest[effectId];
+            
+            if (!instance.passes || !effectManifest) return;
+            
+            if (!instance.shaders) instance.shaders = {};
+            
+            const shaderPromises = [];
+            
+            for (const pass of instance.passes) {
+                if (!pass.program) continue;
+                
+                const prog = pass.program;
+                const shaderBucket = instance.shaders[prog] ?? (instance.shaders[prog] = {});
+                
+                // GLSL loading
+                const glslInfo = effectManifest.glsl?.[prog];
+                if (glslInfo === 'combined') {
+                    shaderPromises.push(
+                        fetch(`${basePath}/glsl/${prog}.glsl`)
+                            .then(res => res.ok ? res.text() : null)
+                            .then(text => { if (text) shaderBucket.glsl = text; })
+                    );
+                } else if (glslInfo) {
+                    if (glslInfo.v) {
+                        shaderPromises.push(
+                            fetch(`${basePath}/glsl/${prog}.vert`)
+                                .then(res => res.ok ? res.text() : null)
+                                .then(text => { if (text) shaderBucket.vertex = text; })
+                        );
+                    }
+                    if (glslInfo.f) {
+                        shaderPromises.push(
+                            fetch(`${basePath}/glsl/${prog}.frag`)
+                                .then(res => res.ok ? res.text() : null)
+                                .then(text => { if (text) shaderBucket.fragment = text; })
+                        );
+                    }
+                }
+                
+                // WGSL loading
+                if (effectManifest.wgsl?.[prog]) {
+                    shaderPromises.push(
+                        fetch(`${basePath}/wgsl/${prog}.wgsl`)
+                            .then(res => res.ok ? res.text() : null)
+                            .then(text => { if (text) shaderBucket.wgsl = text; })
+                    );
+                }
+            }
+            
+            await Promise.all(shaderPromises);
+        }
+
+        function registerEffectWithRuntime(effect) {
+            const { namespace, name: effectName, instance } = effect;
+            const effectId = `${namespace}/${effectName}`;
+            
+            // Register effect with multiple names for lookup flexibility
+            registerEffect(instance.func, instance);
+            registerEffect(`${namespace}.${instance.func}`, instance);
+            registerEffect(`${namespace}/${effectName}`, instance);
+            registerEffect(`${namespace}.${effectName}`, instance);
+
+            // Register as operator
+            if (instance.func) {
+                const choicesToRegister = {};
+                
+                const args = Object.entries(instance.globals || {}).map(([key, spec]) => {
+                    let enumPath = spec.enum || spec.enumPath;
+                    if (spec.choices && !enumPath) {
+                        enumPath = `${namespace}.${instance.func}.${key}`;
+                        
+                        if (!choicesToRegister[namespace]) {
+                            choicesToRegister[namespace] = {};
+                        }
+                        if (!choicesToRegister[namespace][instance.func]) {
+                            choicesToRegister[namespace][instance.func] = {};
+                        }
+                        choicesToRegister[namespace][instance.func][key] = {};
+                        
+                        for (const [name, val] of Object.entries(spec.choices)) {
+                            if (name.endsWith(':')) continue;
+                            const sanitized = sanitizeEnumName(name);
+                            choicesToRegister[namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
+                        }
+                    }
+                    return {
+                        name: key,
+                        type: spec.type === 'vec4' ? 'color' : spec.type,
+                        default: spec.default,
+                        enum: enumPath,
+                        enumPath: enumPath,
+                        min: spec.min,
+                        max: spec.max,
+                        uniform: spec.uniform
+                    };
+                });
+                
+                // Return choices to register (will be merged into enums)
+                const opSpec = {
+                    name: instance.func,
+                    args: args
+                };
+                registerOp(`${namespace}.${instance.func}`, opSpec);
+                
+                return choicesToRegister;
+            }
+            return null;
+        }
+
+        /**
+         * Load a single effect on demand (with caching)
+         * Returns the fully loaded effect object
+         */
+        async function loadEffectOnDemand(effectId, { updateDialog = true } = {}) {
+            // Check cache first
+            if (loadedEffects.has(effectId)) {
+                return loadedEffects.get(effectId);
+            }
+            
+            // Check if already loading (deduplication)
+            if (effectLoadingPromises.has(effectId)) {
+                return effectLoadingPromises.get(effectId);
+            }
+            
+            const [namespace, effectName] = effectId.split('/');
+            if (!namespace || !effectName) {
+                throw new Error(`Invalid effect ID: ${effectId}`);
+            }
+            
+            const loadPromise = (async () => {
+                try {
+                    if (updateDialog) {
+                        addToLoadingQueue(`def-${effectId}`, `${effectId}/definition.js`);
+                        updateLoadingQueueItem(`def-${effectId}`, 'loading');
+                    }
+                    
+                    // Load definition
+                    const effect = await loadEffectDefinition(namespace, effectName);
+                    
+                    if (updateDialog) {
+                        updateLoadingQueueItem(`def-${effectId}`, 'done');
+                        addToLoadingQueue(`shaders-${effectId}`, `${effectId}/shaders`);
+                        updateLoadingQueueItem(`shaders-${effectId}`, 'loading');
+                    }
+                    
+                    // Load shaders
+                    await loadEffectShaders(effect, globalManifest);
+                    
+                    if (updateDialog) {
+                        updateLoadingQueueItem(`shaders-${effectId}`, 'done');
+                    }
+                    
+                    // Register with runtime
+                    const choicesToRegister = registerEffectWithRuntime(effect);
+                    if (choicesToRegister && Object.keys(choicesToRegister).length > 0) {
+                        enums = await mergeIntoEnums(choicesToRegister);
+                    }
+                    
+                    // Register as starter op if applicable
+                    registerStarterOpForEffect(effect);
+                    
+                    // Cache the loaded effect
+                    loadedEffects.set(effectId, effect);
+                    
+                    return effect;
+                } catch (err) {
+                    if (updateDialog) {
+                        const queueItem = loadingState.queue.find(i => i.id.includes(effectId) && i.status === 'loading');
+                        if (queueItem) {
+                            updateLoadingQueueItem(queueItem.id, 'error');
+                        }
+                    }
+                    throw err;
+                } finally {
+                    effectLoadingPromises.delete(effectId);
+                }
+            })();
+            
+            effectLoadingPromises.set(effectId, loadPromise);
+            return loadPromise;
+        }
+
+        /**
+         * Load multiple effects in parallel, showing progress in the dialog
+         * Returns array of loaded effects
+         */
+        async function loadEffectsOnDemand(effectIds) {
+            if (effectIds.length === 0) return [];
+            
+            // Filter out already loaded effects
+            const needsLoading = effectIds.filter(id => !loadedEffects.has(id));
+            
+            if (needsLoading.length === 0) {
+                return effectIds.map(id => loadedEffects.get(id));
+            }
+            
+            showLoadingDialog(needsLoading.length === 1 ? 'loading effect...' : `loading ${needsLoading.length} effects...`);
+            updateLoadingStatus('downloading effect definitions and shaders...');
+            
+            try {
+                // Load all effects in parallel
+                const loadPromises = needsLoading.map(effectId => 
+                    loadEffectOnDemand(effectId, { updateDialog: true })
+                        .catch(err => {
+                            console.error(`Failed to load ${effectId}:`, err);
+                            return null; // Don't fail the whole batch
+                        })
+                );
+                
+                await Promise.all(loadPromises);
+                
+                updateLoadingStatus('compiling shaders...');
+                
+                // Return all effects (including previously cached ones)
+                return effectIds.map(id => loadedEffects.get(id)).filter(Boolean);
+            } finally {
+                hideLoadingDialog();
+            }
         }
 
         function cloneParamValue(value) {
@@ -868,6 +1288,87 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
          * Extract effect calls from DSL source by parsing it
          * Returns array of { effectKey, namespace, name, args, stepIndex }
          */
+        /**
+         * Extract effect names from DSL text without compiling (for lazy loading)
+         * This is a lightweight parser that finds effect names from the DSL syntax.
+         * Returns array of { effectId, namespace, name }
+         */
+        function extractEffectNamesFromDsl(dsl) {
+            const effects = [];
+            if (!dsl || typeof dsl !== 'string') return effects;
+
+            const lines = dsl.split('\n');
+            let searchNamespaces = [];
+            
+            // Process each line
+            for (const line of lines) {
+                const trimmed = line.trim();
+                
+                // Handle search directive
+                if (trimmed.startsWith('search ')) {
+                    searchNamespaces = trimmed.slice(7).split(',').map(s => s.trim());
+                    continue;
+                }
+                
+                // Skip comments and empty lines
+                if (!trimmed || trimmed.startsWith('//')) continue;
+                
+                // Find all function calls: name(args) or namespace.name(args)
+                // Pattern matches: word( or word.word( 
+                const callPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*\(/g;
+                let match;
+                
+                while ((match = callPattern.exec(trimmed)) !== null) {
+                    const fullName = match[1];
+                    let namespace = null;
+                    let name = fullName;
+                    
+                    // Check if it's namespace.name
+                    if (fullName.includes('.')) {
+                        const parts = fullName.split('.');
+                        namespace = parts[0];
+                        name = parts[1];
+                    }
+                    
+                    // Skip built-in ops that aren't effects
+                    const builtins = ['src', 'out', 'vec2', 'vec3', 'vec4'];
+                    if (builtins.includes(name)) continue;
+                    
+                    // If no explicit namespace, try to find in manifest using search namespaces
+                    if (!namespace && searchNamespaces.length > 0) {
+                        for (const ns of searchNamespaces) {
+                            const testId = `${ns}/${name}`;
+                            if (globalManifest[testId]) {
+                                namespace = ns;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If still no namespace, try common namespaces
+                    if (!namespace) {
+                        for (const ns of ['basics', 'nm', 'nd', 'nu']) {
+                            const testId = `${ns}/${name}`;
+                            if (globalManifest[testId]) {
+                                namespace = ns;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (namespace) {
+                        const effectId = `${namespace}/${name}`;
+                        // Avoid duplicates
+                        if (!effects.find(e => e.effectId === effectId)) {
+                            effects.push({ effectId, namespace, name });
+                        }
+                    }
+                }
+            }
+
+            return effects;
+        }
+
         function extractEffectsFromDsl(dsl) {
             const effects = [];
             if (!dsl || typeof dsl !== 'string') return effects;
@@ -1371,6 +1872,30 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             currentDsl = dsl;
             window.__noisemakerCurrentDsl = dsl;
 
+            // Extract effects from DSL (lightweight parsing) and lazy load any that aren't loaded yet
+            const effectsInDsl = extractEffectNamesFromDsl(dsl);
+            const effectIdsToLoad = [];
+            
+            for (const effectInfo of effectsInDsl) {
+                const effectId = effectInfo.effectId;
+                
+                // Check if this effect needs to be loaded
+                if (!loadedEffects.has(effectId) && globalManifest[effectId]) {
+                    effectIdsToLoad.push(effectId);
+                }
+            }
+            
+            // Lazy load all required effects
+            if (effectIdsToLoad.length > 0) {
+                try {
+                    await loadEffectsOnDemand(effectIdsToLoad);
+                } catch (err) {
+                    console.error('Failed to load effects for DSL:', err);
+                    showStatus(`failed to load effects: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
             // Get zoom value from current effect parameters
             const zoomValue = parameterValues.zoom || 
                 (currentEffect?.instance?.globals?.zoom?.default) || 1;
@@ -1450,6 +1975,30 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             // Update DSL editor
             dslEditor.value = dsl || '';
 
+            // Extract effects from DSL (lightweight parsing) and lazy load any that aren't loaded yet
+            const effectsInDsl = extractEffectNamesFromDsl(dsl);
+            const effectIdsToLoad = [];
+            
+            for (const effectInfo of effectsInDsl) {
+                const effectId = effectInfo.effectId;
+                
+                // Check if this effect needs to be loaded
+                if (!loadedEffects.has(effectId) && globalManifest[effectId]) {
+                    effectIdsToLoad.push(effectId);
+                }
+            }
+            
+            // Lazy load all required effects (includes dependencies like basics/noise)
+            if (effectIdsToLoad.length > 0) {
+                try {
+                    await loadEffectsOnDemand(effectIdsToLoad);
+                } catch (err) {
+                    console.error('Failed to load effects for pipeline:', err);
+                    showStatus(`failed to load effects: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
             // Get zoom value from current effect parameters
             const zoomValue = parameterValues.zoom || 
                 (currentEffect?.instance?.globals?.zoom?.default) || 1;
@@ -1522,6 +2071,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         }
 
         // Load all effect definitions dynamically
+        // Now uses lazy loading - only loads the manifest, not the actual effects
         async function loadEffects() {
             const effectDirs = [
                 { namespace: 'basics', path: '../../shaders/effects/basics' },
@@ -1533,165 +2083,30 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             const effects = [];
             
             // Load the single top-level manifest
-            let globalManifest = {};
             try {
                 const manifestRes = await fetch('../../shaders/effects/manifest.json');
                 if (manifestRes.ok) {
                     globalManifest = await manifestRes.json();
                 }
             } catch (e) {
-                console.warn('Failed to load shader manifest, will probe for files');
+                console.warn('Failed to load shader manifest');
+                throw new Error('Could not load shader manifest - lazy loading requires manifest.json');
             }
 
+            // Create placeholder entries for all effects in the manifest
+            // These will be lazy-loaded when selected
             for (const dir of effectDirs) {
-                try {
-                    const effectNames = getEffectsFromManifest(globalManifest, dir.namespace);
-                    
-                    for (const effectName of effectNames) {
-                        try {
-                            const module = await import(`${dir.path}/${effectName}/definition.js`);
-                            const EffectClass = module.default;
-                            
-                            if (EffectClass) {
-                                const instance = new EffectClass();
-                                const effectId = `${dir.namespace}/${effectName}`;
-                                const manifest = globalManifest[effectId];
-                                
-                                // Load shaders for each pass (both GLSL and WGSL)
-                                if (instance.passes) {
-                                    if (!instance.shaders) instance.shaders = {};
-                                    for (const pass of instance.passes) {
-                                        if (pass.program) {
-                                            try {
-                                                const shaderBucket = instance.shaders[pass.program] ?? (instance.shaders[pass.program] = {});
-                                                const prog = pass.program;
-                                                
-                                                // Use manifest to determine what to load (no 404s)
-                                                if (manifest) {
-                                                    // GLSL
-                                                    const glslInfo = manifest.glsl?.[prog];
-                                                    if (glslInfo === 'combined') {
-                                                        const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.glsl`);
-                                                        if (res.ok) shaderBucket.glsl = await res.text();
-                                                    } else if (glslInfo) {
-                                                        if (glslInfo.v) {
-                                                            const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.vert`);
-                                                            if (res.ok) shaderBucket.vertex = await res.text();
-                                                        }
-                                                        if (glslInfo.f) {
-                                                            const res = await fetch(`${dir.path}/${effectName}/glsl/${prog}.frag`);
-                                                            if (res.ok) shaderBucket.fragment = await res.text();
-                                                        }
-                                                    }
-                                                    // WGSL
-                                                    if (manifest.wgsl?.[prog]) {
-                                                        const res = await fetch(`${dir.path}/${effectName}/wgsl/${prog}.wgsl`);
-                                                        if (res.ok) shaderBucket.wgsl = await res.text();
-                                                    }
-                                                } else {
-                                                    // Fallback: try to load without manifest (will cause 404s)
-                                                    const glslRes = await fetch(`${dir.path}/${effectName}/glsl/${prog}.glsl`);
-                                                    if (glslRes.ok) {
-                                                        shaderBucket.glsl = await glslRes.text();
-                                                    } else {
-                                                        const [vertRes, fragRes] = await Promise.all([
-                                                            fetch(`${dir.path}/${effectName}/glsl/${prog}.vert`),
-                                                            fetch(`${dir.path}/${effectName}/glsl/${prog}.frag`)
-                                                        ]);
-                                                        if (vertRes.ok) shaderBucket.vertex = await vertRes.text();
-                                                        if (fragRes.ok) shaderBucket.fragment = await fragRes.text();
-                                                    }
-                                                    const wgslRes = await fetch(`${dir.path}/${effectName}/wgsl/${prog}.wgsl`);
-                                                    if (wgslRes.ok) shaderBucket.wgsl = await wgslRes.text();
-                                                }
-                                            } catch (e) {
-                                                console.warn(`Failed to load shaders for ${pass.program}`, e);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                effects.push({
-                                    namespace: dir.namespace,
-                                    name: effectName,
-                                    instance: instance
-                                });
-
-                                // Register effect with multiple names for lookup flexibility
-                                registerEffect(instance.func, instance);
-                                registerEffect(`${dir.namespace}.${instance.func}`, instance);
-                                // Also register with directory name (for select option value lookup)
-                                registerEffect(`${dir.namespace}/${effectName}`, instance);
-                                registerEffect(`${dir.namespace}.${effectName}`, instance);
-
-                                // Register as operator
-                                if (instance.func) {
-                                    // Collect choices to register as enums immediately
-                                    const choicesToRegister = {};
-                                    
-                                    const args = Object.entries(instance.globals || {}).map(([key, spec]) => {
-                                        // For inline choices without enum, set the enum path now
-                                        // This allows the validator to resolve bare enum names
-                                        let enumPath = spec.enum || spec.enumPath;
-                                        if (spec.choices && !enumPath) {
-                                            enumPath = `${dir.namespace}.${instance.func}.${key}`;
-                                            
-                                            // Build the enum values to register
-                                            if (!choicesToRegister[dir.namespace]) {
-                                                choicesToRegister[dir.namespace] = {};
-                                            }
-                                            if (!choicesToRegister[dir.namespace][instance.func]) {
-                                                choicesToRegister[dir.namespace][instance.func] = {};
-                                            }
-                                            choicesToRegister[dir.namespace][instance.func][key] = {};
-                                            
-                                            for (const [name, val] of Object.entries(spec.choices)) {
-                                                if (name.endsWith(':')) continue; // skip group labels
-                                                const sanitized = sanitizeEnumName(name);
-                                                choicesToRegister[dir.namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
-                                            }
-                                        }
-                                        return {
-                                            name: key,
-                                            type: spec.type === 'vec4' ? 'color' : spec.type,
-                                            default: spec.default,
-                                            enum: enumPath,
-                                            enumPath: enumPath,
-                                            min: spec.min,
-                                            max: spec.max,
-                                            uniform: spec.uniform
-                                        };
-                                    });
-                                    
-                                    // Register enum values immediately so they're available for validation
-                                    if (Object.keys(choicesToRegister).length > 0) {
-                                        pendingEnumRegistrations.push(choicesToRegister);
-                                    }
-                                    
-                                    const opSpec = {
-                                        name: instance.func,
-                                        args: args
-                                    };
-                                    // Only register namespaced names - bare names cause conflicts
-                                    // (e.g., nm/voronoi vs basics/voronoi both registering 'voronoi')
-                                    registerOp(`${dir.namespace}.${instance.func}`, opSpec);
-                                }
-                            }
-                        } catch (err) {
-                            console.warn(`Failed to load effect ${dir.namespace}/${effectName}:`, err);
-                        }
-                    }
-                } catch (err) {
-                    console.warn(`Failed to load effects from ${dir.path}:`, err);
+                const effectNames = getEffectsFromManifest(globalManifest, dir.namespace);
+                
+                for (const effectName of effectNames) {
+                    // Create a placeholder entry (no instance yet)
+                    effects.push({
+                        namespace: dir.namespace,
+                        name: effectName,
+                        instance: null, // Will be loaded on demand
+                        loaded: false
+                    });
                 }
-            }
-
-            // Process pending enum registrations - merge all collected enum values
-            if (pendingEnumRegistrations.length > 0) {
-                for (const choicesToRegister of pendingEnumRegistrations) {
-                    enums = await mergeIntoEnums(choicesToRegister);
-                }
-                pendingEnumRegistrations = [];
             }
 
             return effects;
@@ -1707,10 +2122,12 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         }
 
         // Initialize starter ops
+        // With lazy loading, we can't determine starter ops until effects are loaded
+        // This now only processes already-loaded effects
         function initStarterOps(effects) {
             const starterNames = [];
             effects
-                .filter(e => isStarterEffect(e))
+                .filter(e => e.instance && isStarterEffect(e))
                 .forEach(e => {
                     const func = e.instance.func || e.name;
                     const namespace = e.namespace;
@@ -1723,6 +2140,26 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                     }
                 });
 
+            if (starterNames.length > 0) {
+                registerStarterOps(starterNames);
+            }
+        }
+
+        // Register a single loaded effect as a starter op if applicable
+        function registerStarterOpForEffect(effect) {
+            if (!effect.instance || !isStarterEffect(effect)) return;
+            
+            const func = effect.instance.func || effect.name;
+            const namespace = effect.namespace;
+            const starterNames = [];
+            
+            if (func) {
+                starterNames.push(func);
+                if (namespace) {
+                    starterNames.push(`${namespace}.${func}`);
+                }
+            }
+            
             if (starterNames.length > 0) {
                 registerStarterOps(starterNames);
             }
@@ -1853,6 +2290,9 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
 
         // Helper to check if effect is starter
         function isStarterEffect(effect) {
+            // Can't determine if effect is not loaded
+            if (!effect.instance) return false;
+            
             const passes = effect.instance.passes || [];
             if (passes.length === 0) return true;
             
@@ -1880,20 +2320,43 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         async function selectEffect(effectPath, allEffects) {
             const [namespace, name] = effectPath.split('/');
             
-            const effect = allEffects.find(e => e.namespace === namespace && e.name === name);
+            // Find the placeholder entry
+            const placeholderEntry = allEffects.find(e => e.namespace === namespace && e.name === name);
             
-            if (!effect) {
+            if (!placeholderEntry) {
                 showStatus(`effect ${namespace}/${name} not found`, 'error');
                 return;
             }
 
-            currentEffect = effect;
+            // Lazy load the effect if not already loaded
+            const effectId = `${namespace}/${name}`;
+            let effect;
+            
+            try {
+                const loadedEffectsList = await loadEffectsOnDemand([effectId]);
+                effect = loadedEffectsList[0];
+                
+                if (!effect) {
+                    showStatus(`failed to load effect ${effectId}`, 'error');
+                    return;
+                }
+                
+                // Update the placeholder with loaded data
+                placeholderEntry.instance = effect.instance;
+                placeholderEntry.loaded = true;
+            } catch (err) {
+                console.error(`Failed to load effect ${effectId}:`, err);
+                showStatus(`failed to load effect ${effectId}: ${err.message}`, 'error');
+                return;
+            }
+
+            currentEffect = placeholderEntry;
             
             // Initialize parameterValues from effect defaults BEFORE building DSL
             // This ensures zoom and other params are correctly set when pipeline is created
             parameterValues = {};
-            if (effect.instance && effect.instance.globals) {
-                for (const [key, spec] of Object.entries(effect.instance.globals)) {
+            if (placeholderEntry.instance && placeholderEntry.instance.globals) {
+                for (const [key, spec] of Object.entries(placeholderEntry.instance.globals)) {
                     if (spec.default !== undefined) {
                         parameterValues[key] = cloneParamValue(spec.default);
                     }
@@ -1999,10 +2462,14 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         // Register inline choices from effect definitions as enums
         // This unifies choices with the enum system so DSL can reference them
         // Uses class-specific paths: {namespace}.{effectFunc}.{paramName}.{valueName}
+        // With lazy loading, this only processes already-loaded effects
         async function registerEffectChoicesAsEnums(effects) {
             const choicesAsEnums = {};
             
             for (const effect of effects) {
+                // Skip unloaded effects
+                if (!effect.instance) continue;
+                
                 const effectFunc = effect.instance?.func;
                 const namespace = effect.namespace;
                 if (!effectFunc || !namespace) continue;
@@ -2055,12 +2522,11 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 enums = await mergeIntoEnums(stdEnums);
                 const effects = await loadEffects();
                 
-                // Register inline choices from effects as enums
-                // This unifies the enum system - all choices can be referenced by path
-                await registerEffectChoicesAsEnums(effects);
+                // With lazy loading, we don't register effect choices or starter ops at startup
+                // These are registered when effects are loaded on demand
+                // registerEffectChoicesAsEnums and initStarterOps are called during loadEffectOnDemand
                 
                 allLoadedEffects = effects;
-                initStarterOps(effects);
                 populateEffectSelector(effects);
                 
                 loadingEl.style.display = 'none';
