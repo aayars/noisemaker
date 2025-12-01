@@ -408,92 +408,52 @@
     #loading-dialog {
         border: 1px solid color-mix(in srgb, var(--accent3) 20%, transparent 80%);
         border-radius: var(--ui-corner-radius);
-        background: color-mix(in srgb, var(--color1) 85%, transparent 15%);
-        backdrop-filter: blur(10px);
-        padding: 1rem;
-        min-width: 260px;
+        background: color-mix(in srgb, var(--color1) 90%, transparent 10%);
+        backdrop-filter: blur(8px);
+        padding: 1.25rem;
+        width: fit-content;
+        min-width: 240px;
         max-width: 320px;
         color: var(--color6);
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         outline: none;
+        text-align: center;
     }
 
     #loading-dialog::backdrop {
-        background: rgba(0, 0, 0, 0.4);
+        background: rgba(0, 0, 0, 0.3);
         backdrop-filter: blur(2px);
     }
 
     #loading-dialog h3 {
-        margin: 0 0 0.5rem 0;
-        font-size: 0.75rem;
-        font-weight: 700;
-        font-variation-settings: 'wght' 700;
+        margin: 0 0 0.75rem 0;
+        font-size: 0.875rem;
+        font-weight: 600;
         color: var(--color6);
-        text-transform: lowercase;
-        letter-spacing: 0.05em;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        display: block;
     }
 
     #loading-dialog .loading-status {
-        font-size: 0.6875rem;
-        color: var(--color5);
-        margin-bottom: 0.75rem;
-    }
-
-    #loading-dialog .loading-queue {
-        font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
-        font-size: 0.625rem;
-        color: var(--color4);
-        max-height: 120px;
-        overflow-y: auto;
-        background: transparent;
-        border-radius: 0;
-        padding: 0;
-        margin-bottom: 0.75rem;
-        border-top: 1px solid color-mix(in srgb, var(--color6) 10%, transparent 90%);
-        padding-top: 0.5rem;
-    }
-
-    #loading-dialog .loading-queue:empty {
         display: none;
     }
 
-    #loading-dialog .loading-queue-item {
-        padding: 0.125rem 0;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        opacity: 0.8;
-    }
-
-    #loading-dialog .loading-queue-item.pending {
-        color: var(--color4);
-        opacity: 0.5;
-    }
-
-    #loading-dialog .loading-queue-item.loading {
-        color: var(--accent3);
-        opacity: 1;
-        font-weight: bold;
-    }
-
-    #loading-dialog .loading-queue-item.done {
-        color: color-mix(in srgb, var(--accent1) 80%, var(--color6) 20%);
-        opacity: 0.6;
-    }
-
-    #loading-dialog .loading-queue-item.error {
-        color: #d44;
-        opacity: 1;
+    #loading-dialog .loading-queue {
+        display: none;
     }
 
     #loading-dialog .loading-progress {
-        height: 2px;
+        height: 3px;
         background: color-mix(in srgb, var(--accent3) 10%, transparent 90%);
-        border-radius: 1px;
+        border-radius: 1.5px;
         overflow: hidden;
+        margin-top: 0.5rem;
+    }
+
+    #loading-dialog .loading-progress-bar {
+        height: 100%;
+        background: var(--accent3);
+        transition: width 0.2s ease;
+        width: 0%;
     }
 
     #loading-dialog .loading-progress-bar {
@@ -775,12 +735,15 @@
         }
 
         function renderLoadingQueue() {
+            // Queue rendering disabled for cleaner UI
+            /*
             loadingDialogQueue.innerHTML = loadingState.queue.map(item => {
                 const icon = item.status === 'done' ? '✓' : 
                              item.status === 'error' ? '✗' :
                              item.status === 'loading' ? '⋯' : '○';
                 return `<div class="loading-queue-item ${item.status}"><span>${icon}</span><span>${item.label}</span></div>`;
             }).join('');
+            */
         }
 
         function updateLoadingProgress() {
@@ -1009,8 +972,8 @@
                 return effectIds.map(id => loadedEffects.get(id));
             }
             
-            showLoadingDialog(needsLoading.length === 1 ? 'loading effect...' : `loading ${needsLoading.length} effects...`);
-            updateLoadingStatus('downloading effect definitions and shaders...');
+            showLoadingDialog(needsLoading.length === 1 ? `loading ${needsLoading[0]}...` : `loading ${needsLoading.length} effects...`);
+            // updateLoadingStatus('downloading effect definitions and shaders...');
             
             try {
                 // Load all effects in parallel
