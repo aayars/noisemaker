@@ -61,7 +61,8 @@ fn luminance(color: vec3f) -> f32 {
 
 fn sampleBufAt(x: i32, y: i32, width: i32, height: i32) -> f32 {
     let wx = wrap_int(x, width);
-    let wy = wrap_int(y, height);
+    // Flip Y to match how bufTex is written via fragCoord
+    let wy = wrap_int(height - 1 - y, height);
     return textureLoad(bufTex, vec2<i32>(wx, wy), 0).r;
 }
 
