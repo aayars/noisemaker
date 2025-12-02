@@ -49,9 +49,9 @@ export default class Fractal extends Effect {
       default: 0,
       uniform: "fractalType",
       choices: {
-        Julia: 0,
-        Mandelbrot: 2,
-        Newton: 1
+        julia: 0,
+        mandelbrot: 2,
+        newton: 1
       },
       ui: {
         label: "type",
@@ -149,8 +149,8 @@ export default class Fractal extends Effect {
       default: 0,
       uniform: "mode",
       choices: {
-        Iter: 0,
-        Z: 1
+        iter: 0,
+        z: 1
       },
       ui: {
         label: "mode",

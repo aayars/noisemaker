@@ -33,8 +33,8 @@ export default class BitEffects extends Effect {
       default: 1,
       uniform: "mode",
       choices: {
-        "Bit Field": 0,
-        "Bit Mask": 1
+        bitField: 0,
+        bitMask: 1
       },
       ui: {
         label: "mode",
@@ -57,8 +57,8 @@ export default class BitEffects extends Effect {
       default: 0,
       uniform: "formula",
       choices: {
-        Alien: 0,
-        Sierpinski: 1
+        alien: 0,
+        sierpinski: 1
       },
       ui: {
         label: "formula",
@@ -81,20 +81,20 @@ export default class BitEffects extends Effect {
       default: 20,
       uniform: "colorScheme",
       choices: {
-        Blue: 0,
-        Cyan: 1,
-        Green: 2,
-        Magenta: 3,
-        Red: 4,
-        White: 5,
-        Yellow: 6,
-        "Blue And Green": 10,
-        "Blue And Red": 11,
-        "Blue And Yellow": 12,
-        "Green And Magenta": 13,
-        "Green And Red": 14,
-        "Red And Cyan": 15,
-        "Red, Green, And Blue": 20
+        blue: 0,
+        cyan: 1,
+        green: 2,
+        magenta: 3,
+        red: 4,
+        white: 5,
+        yellow: 6,
+        blueAndGreen: 10,
+        blueAndRed: 11,
+        blueAndYellow: 12,
+        greenAndMagenta: 13,
+        greenAndRed: 14,
+        redAndCyan: 15,
+        redGreenAndBlue: 20
       },
       ui: {
         label: "colors",
@@ -106,8 +106,8 @@ export default class BitEffects extends Effect {
       default: 0,
       uniform: "interp",
       choices: {
-        Constant: 0,
-        Linear: 1
+        constant: 0,
+        linear: 1
       },
       ui: {
         label: "blend",
@@ -141,10 +141,10 @@ export default class BitEffects extends Effect {
       default: 10,
       uniform: "maskFormula",
       choices: {
-        Invaders: 10,
-        "Wide Invaders": 11,
-        Glyphs: 20,
-        "Arecibo Number": 30
+        invaders: 10,
+        wideInvaders: 11,
+        glyphs: 20,
+        areciboNumber: 30
       },
       ui: {
         label: "formula",
@@ -178,10 +178,10 @@ export default class BitEffects extends Effect {
       default: 1,
       uniform: "maskColorScheme",
       choices: {
-        "Black & White": 0,
-        "Just Hue": 3,
-        "Hue & Saturation": 2,
-        Hsv: 1
+        blackWhite: 0,
+        justHue: 3,
+        hueSaturation: 2,
+        hsv: 1
       },
       ui: {
         label: "color space",

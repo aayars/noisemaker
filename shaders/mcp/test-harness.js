@@ -37,6 +37,7 @@
  *   --benchmark               Run FPS test (~500ms per effect)
  *   --uniforms                Test that uniform controls affect output
  *   --structure               Test for unused files, naming conventions, leaked uniforms
+ *   --structure-only          Run ONLY structure tests (no browser, filesystem-based)
  *   --alg-equiv               Test GLSL/WGSL algorithmic equivalence (requires .openai key)
  *   --passthrough             Test that filter effects do NOT pass through input unchanged
  *   --no-vision               Skip AI vision validation
@@ -49,8 +50,12 @@
  *   node test-harness.js --effects "basics/*" --webgl2 --benchmark
  *   node test-harness.js --effects "nm/*" --webgpu --all
  *   node test-harness.js --effects "basics/noise,nm/worms" --glsl --uniforms
+ *   node test-harness.js --structure-only --effects "nd/*" --webgl2
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { 
     BrowserSession, 
     checkEffectStructureOnDisk, 
@@ -59,6 +64,10 @@ import {
     gracePeriod
 } from './browser-harness.js';
 import { getOpenAIApiKey } from './core-operations.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 // =========================================================================
 // EXEMPTION SETS - STRICT: No more exemptions are permitted
@@ -112,6 +121,7 @@ function parseArgs() {
         runBenchmark: false,
         runUniforms: false,
         runStructure: false,
+        runStructureOnly: false,
         runAlgEquiv: false,
         runPassthrough: false,
         skipVision: false,
@@ -136,6 +146,9 @@ function parseArgs() {
         } else if (arg === '--uniforms') {
             parsed.runUniforms = true;
         } else if (arg === '--structure') {
+            parsed.runStructure = true;
+        } else if (arg === '--structure-only') {
+            parsed.runStructureOnly = true;
             parsed.runStructure = true;
         } else if (arg === '--alg-equiv') {
             parsed.runAlgEquiv = true;
@@ -166,6 +179,149 @@ function parseArgs() {
     }
     
     return parsed;
+}
+
+// =========================================================================
+// STRUCTURE-ONLY MODE (no browser)
+// =========================================================================
+
+/**
+ * Discover all effects from the filesystem.
+ * Returns array of effect IDs like "basics/noise", "nm/worms", etc.
+ */
+function discoverEffectsFromDisk() {
+    const effectsDir = path.join(PROJECT_ROOT, 'shaders', 'effects');
+    const effects = [];
+    
+    // List namespace directories
+    const namespaces = fs.readdirSync(effectsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory() && !d.name.startsWith('.'))
+        .map(d => d.name);
+    
+    for (const namespace of namespaces) {
+        const namespaceDir = path.join(effectsDir, namespace);
+        const effectNames = fs.readdirSync(namespaceDir, { withFileTypes: true })
+            .filter(d => d.isDirectory() && !d.name.startsWith('.'))
+            .map(d => d.name);
+        
+        for (const effectName of effectNames) {
+            // Verify it has a definition.js
+            const defPath = path.join(namespaceDir, effectName, 'definition.js');
+            if (fs.existsSync(defPath)) {
+                effects.push(`${namespace}/${effectName}`);
+            }
+        }
+    }
+    
+    return effects.sort();
+}
+
+/**
+ * Run structure-only tests without launching a browser.
+ * Uses filesystem to discover effects and runs on-disk checks.
+ */
+async function runStructureOnlyMode(args) {
+    console.log(`\n[STRUCTURE-ONLY MODE] No browser will be launched.`);
+    console.log(`Backend: ${args.backend}\n`);
+    
+    // Discover effects from filesystem
+    const allEffects = discoverEffectsFromDisk();
+    console.log(`Found ${allEffects.length} effects on disk.`);
+    
+    // Match patterns
+    const matchedEffectsSet = new Set();
+    for (const pattern of args.effects) {
+        const matches = matchEffects(allEffects, pattern);
+        if (matches.length === 0) {
+            console.log(`No effects matched pattern: ${pattern}`);
+        }
+        for (const m of matches) {
+            matchedEffectsSet.add(m);
+        }
+    }
+    
+    const matchedEffects = Array.from(matchedEffectsSet).sort();
+    
+    if (matchedEffects.length === 0) {
+        console.log('No effects matched. Exiting.');
+        return;
+    }
+    
+    console.log(`Testing ${matchedEffects.length} effect(s):\n`);
+    
+    const results = [];
+    const startTime = Date.now();
+    let passedCount = 0;
+    let failedCount = 0;
+    
+    // Main loop: Test each effect
+    for (const effectId of matchedEffects) {
+        const t0 = Date.now();
+        const structureResult = await checkEffectStructureOnDisk(effectId, { backend: args.backend });
+        const elapsed = Date.now() - t0;
+        
+        // Determine pass/fail
+        const issues = [];
+        if (structureResult.hasInlineShaders) {
+            issues.push('inline shaders');
+        }
+        if (structureResult.namingIssues?.length > 0) {
+            issues.push(`${structureResult.namingIssues.length} naming issue(s)`);
+        }
+        if (structureResult.unusedFiles?.length > 0) {
+            issues.push(`${structureResult.unusedFiles.length} unused file(s)`);
+        }
+        if (structureResult.leakedInternalUniforms?.length > 0) {
+            issues.push(`${structureResult.leakedInternalUniforms.length} leaked uniform(s)`);
+        }
+        if (structureResult.splitShaderIssues?.length > 0) {
+            issues.push(`${structureResult.splitShaderIssues.length} split shader issue(s)`);
+        }
+        if (structureResult.structuralParityIssues?.length > 0) {
+            issues.push(`${structureResult.structuralParityIssues.length} parity issue(s)`);
+        }
+        if (structureResult.requiredUniformIssues?.length > 0) {
+            issues.push(`${structureResult.requiredUniformIssues.length} uniform decl issue(s)`);
+        }
+        
+        const passed = issues.length === 0;
+        if (passed) {
+            passedCount++;
+            console.log(`✓ ${effectId} [${elapsed}ms]`);
+        } else {
+            failedCount++;
+            console.log(`❌ ${effectId}: ${issues.join(', ')} [${elapsed}ms]`);
+            
+            // Print details in verbose mode or if naming issues
+            if (args.verbose || structureResult.namingIssues?.length > 0) {
+                for (const issue of (structureResult.namingIssues || [])) {
+                    if (issue.expected) {
+                        console.log(`   ${issue.type}: "${issue.name}" → "${issue.expected}"`);
+                    } else {
+                        console.log(`   ${issue.type}: "${issue.name}" - ${issue.reason}`);
+                    }
+                }
+            }
+        }
+        
+        results.push({ effectId, structure: structureResult, passed });
+    }
+    
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    
+    // Summary
+    console.log(`\n=== Summary ===`);
+    if (failedCount > 0) {
+        console.log(`\n❌ FAILED: ${failedCount}/${results.length} effects`);
+    } else {
+        console.log(`\n✅ ALL ${results.length} EFFECTS PASSED`);
+    }
+    console.log(`${passedCount}/${results.length} passed in ${elapsed}s`);
+    
+    if (failedCount > 0) {
+        process.exit(1);
+    }
+    process.exit(0);
 }
 
 // =========================================================================
@@ -526,6 +682,12 @@ async function main() {
         console.error('  Use --backend webgpu or --webgpu or --wgsl for WebGPU/WGSL');
         console.error('\nExample: node test-harness.js --effects basics/noise --backend webgl2');
         process.exit(1);
+    }
+    
+    // Structure-only mode: skip browser, run on-disk checks
+    if (args.runStructureOnly) {
+        await runStructureOnlyMode(args);
+        return;
     }
     
     console.log(`\nStarting browser session (backend: ${args.backend})...`);

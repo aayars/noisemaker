@@ -11,13 +11,13 @@ export default class Background extends Effect {
       default: 10,
       uniform: "backgroundType",
       choices: {
-        "Solid": 0,
-        "Horizontal 1->2": 10,
-        "Horizontal 2->1": 11,
-        "Vertical 1->2": 20,
-        "Vertical 2->1": 21,
-        "Radial 1->2": 30,
-        "Radial 2->1": 31
+        solid: 0,
+        horizontal12: 10,
+        horizontal21: 11,
+        vertical12: 20,
+        vertical21: 21,
+        radial12: 30,
+        radial21: 31
       },
       ui: { label: "Type", control: "dropdown" }
     },

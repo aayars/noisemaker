@@ -79,13 +79,13 @@ export default class Mnca extends Effect {
       type: "int",
       default: 0,
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6
       },
       ui: {
         label: "smoothing",

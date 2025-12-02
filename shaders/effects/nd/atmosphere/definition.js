@@ -32,9 +32,9 @@ export default class Atmosphere extends Effect {
       type: "int",
       default: 1,
       choices: {
-        "Caustic": 0,
-        "Simplex": 1,
-        "Quad Tap": 2
+        caustic: 0,
+        simplex: 1,
+        quadTap: 2
       },
       ui: { label: "Noise Type", control: "dropdown" },
       uniform: "noiseType"
@@ -43,17 +43,17 @@ export default class Atmosphere extends Effect {
       type: "int",
       default: 10,
       choices: {
-        "Linear": 0,
-        "Linear (Mix)": 1,
-        "Hermite": 2,
-        "Quadratic B-Spline": 3,
-        "Bicubic (Texture)": 4,
-        "Cubic B-Spline": 5,
-        "Catmull-Rom": 7,
-        "Catmull-Rom (4x4)": 8,
-        "Simplex": 10,
-        "Sine": 11,
-        "Quintic": 12
+        linear: 0,
+        linearMix: 1,
+        hermite: 2,
+        quadraticBSpline: 3,
+        bicubicTexture: 4,
+        cubicBSpline: 5,
+        catmullRom: 7,
+        catmullRom4x4: 8,
+        simplex: 10,
+        sine: 11,
+        quintic: 12
       },
       ui: { label: "Interpolation", control: "dropdown" },
       uniform: "interp"

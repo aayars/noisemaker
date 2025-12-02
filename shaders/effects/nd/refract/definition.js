@@ -22,24 +22,24 @@ export default class Refract extends Effect {
       default: 10,
       uniform: "blendMode",
       choices: {
-        Add: 0,
-        "Color Burn": 2,
-        "Color Dodge": 3,
-        Darken: 4,
-        Difference: 5,
-        Exclusion: 6,
-        Glow: 7,
-        "Hard Light": 8,
-        Lighten: 9,
-        Mix: 10,
-        Multiply: 11,
-        Negation: 12,
-        Overlay: 13,
-        Phoenix: 14,
-        Reflect: 15,
-        Screen: 16,
-        "Soft Light": 17,
-        Subtract: 18
+        add: 0,
+        colorBurn: 2,
+        colorDodge: 3,
+        darken: 4,
+        difference: 5,
+        exclusion: 6,
+        glow: 7,
+        hardLight: 8,
+        lighten: 9,
+        mix: 10,
+        multiply: 11,
+        negation: 12,
+        overlay: 13,
+        phoenix: 14,
+        reflect: 15,
+        screen: 16,
+        softLight: 17,
+        subtract: 18
       },
       ui: {
         label: "blend",
@@ -62,8 +62,8 @@ export default class Refract extends Effect {
       default: 0,
       uniform: "mode",
       choices: {
-        Refract: 0,
-        Reflect: 1
+        refract: 0,
+        reflect: 1
       },
       ui: {
         label: "mode",
@@ -97,9 +97,9 @@ export default class Refract extends Effect {
       default: 0,
       uniform: "wrap",
       choices: {
-        Clamp: 2,
-        Mirror: 0,
-        Repeat: 1
+        clamp: 2,
+        mirror: 0,
+        repeat: 1
       },
       ui: {
         label: "wrap",

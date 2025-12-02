@@ -11,13 +11,13 @@ export default class Noise3d extends Effect {
       default: 12,
       uniform: "noiseType",
       choices: {
-        Cubes: 50,
-        Simplex: 12,
-        Sine: 30,
-        Spheres: 40,
-        "Wavy Planes": 60,
-        "Wavy Plane Lower": 61,
-        "Wavy Plane Upper": 62
+        cubes: 50,
+        simplex: 12,
+        sine: 30,
+        spheres: 40,
+        wavyPlanes: 60,
+        wavyPlaneLower: 61,
+        wavyPlaneUpper: 62
       },
       ui: {
         label: "noise type",
@@ -71,10 +71,10 @@ export default class Noise3d extends Effect {
       default: 6,
       uniform: "colorMode",
       choices: {
-        "Depth Map": 8,
+        depthMap: 8,
         mono: 0,
-        Hsv: 6,
-        "Surface Normal": 7
+        hsv: 6,
+        surfaceNormal: 7
       },
       ui: {
         label: "color mode",

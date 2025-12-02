@@ -50,13 +50,13 @@ export default class Text extends Effect {
       default: "sansSerif",
       uniform: "font",
       choices: {
-        Cursive: "cursive",
-        Fantasy: "fantasy",
-        Monospace: "monospace",
-        Nunito: "Nunito",
-        "Sans Serif": "sans-serif",
-        Serif: "serif",
-        Vcr: "vcr"
+        cursive: "cursive",
+        fantasy: "fantasy",
+        monospace: "monospace",
+        nunito: "Nunito",
+        sansSerif: "sans-serif",
+        serif: "serif",
+        vcr: "vcr"
       },
       ui: {
         label: "font",
@@ -77,15 +77,15 @@ export default class Text extends Effect {
       default: 4,
       uniform: "position",
       choices: {
-        "Top Left": 0,
-        "Top Center": 1,
-        "Top Right": 2,
-        "Mid Left": 3,
-        "Mid Center": 4,
-        "Mid Right": 5,
-        "Bottom Left": 6,
-        "Bottom Center": 7,
-        "Bottom Right": 8
+        topLeft: 0,
+        topCenter: 1,
+        topRight: 2,
+        midLeft: 3,
+        midCenter: 4,
+        midRight: 5,
+        bottomLeft: 6,
+        bottomCenter: 7,
+        bottomRight: 8
       },
       ui: {
         label: "position",

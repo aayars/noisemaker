@@ -18,9 +18,9 @@ export default class DisplaceMixer extends Effect {
       default: 1,
       uniform: "mode",
       choices: {
-        Displace: 0,
-        Reflect: 2,
-        Refract: 1
+        displace: 0,
+        reflect: 2,
+        refract: 1
       },
       ui: {
         label: "mode",
@@ -67,9 +67,9 @@ export default class DisplaceMixer extends Effect {
       default: 0,
       uniform: "wrap",
       choices: {
-        Clamp: 2,
-        Mirror: 0,
-        Repeat: 1
+        clamp: 2,
+        mirror: 0,
+        repeat: 1
       },
       ui: {
         label: "wrap",

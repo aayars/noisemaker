@@ -11,14 +11,14 @@ export default class Warp extends Effect {
       default: 10,
       uniform: "distortionType",
       choices: {
-        Bulge: 21,
-        Perlin: 10,
-        Pinch: 20,
-        Polar: 0,
-        "Spiral Cw": 30,
-        "Spiral Ccw": 31,
-        Vortex: 1,
-        Waves: 2
+        bulge: 21,
+        perlin: 10,
+        pinch: 20,
+        polar: 0,
+        spiralCw: 30,
+        spiralCcw: 31,
+        vortex: 1,
+        waves: 2
       },
       ui: {
         label: "type",
@@ -30,20 +30,20 @@ export default class Warp extends Effect {
       default: 0,
       uniform: "flip",
       choices: {
-        None: 0,
+        none: 0,
         "Flip:": null,
-        All: 1,
-        Horizontal: 2,
-        Vertical: 3,
+        all: 1,
+        horizontal: 2,
+        vertical: 3,
         "Mirror:": null,
-        "Left → Right": 11,
-        "Left ← Right": 12,
-        "Up → Down": 13,
-        "Up ← Down": 14,
-        "L → R / U → D": 15,
-        "L → R / U ← D": 16,
-        "L ← R / U → D": 17,
-        "L ← R / U ← D": 18
+        leftRight: 11,
+        leftRight: 12,
+        upDown: 13,
+        upDown: 14,
+        lRUD: 15,
+        lRUD: 16,
+        lRUD: 17,
+        lRUD: 18
       },
       ui: {
         label: "flip/mirror",
@@ -99,9 +99,9 @@ export default class Warp extends Effect {
       default: 0,
       uniform: "wrap",
       choices: {
-        Clamp: 2,
-        Mirror: 0,
-        Repeat: 1
+        clamp: 2,
+        mirror: 0,
+        repeat: 1
       },
       ui: {
         label: "wrap",

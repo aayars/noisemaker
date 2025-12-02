@@ -28,18 +28,18 @@ export default class Pattern extends Effect {
       default: 1,
       uniform: "patternType",
       choices: {
-        Checkers: 0,
-        Dots: 1,
-        Grid: 2,
-        Hearts: 3,
-        Hexagons: 4,
-        Rings: 5,
-        Squares: 6,
-        Stripes: 7,
-        Waves: 8,
-        Zigzag: 9,
-        "Truchet Lines": 10,
-        "Truchet Curves": 11
+        checkers: 0,
+        dots: 1,
+        grid: 2,
+        hearts: 3,
+        hexagons: 4,
+        rings: 5,
+        squares: 6,
+        stripes: 7,
+        waves: 8,
+        zigzag: 9,
+        truchetLines: 10,
+        truchetCurves: 11
       },
       ui: {
         label: "pattern",
@@ -106,14 +106,14 @@ export default class Pattern extends Effect {
       default: 0,
       uniform: "animation",
       choices: {
-        None: 0,
-        "Pan With Rotation": 1,
-        "Pan Left": 2,
-        "Pan Right": 3,
-        "Pan Up": 4,
-        "Pan Down": 5,
-        "Rotate Cw": 6,
-        "Rotate Ccw": 7
+        none: 0,
+        panWithRotation: 1,
+        panLeft: 2,
+        panRight: 3,
+        panUp: 4,
+        panDown: 5,
+        rotateCw: 6,
+        rotateCcw: 7
       },
       ui: {
         label: "animation",

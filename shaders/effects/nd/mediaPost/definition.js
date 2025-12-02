@@ -22,8 +22,8 @@ export default class MediaPost extends Effect {
       default: 1,
       uniform: "source",
       choices: {
-        Camera: 0,
-        File: 1
+        camera: 0,
+        file: 1
       },
       ui: {
         label: "source",
@@ -35,15 +35,15 @@ export default class MediaPost extends Effect {
       default: 4,
       uniform: "position",
       choices: {
-        "Top Left": 0,
-        "Top Center": 1,
-        "Top Right": 2,
-        "Mid Left": 3,
-        "Mid Center": 4,
-        "Mid Right": 5,
-        "Bottom Left": 6,
-        "Bottom Center": 7,
-        "Bottom Right": 8
+        topLeft: 0,
+        topCenter: 1,
+        topRight: 2,
+        midLeft: 3,
+        midCenter: 4,
+        midRight: 5,
+        bottomLeft: 6,
+        bottomCenter: 7,
+        bottomRight: 8
       },
       ui: {
         label: "position",
@@ -55,10 +55,10 @@ export default class MediaPost extends Effect {
       default: 0,
       uniform: "tiling",
       choices: {
-        None: 0,
-        "Horiz And Vert": 1,
-        "Horiz Only": 2,
-        "Vert Only": 3
+        none: 0,
+        horizAndVert: 1,
+        horizOnly: 2,
+        vertOnly: 3
       },
       ui: {
         label: "tiling",

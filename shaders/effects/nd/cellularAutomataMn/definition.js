@@ -89,13 +89,13 @@ export default class CellularAutomataMN extends Effect {
       type: "int",
       default: 0,
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6
       },
       ui: {
         label: "smoothing",
@@ -108,7 +108,7 @@ export default class CellularAutomataMN extends Effect {
       default: 0,
       choices: {
         mono: 0,
-        Palette: 4
+        palette: 4
       },
       ui: {
         label: "color mode",
@@ -137,9 +137,9 @@ export default class CellularAutomataMN extends Effect {
       type: "int",
       default: 0,
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",

@@ -11,8 +11,8 @@ export default class Palette extends Effect {
       default: 0,
       uniform: "paletteType",
       choices: {
-        Cosine: 0,
-        "Five Color": 1
+        cosine: 0,
+        fiveColor: 1
       },
       ui: {
         label: "palette type",
@@ -24,9 +24,9 @@ export default class Palette extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",
@@ -233,9 +233,9 @@ export default class Palette extends Effect {
       default: 2,
       uniform: "colorMode",
       choices: {
-        Hsv: 0,
-        Oklab: 1,
-        Rgb: 2
+        hsv: 0,
+        oklab: 1,
+        rgb: 2
       },
       ui: {
         label: "mode",

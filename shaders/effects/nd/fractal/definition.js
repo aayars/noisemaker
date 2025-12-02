@@ -60,9 +60,9 @@ export default class Fractal extends Effect {
       default: 0,
       uniform: "fractalType",
       choices: {
-        Julia: 0,
-        Mandelbrot: 2,
-        Newton: 1
+        julia: 0,
+        mandelbrot: 2,
+        newton: 1
       },
       ui: {
         label: "type",
@@ -160,8 +160,8 @@ export default class Fractal extends Effect {
       default: 0,
       uniform: "mode",
       choices: {
-        Iter: 0,
-        Z: 1
+        iter: 0,
+        z: 1
       },
       ui: {
         label: "mode",
@@ -185,8 +185,8 @@ export default class Fractal extends Effect {
       uniform: "colorMode",
       choices: {
         mono: 0,
-        Palette: 4,
-        Hsv: 6
+        palette: 4,
+        hsv: 6
       },
       ui: {
         label: "color space",
@@ -252,9 +252,9 @@ export default class Fractal extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",

@@ -15,11 +15,11 @@ export default class Tunnel extends Effect {
       default: 0,
       uniform: "shape",
       choices: {
-        Circle: 0,
-        Triangle: 1,
-        Square: 2,
-        Hexagon: 3,
-        Octagon: 4
+        circle: 0,
+        triangle: 1,
+        square: 2,
+        hexagon: 3,
+        octagon: 4
       },
       ui: {
         label: "Shape",

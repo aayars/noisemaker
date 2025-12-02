@@ -73,10 +73,10 @@ export default class Splat extends Effect {
       default: 2,
       uniform: "splatMode",
       choices: {
-        Color: 0,
-        Displace: 1,
-        Invert: 2,
-        Negative: 3
+        color: 0,
+        displace: 1,
+        invert: 2,
+        negative: 3
       },
       ui: {
         label: "splat mode",
@@ -141,10 +141,10 @@ export default class Splat extends Effect {
       default: 0,
       uniform: "speckMode",
       choices: {
-        Color: 0,
-        Displace: 1,
-        Invert: 2,
-        Negative: 3
+        color: 0,
+        displace: 1,
+        invert: 2,
+        negative: 3
       },
       ui: {
         label: "speck mode",

@@ -14,8 +14,8 @@ export default class Polar extends Effect {
       default: 0,
       uniform: "polarMode",
       choices: {
-        Polar: 0,
-        Vortex: 1
+        polar: 0,
+        vortex: 1
       },
       ui: {
         label: "Mode",

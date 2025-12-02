@@ -33,9 +33,9 @@ export default class Fractal3D extends Effect {
       default: 64,
       uniform: "volumeSize",
       choices: {
-        "32³": 32,
-        "64³": 64,
-        "128³": 128
+        size32: 32,
+        size64: 64,
+        size128: 128
       },
       ui: {
         label: "volume resolution",
@@ -60,10 +60,10 @@ export default class Fractal3D extends Effect {
       default: 0,
       uniform: "fractalType",
       choices: {
-        "Mandelbulb": 0,
-        "Mandelcube": 1,
-        "Julia Bulb": 2,
-        "Julia Cube": 3
+        mandelbulb: 0,
+        mandelcube: 1,
+        juliaBulb: 2,
+        juliaCube: 3
       },
       ui: {
         label: "type",
@@ -142,7 +142,7 @@ export default class Fractal3D extends Effect {
       uniform: "colorMode",
       choices: {
         "mono": 0,
-        "orbit trap": 1,
+        orbitTrap: 1,
         "iteration": 2
       },
       ui: {

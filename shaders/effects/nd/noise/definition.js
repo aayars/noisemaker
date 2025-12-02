@@ -58,15 +58,15 @@ export default class Noise extends Effect {
       default: 10,
       uniform: "noiseType",
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6,
-        Simplex: 10,
-        Sine: 11
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6,
+        simplex: 10,
+        sine: 11
       },
       ui: {
         label: "noise type",
@@ -129,9 +129,9 @@ export default class Noise extends Effect {
       default: 2,
       uniform: "refractMode",
       choices: {
-        Color: 0,
-        Topology: 1,
-        "Color + Topology": 2
+        color: 0,
+        topology: 1,
+        colorTopology: 2
       },
       ui: {
         label: "refract mode",
@@ -166,25 +166,25 @@ export default class Noise extends Effect {
       uniform: "loopOffset",
       choices: {
         "Shapes:": null,
-        Circle: 10,
-        Triangle: 20,
-        Diamond: 30,
-        Square: 40,
-        Pentagon: 50,
-        Hexagon: 60,
-        Heptagon: 70,
-        Octagon: 80,
-        Nonagon: 90,
-        Decagon: 100,
-        Hendecagon: 110,
-        Dodecagon: 120,
+        circle: 10,
+        triangle: 20,
+        diamond: 30,
+        square: 40,
+        pentagon: 50,
+        hexagon: 60,
+        heptagon: 70,
+        octagon: 80,
+        nonagon: 90,
+        decagon: 100,
+        hendecagon: 110,
+        dodecagon: 120,
         "Directional:": null,
-        "Horizontal Scan": 200,
-        "Vertical Scan": 210,
+        horizontalScan: 200,
+        verticalScan: 210,
         "Misc:": null,
-        Noise: 300,
-        Rings: 400,
-        Sine: 410
+        noise: 300,
+        rings: 400,
+        sine: 410
       },
       ui: {
         label: "loop offset",
@@ -229,12 +229,12 @@ export default class Noise extends Effect {
       default: 0,
       uniform: "metric",
       choices: {
-        Circle: 0,
-        Diamond: 1,
-        Hexagon: 2,
-        Octagon: 3,
-        Square: 4,
-        Triangle: 5
+        circle: 0,
+        diamond: 1,
+        hexagon: 2,
+        octagon: 3,
+        square: 4,
+        triangle: 5
       },
       ui: {
         label: "kaleido shape",
@@ -247,11 +247,11 @@ export default class Noise extends Effect {
       uniform: "colorMode",
       choices: {
         mono: 0,
-        "Linear Rgb": 1,
-        Srgb: 2,
-        Oklab: 3,
-        Palette: 4,
-        Hsv: 6
+        linearRgb: 1,
+        srgb: 2,
+        oklab: 3,
+        palette: 4,
+        hsv: 6
       },
       ui: {
         label: "color space",
@@ -303,9 +303,9 @@ export default class Noise extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",

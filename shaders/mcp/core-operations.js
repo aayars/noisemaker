@@ -1726,6 +1726,41 @@ export async function checkEffectStructure(effectId, options = {}) {
             }
         }
         
+        // 5. Check in-class enum keys (choices object keys)
+        // The choices object defines enum values like: choices: { none: 0, obedient: 1 }
+        // All keys must be camelCase (starting with lowercase)
+        // 
+        // SKIP validation for:
+        // - Category headers ending with colon (e.g., "Shapes:")
+        //
+        // DO validate (and require camelCase for):
+        // - Simple alphanumeric keys (circle, Linear → should be circle, linear)
+        // - Keys with spaces (should be converted: "Random Mix" → randomMix)
+        // - Keys with dashes/underscores (should be converted: "Catmull-Rom" → catmullRom)
+        // - Keys with special chars (should be stripped: "32³" → size32, "Deriv+divide" → derivDivide)
+        const choicesMatches = globalsSection.matchAll(/choices:\s*\{([^}]+)\}/g);
+        for (const choicesMatch of choicesMatches) {
+            const choicesContent = choicesMatch[1];
+            // Match both unquoted keys and quoted keys
+            const keyMatches = choicesContent.matchAll(/(?:^|,)\s*(?:["']([^"']+)["']|(\w+))\s*:/gm);
+            for (const keyMatch of keyMatches) {
+                const enumKey = keyMatch[1] || keyMatch[2]; // quoted or unquoted
+                if (!enumKey) continue;
+                
+                // Skip category headers (end with colon)
+                if (enumKey.endsWith(':')) continue;
+                
+                const keyCheck = checkCamelCase(enumKey);
+                if (!keyCheck.valid) {
+                    result.namingIssues.push({
+                        type: 'enumKey',
+                        name: enumKey,
+                        reason: keyCheck.reason
+                    });
+                }
+            }
+        }
+        
         // 6. Check texture/surface names in passes (inputs and outputs)
         // Parse inputs and outputs objects from passes
         const inputsMatches = passesSection.matchAll(/inputs:\s*\{([^}]+)\}/g);

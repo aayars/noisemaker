@@ -11,12 +11,12 @@ export default class CellRefract extends Effect {
       default: 1,
       uniform: "metric",
       choices: {
-        Circle: 0,
-        Diamond: 1,
-        Hexagon: 2,
-        Octagon: 3,
-        Square: 4,
-        Triangle: 6
+        circle: 0,
+        diamond: 1,
+        hexagon: 2,
+        octagon: 3,
+        square: 4,
+        triangle: 6
       },
       ui: {
         label: "metric",
@@ -83,19 +83,19 @@ export default class CellRefract extends Effect {
       default: 0,
       uniform: "kernel",
       choices: {
-        None: 0,
-        Blur: 1,
-        Derivatives: 120,
-        "Deriv+divide": 2,
-        Edge: 3,
-        Emboss: 4,
-        "Lit Edge": 9,
-        Outline: 5,
-        Pixels: 100,
-        Posterize: 110,
-        Shadow: 6,
-        Sharpen: 7,
-        Sobel: 8
+        none: 0,
+        blur: 1,
+        derivatives: 120,
+        derivDivide: 2,
+        edge: 3,
+        emboss: 4,
+        litEdge: 9,
+        outline: 5,
+        pixels: 100,
+        posterize: 110,
+        shadow: 6,
+        sharpen: 7,
+        sobel: 8
       },
       ui: {
         label: "effect",
@@ -140,8 +140,8 @@ export default class CellRefract extends Effect {
       default: 0,
       uniform: "wrap",
       choices: {
-        Mirror: 0,
-        Repeat: 1
+        mirror: 0,
+        repeat: 1
       },
       ui: {
         label: "wrap",

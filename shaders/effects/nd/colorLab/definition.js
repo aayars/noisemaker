@@ -29,10 +29,10 @@ export default class ColorLab extends Effect {
       uniform: "colorMode",
       choices: {
         mono: 0,
-        "Linear Rgb": 1,
-        "Srgb (default)": 2,
-        Oklab: 3,
-        Palette: 4
+        linearRgb: 1,
+        srgbDefault: 2,
+        oklab: 3,
+        palette: 4
       },
       ui: {
         label: "color space",
@@ -98,9 +98,9 @@ export default class ColorLab extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",
@@ -209,11 +209,11 @@ export default class ColorLab extends Effect {
       default: 0,
       uniform: "dither",
       choices: {
-        None: 0,
-        Threshold: 1,
-        Random: 2,
-        "Random + Time": 3,
-        Bayer: 4
+        none: 0,
+        threshold: 1,
+        random: 2,
+        randomTime: 3,
+        bayer: 4
       },
       ui: {
         label: "dither",

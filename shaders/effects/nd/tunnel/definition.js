@@ -22,12 +22,12 @@ export default class Tunnel extends Effect {
       default: 0,
       uniform: "distortionType",
       choices: {
-        Circle: 0,
-        Triangle: 1,
-        "Rounded Square": 2,
-        Square: 3,
-        Hexagon: 4,
-        Octagon: 5
+        circle: 0,
+        triangle: 1,
+        roundedSquare: 2,
+        square: 3,
+        hexagon: 4,
+        octagon: 5
       },
       ui: {
         label: "type",
@@ -39,20 +39,20 @@ export default class Tunnel extends Effect {
       default: 0,
       uniform: "flip",
       choices: {
-        None: 0,
+        none: 0,
         "Flip:": null,
-        All: 1,
-        Horizontal: 2,
-        Vertical: 3,
+        all: 1,
+        horizontal: 2,
+        vertical: 3,
         "Mirror:": null,
-        "Left → Right": 11,
-        "Left ← Right": 12,
-        "Up → Down": 13,
-        "Up ← Down": 14,
-        "L → R / U → D": 15,
-        "L → R / U ← D": 16,
-        "L ← R / U → D": 17,
-        "L ← R / U ← D": 18
+        leftRight: 11,
+        leftRight: 12,
+        upDown: 13,
+        upDown: 14,
+        lRUD: 15,
+        lRUD: 16,
+        lRUD: 17,
+        lRUD: 18
       },
       ui: {
         label: "flip/mirror",

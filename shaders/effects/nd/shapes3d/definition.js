@@ -64,15 +64,15 @@ export default class Shapes3D extends Effect {
       default: 30,
       uniform: "shapeA",
       choices: {
-        "Capsule Horiz": 70,
-        "Capsule Vert": 60,
-        Cube: 10,
-        "Cylinder Horiz": 50,
-        "Cylinder Vert": 40,
-        Octahedron: 80,
-        Sphere: 20,
-        "Torus Horiz": 31,
-        "Torus Vert": 30
+        capsuleHoriz: 70,
+        capsuleVert: 60,
+        cube: 10,
+        cylinderHoriz: 50,
+        cylinderVert: 40,
+        octahedron: 80,
+        sphere: 20,
+        torusHoriz: 31,
+        torusVert: 30
       },
       ui: {
         label: "shape a",
@@ -84,15 +84,15 @@ export default class Shapes3D extends Effect {
       default: 10,
       uniform: "shapeB",
       choices: {
-        "Capsule Horiz": 70,
-        "Capsule Vert": 60,
-        Cube: 10,
-        "Cylinder Horiz": 50,
-        "Cylinder Vert": 40,
-        Octahedron: 80,
-        Sphere: 20,
-        "Torus Horiz": 31,
-        "Torus Vert": 30
+        capsuleHoriz: 70,
+        capsuleVert: 60,
+        cube: 10,
+        cylinderHoriz: 50,
+        cylinderVert: 40,
+        octahedron: 80,
+        sphere: 20,
+        torusHoriz: 31,
+        torusVert: 30
       },
       ui: {
         label: "shape b",
@@ -148,17 +148,17 @@ export default class Shapes3D extends Effect {
       default: 10,
       uniform: "blendMode",
       choices: {
-        Intersect: null,
-        Max: 40,
-        "Smooth Max": 20,
-        Union: null,
-        Min: 30,
-        "Smooth Min": 10,
-        Subtract: null,
-        "A B": 51,
-        "B A": 50,
-        "Smooth A B": 26,
-        "Smooth B A": 25
+        intersect: null,
+        max: 40,
+        smoothMax: 20,
+        union: null,
+        min: 30,
+        smoothMin: 10,
+        subtract: null,
+        aB: 51,
+        bA: 50,
+        smoothAB: 26,
+        smoothBA: 25
       },
       ui: {
         label: "blend",
@@ -256,9 +256,9 @@ export default class Shapes3D extends Effect {
       default: 10,
       uniform: "colorMode",
       choices: {
-        Depth: 0,
-        Diffuse: 1,
-        Palette: 10
+        depth: 0,
+        diffuse: 1,
+        palette: 10
       },
       ui: {
         label: "color mode",
@@ -270,8 +270,8 @@ export default class Shapes3D extends Effect {
       default: 0,
       uniform: "source",
       choices: {
-        None: 0,
-        Input: 3
+        none: 0,
+        input: 3
       },
       ui: {
         label: "tex source",
@@ -293,9 +293,9 @@ export default class Shapes3D extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",
@@ -329,9 +329,9 @@ export default class Shapes3D extends Effect {
       default: 1,
       uniform: "wrap",
       choices: {
-        Clamp: 2,
-        Mirror: 0,
-        Repeat: 1
+        clamp: 2,
+        mirror: 0,
+        repeat: 1
       },
       ui: {
         label: "wrap",
@@ -396,8 +396,8 @@ export default class Shapes3D extends Effect {
       default: 1,
       uniform: "animation",
       choices: {
-        "Rotate Scene": 0,
-        "Rotate Shape": 1
+        rotateScene: 0,
+        rotateShape: 1
       },
       ui: {
         label: "rotation",

@@ -90,13 +90,13 @@ export default class CellularAutomata extends Effect {
       type: "int",
       default: 0,
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6
       },
       ui: {
         label: "smoothing",
@@ -109,7 +109,7 @@ export default class CellularAutomata extends Effect {
       default: 0,
       choices: {
         mono: 0,
-        Palette: 4
+        palette: 4
       },
       ui: {
         label: "color mode",
@@ -138,9 +138,9 @@ export default class CellularAutomata extends Effect {
       type: "int",
       default: 0,
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",
@@ -210,24 +210,24 @@ export default class CellularAutomata extends Effect {
       type: "int",
       default: 0,
       choices: {
-        "Classic Life": 0,
-        Highlife: 1,
-        Seeds: 2,
-        Coral: 3,
-        "Day & Night": 4,
-        "Life Without Death": 5,
-        Replicator: 6,
-        Amoeba: 7,
-        Maze: 8,
-        "Glider Walk": 9,
-        Diamoeba: 10,
-        "2x2": 11,
-        Morley: 12,
-        Anneal: 13,
-        "34 Life": 14,
-        "Simple Replicator": 15,
-        Waffles: 16,
-        "Pond Life": 17
+        classicLife: 0,
+        highlife: 1,
+        seeds: 2,
+        coral: 3,
+        dayNight: 4,
+        lifeWithoutDeath: 5,
+        replicator: 6,
+        amoeba: 7,
+        maze: 8,
+        gliderWalk: 9,
+        diamoeba: 10,
+        size2x2: 11,
+        morley: 12,
+        anneal: 13,
+        size34Life: 14,
+        simpleReplicator: 15,
+        waffles: 16,
+        pondLife: 17
       },
       ui: {
         label: "rules",

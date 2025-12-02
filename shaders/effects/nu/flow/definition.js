@@ -23,13 +23,13 @@ export default class Flow extends Effect {
       default: 1,
       uniform: "behavior",
       choices: {
-        None: 0,
-        Obedient: 1,
-        Crosshatch: 2,
-        Unruly: 3,
-        Chaotic: 4,
-        "Random Mix": 5,
-        Meandering: 10
+        none: 0,
+        obedient: 1,
+        crosshatch: 2,
+        unruly: 3,
+        chaotic: 4,
+        randomMix: 5,
+        meandering: 10
       },
       ui: {
         label: "Behavior",

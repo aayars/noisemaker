@@ -42,12 +42,12 @@ export default class CellNoise extends Effect {
       default: 0,
       uniform: "metric",
       choices: {
-        Circle: 0,
-        Diamond: 1,
-        Hexagon: 2,
-        Octagon: 3,
-        Square: 4,
-        Triangle: 6
+        circle: 0,
+        diamond: 1,
+        hexagon: 2,
+        octagon: 3,
+        square: 4,
+        triangle: 6
       },
       ui: {
         label: "metric",
@@ -135,7 +135,7 @@ export default class CellNoise extends Effect {
       choices: {
         mono: 0,
         monoInverse: 1,
-        Palette: 2
+        palette: 2
       },
       ui: {
         label: "color space",
@@ -166,9 +166,9 @@ export default class CellNoise extends Effect {
       default: 1,
       uniform: "cyclePalette",
       choices: {
-        Off: 0,
-        Forward: 1,
-        Backward: -1
+        off: 0,
+        forward: 1,
+        backward: -1
       },
       ui: {
         label: "cycle palette",
@@ -229,8 +229,8 @@ export default class CellNoise extends Effect {
       default: 0,
       uniform: "texSource",
       choices: {
-        None: 0,
-        Input: 3
+        none: 0,
+        input: 3
       },
       ui: {
         label: "tex source",
@@ -242,17 +242,17 @@ export default class CellNoise extends Effect {
       default: 1,
       uniform: "texInfluence",
       choices: {
-        Warp: null,
-        "Cell Scale": 1,
-        "Noise Scale": 2,
-        Combine: null,
-        Add: 10,
-        Divide: 11,
-        Min: 12,
-        Max: 13,
-        Mod: 14,
-        Multiply: 15,
-        Subtract: 16
+        warp: null,
+        cellScale: 1,
+        noiseScale: 2,
+        combine: null,
+        add: 10,
+        divide: 11,
+        min: 12,
+        max: 13,
+        mod: 14,
+        multiply: 15,
+        subtract: 16
       },
       ui: {
         label: "influence",

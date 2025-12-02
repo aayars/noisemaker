@@ -29,9 +29,9 @@ export default class Shape3D extends Effect {
       default: 64,
       uniform: "volumeSize",
       choices: {
-        "32³": 32,
-        "64³": 64,
-        "128³": 128
+        size32: 32,
+        size64: 64,
+        size128: 128
       },
       ui: {
         label: "volume resolution",
@@ -57,17 +57,17 @@ export default class Shape3D extends Effect {
       uniform: "loopAOffset",
       choices: {
         "Platonic Solids:": null,
-        Tetrahedron: 10,
-        Cube: 20,
-        Octahedron: 30,
-        Dodecahedron: 40,
-        Icosahedron: 50,
+        tetrahedron: 10,
+        cube: 20,
+        octahedron: 30,
+        dodecahedron: 40,
+        icosahedron: 50,
         "Other Primitives:": null,
-        Sphere: 100,
-        Torus: 110,
-        Cylinder: 120,
-        Cone: 130,
-        Capsule: 140
+        sphere: 100,
+        torus: 110,
+        cylinder: 120,
+        cone: 130,
+        capsule: 140
       },
       ui: {
         label: "loop a",
@@ -80,17 +80,17 @@ export default class Shape3D extends Effect {
       uniform: "loopBOffset",
       choices: {
         "Platonic Solids:": null,
-        Tetrahedron: 10,
-        Cube: 20,
-        Octahedron: 30,
-        Dodecahedron: 40,
-        Icosahedron: 50,
+        tetrahedron: 10,
+        cube: 20,
+        octahedron: 30,
+        dodecahedron: 40,
+        icosahedron: 50,
         "Other Primitives:": null,
-        Sphere: 100,
-        Torus: 110,
-        Cylinder: 120,
-        Cone: 130,
-        Capsule: 140
+        sphere: 100,
+        torus: 110,
+        cylinder: 120,
+        cone: 130,
+        capsule: 140
       },
       ui: {
         label: "loop b",

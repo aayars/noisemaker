@@ -22,13 +22,13 @@ export default class LensDistortion extends Effect {
       default: 0,
       uniform: "shape",
       choices: {
-        Circle: 0,
-        Cosine: 10,
-        Diamond: 1,
-        Hexagon: 2,
-        Octagon: 3,
-        Square: 4,
-        Triangle: 6
+        circle: 0,
+        cosine: 10,
+        diamond: 1,
+        hexagon: 2,
+        octagon: 3,
+        square: 4,
+        triangle: 6
       },
       ui: {
         label: "shape",
@@ -82,8 +82,8 @@ export default class LensDistortion extends Effect {
       default: 0,
       uniform: "mode",
       choices: {
-        "Chromatic (rgb)": 0,
-        "Prismatic (hsv)": 1
+        chromaticRgb: 0,
+        prismaticHsv: 1
       },
       ui: {
         label: "mode",
@@ -106,8 +106,8 @@ export default class LensDistortion extends Effect {
       default: 0,
       uniform: "blendMode",
       choices: {
-        Add: 0,
-        Alpha: 1
+        add: 0,
+        alpha: 1
       },
       ui: {
         label: "blend",

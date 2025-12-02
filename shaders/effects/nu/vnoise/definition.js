@@ -39,15 +39,15 @@ export default class VNoise extends Effect {
       default: 10,
       uniform: "noiseType",
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6,
-        Simplex: 10,
-        Sine: 11
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6,
+        simplex: 10,
+        sine: 11
       },
       ui: {
         label: "noise type",
@@ -122,25 +122,25 @@ export default class VNoise extends Effect {
       uniform: "loopOffset",
       choices: {
         "Shapes:": null,
-        Circle: 10,
-        Triangle: 20,
-        Diamond: 30,
-        Square: 40,
-        Pentagon: 50,
-        Hexagon: 60,
-        Heptagon: 70,
-        Octagon: 80,
-        Nonagon: 90,
-        Decagon: 100,
-        Hendecagon: 110,
-        Dodecagon: 120,
+        circle: 10,
+        triangle: 20,
+        diamond: 30,
+        square: 40,
+        pentagon: 50,
+        hexagon: 60,
+        heptagon: 70,
+        octagon: 80,
+        nonagon: 90,
+        decagon: 100,
+        hendecagon: 110,
+        dodecagon: 120,
         "Directional:": null,
-        "Horizontal Scan": 200,
-        "Vertical Scan": 210,
+        horizontalScan: 200,
+        verticalScan: 210,
         "Misc:": null,
-        Noise: 300,
-        Rings: 400,
-        Sine: 410
+        noise: 300,
+        rings: 400,
+        sine: 410
       },
       ui: {
         label: "loop offset",
@@ -174,8 +174,8 @@ export default class VNoise extends Effect {
       default: 0,
       uniform: "colorMode",
       choices: {
-        Mono: 0,
-        RGB: 1
+        mono: 0,
+        rgb: 1
       },
       ui: {
         label: "color mode",

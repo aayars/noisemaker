@@ -67,13 +67,13 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       uniform: "sourceF",
       choices: {
-        Slider: 0,
-        "Slider + Input": 6,
-        Brightness: 1,
-        Darkness: 2,
-        Red: 3,
-        Green: 4,
-        Blue: 5
+        slider: 0,
+        sliderInput: 6,
+        brightness: 1,
+        darkness: 2,
+        red: 3,
+        green: 4,
+        blue: 5
       },
       ui: {
         label: "feed source",
@@ -96,13 +96,13 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       uniform: "sourceK",
       choices: {
-        Slider: 0,
-        "Slider + Input": 6,
-        Brightness: 1,
-        Darkness: 2,
-        Red: 3,
-        Green: 4,
-        Blue: 5
+        slider: 0,
+        sliderInput: 6,
+        brightness: 1,
+        darkness: 2,
+        red: 3,
+        green: 4,
+        blue: 5
       },
       ui: {
         label: "kill source",
@@ -125,13 +125,13 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       uniform: "sourceR1",
       choices: {
-        Slider: 0,
-        "Slider + Input": 6,
-        Brightness: 1,
-        Darkness: 2,
-        Red: 3,
-        Green: 4,
-        Blue: 5
+        slider: 0,
+        sliderInput: 6,
+        brightness: 1,
+        darkness: 2,
+        red: 3,
+        green: 4,
+        blue: 5
       },
       ui: {
         label: "rate 1 source",
@@ -154,13 +154,13 @@ export default class ReactionDiffusion extends Effect {
       default: 0,
       uniform: "sourceR2",
       choices: {
-        Slider: 0,
-        "Slider + Input": 6,
-        Brightness: 1,
-        Darkness: 2,
-        Red: 3,
-        Green: 4,
-        Blue: 5
+        slider: 0,
+        sliderInput: 6,
+        brightness: 1,
+        darkness: 2,
+        red: 3,
+        green: 4,
+        blue: 5
       },
       ui: {
         label: "rate 2 source",
@@ -221,13 +221,13 @@ export default class ReactionDiffusion extends Effect {
       default: 1,
       uniform: "smoothing",
       choices: {
-        Constant: 0,
-        Linear: 1,
-        Hermite: 2,
-        "Catmull Rom 3x3": 3,
-        "Catmull Rom 4x4": 4,
-        "B Spline 3x3": 5,
-        "B Spline 4x4": 6
+        constant: 0,
+        linear: 1,
+        hermite: 2,
+        catmullRom3x3: 3,
+        catmullRom4x4: 4,
+        bSpline3x3: 5,
+        bSpline4x4: 6
       },
       ui: {
         label: "smoothing",
