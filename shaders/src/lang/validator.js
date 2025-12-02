@@ -700,6 +700,37 @@ export function validate(ast) {
                                 pushDiag('S003', node)
                                 value = def.default
                             }
+                        } else if (node && node.type === 'Ident' && def.choices) {
+                            // Try to resolve bare identifier against inline choices
+                            const choiceVal = def.choices[node.name]
+                            if (typeof choiceVal === 'number') {
+                                value = clamp(choiceVal, def.min, def.max)
+                            } else {
+                                pushDiag('S003', node)
+                                value = def.default
+                            }
+                        } else if (node && node.type === 'String' && def.choices) {
+                            // Try to resolve quoted string against inline choices (e.g., "5g")
+                            const choiceVal = def.choices[node.value]
+                            if (typeof choiceVal === 'number') {
+                                value = clamp(choiceVal, def.min, def.max)
+                            } else {
+                                pushDiag('S003', node)
+                                value = def.default
+                            }
+                        } else if (node && node.type === 'String' && def.enum) {
+                            // Try to resolve quoted string as enum value within the param's enum path
+                            const prefix = normalizeMemberPath(def.enum)
+                            const path = prefix ? prefix.concat([node.value]) : [node.value]
+                            const resolved = resolveEnum(path)
+                            if (typeof resolved === 'number') {
+                                value = clamp(resolved, def.min, def.max)
+                            } else if (resolved && resolved.type === 'Number') {
+                                value = clamp(resolved.value, def.min, def.max)
+                            } else {
+                                pushDiag('S003', node)
+                                value = def.default
+                            }
                         } else {
                             if (node && node.type === 'Ident' && !stateValues.has(node.name)) {
                                 pushDiag('S003', node)

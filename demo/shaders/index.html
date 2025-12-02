@@ -859,8 +859,13 @@
                         
                         for (const [name, val] of Object.entries(spec.choices)) {
                             if (name.endsWith(':')) continue;
+                            // Always register original name (for quoted string lookups like "5g")
+                            choicesToRegister[namespace][instance.func][key][name] = { type: 'Number', value: val };
+                            // Also register sanitized name if different (for bare identifier lookups like Constant)
                             const sanitized = sanitizeEnumName(name);
-                            choicesToRegister[namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
+                            if (sanitized && sanitized !== name) {
+                                choicesToRegister[namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
+                            }
                         }
                     }
                     return {
@@ -2207,14 +2212,34 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
             // This prevents test harness from silently testing the wrong effect
         }
 
+        // Check if a name is a valid DSL identifier (can be used unquoted)
+        function isValidIdentifier(name) {
+            // Must start with letter or underscore, contain only alphanumerics/underscores
+            return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+        }
+
         // Sanitize a name to be a valid identifier (no spaces, valid chars)
-        // Returns null if the name cannot be made into a valid identifier
+        // Returns the sanitized name, or null if it can't be made valid
         function sanitizeEnumName(name) {
             // Convert spaces to camelCase: "Cell Scale" -> "CellScale"
             let result = name.replace(/\s+(.)/g, (_, c) => c.toUpperCase()).replace(/\s+/g, '');
             // Remove any invalid characters
             result = result.replace(/[^a-zA-Z0-9_]/g, '');
+            // Check if result is a valid identifier (must start with letter or _)
+            if (!isValidIdentifier(result)) {
+                return null;
+            }
             return result;
+        }
+
+        // Format enum name for DSL output - quote if not a valid identifier
+        function formatEnumName(name) {
+            const sanitized = sanitizeEnumName(name);
+            if (sanitized !== null) {
+                return sanitized;
+            }
+            // Can't be an identifier - quote it as a string
+            return `"${name.replace(/"/g, '\\"')}"`;
         }
 
         // Helper to format values for DSL
@@ -2222,14 +2247,14 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
         function formatValue(value, spec) {
             const type = spec?.type || (typeof spec === 'string' ? spec : 'float');
             
-            // If spec has inline choices, look up the sanitized enum name
+            // If spec has inline choices, look up the enum name
             // Use just the short name - the validator resolves it via the param's enum path
-            // Fall back to numeric value if name isn't a valid identifier
+            // Quote names that aren't valid identifiers (e.g., "5g", "1970s shirt")
             if (spec?.choices && typeof value === 'number') {
                 for (const [name, val] of Object.entries(spec.choices)) {
                     if (name.endsWith(':')) continue; // skip group labels
                     if (val === value) {
-                        return sanitizeEnumName(name);
+                        return formatEnumName(name);
                     }
                 }
             }
