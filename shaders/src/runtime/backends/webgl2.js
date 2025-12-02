@@ -301,10 +301,24 @@ export class WebGL2Backend extends Backend {
             this.textures.delete(id)
         }
         
+        // Delete single-texture FBO for this texture
         const fbo = this.fbos.get(id)
         if (fbo) {
             gl.deleteFramebuffer(fbo)
             this.fbos.delete(id)
+        }
+        
+        // Also invalidate any MRT FBOs that reference this texture
+        // MRT FBO IDs contain the texture IDs in their name (e.g., "mrt_node_0_pass_0_texA_texB")
+        const mrtToDelete = []
+        for (const [fboId, mrtFbo] of this.fbos.entries()) {
+            if (fboId.startsWith('mrt_') && fboId.includes(id)) {
+                mrtToDelete.push(fboId)
+            }
+        }
+        for (const mrtId of mrtToDelete) {
+            gl.deleteFramebuffer(this.fbos.get(mrtId))
+            this.fbos.delete(mrtId)
         }
     }
 

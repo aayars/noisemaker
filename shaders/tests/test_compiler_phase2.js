@@ -38,21 +38,21 @@ function test(name, code, check) {
     }
 }
 
-test('Variable Alias (Function)', 'search basics\nlet x = osc; x(10).out(o0)', (result) => {
+test('Variable Alias (Function)', 'search basics\nlet x = osc; x(10).write(o0)', (result) => {
     const plan = result.plans[0];
     const step = plan.chain[0];
     if (step.op !== 'basics.osc') throw new Error(`Expected basics.osc, got ${step.op}`);
     if (step.args.freq !== 10) throw new Error(`Expected freq 10, got ${step.args.freq}`);
 });
 
-test('Variable Alias (Partial)', 'search basics\nlet x = osc(10); x().out(o0)', (result) => {
+test('Variable Alias (Partial)', 'search basics\nlet x = osc(10); x().write(o0)', (result) => {
     const plan = result.plans[0];
     const step = plan.chain[0];
     if (step.op !== 'basics.osc') throw new Error(`Expected basics.osc, got ${step.op}`);
     if (step.args.freq !== 10) throw new Error(`Expected freq 10, got ${step.args.freq}`);
 });
 
-test('Variable Merge', 'search basics\nlet x = osc(10); x(20).out(o0)', (result) => {
+test('Variable Merge', 'search basics\nlet x = osc(10); x(20).write(o0)', (result) => {
     const plan = result.plans[0];
     const step = plan.chain[0];
     if (step.op !== 'basics.osc') throw new Error(`Expected basics.osc, got ${step.op}`);
@@ -60,7 +60,7 @@ test('Variable Merge', 'search basics\nlet x = osc(10); x(20).out(o0)', (result)
     if (step.args.sync !== 20) throw new Error(`Expected sync 20, got ${step.args.sync}`);
 });
 
-test('Variable Merge (Named)', 'search basics\nlet x = osc(freq: 10); x(sync: 0.5).out(o0)', (result) => {
+test('Variable Merge (Named)', 'search basics\nlet x = osc(freq: 10); x(sync: 0.5).write(o0)', (result) => {
     const plan = result.plans[0];
     const step = plan.chain[0];
     if (step.args.freq !== 10) throw new Error(`Expected freq 10, got ${step.args.freq}`);
@@ -70,7 +70,7 @@ test('Variable Merge (Named)', 'search basics\nlet x = osc(freq: 10); x(sync: 0.
 test('Chained Variables', `search basics
 let gen = osc(10)
 let eff = rotate(1, 0.1)
-gen().eff().out(o0)
+gen().eff().write(o0)
 `, (result) => {
     const plan = result.plans[0];
     if (plan.chain.length !== 2) throw new Error(`Expected 2 steps, got ${plan.chain.length}`);

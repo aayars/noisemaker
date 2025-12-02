@@ -1,5 +1,6 @@
 import diagnostics from './diagnostics.js'
 import enums from './enums.js'
+import { stdEnums } from './std_enums.js'
 import { ops } from './ops.js'
 import { normalizeMemberPath, pathStartsWith, applyEnumPrefix } from './enumPaths.js'
 import { resolveCallTarget } from './namespaceRuntime.js'
@@ -152,6 +153,9 @@ export function validate(ast) {
             if (cur && (cur.type === 'Number' || cur.type === 'Boolean')) cur = cur.value
         } else if (Object.prototype.hasOwnProperty.call(enums, head)) {
             cur = enums[head]
+        } else if (Object.prototype.hasOwnProperty.call(stdEnums, head)) {
+            // Also check stdEnums for oscKind, oscType, palette, etc.
+            cur = stdEnums[head]
         } else {
             return undefined
         }
@@ -409,19 +413,60 @@ export function validate(ast) {
     function compileChainStatement(stmt) {
         const chain = []
         
-        // Check for S006: Starter chain missing out()
+        // Check for S006: Starter chain missing write()
         const chainNode = { type: 'Chain', chain: stmt.chain }
-        if (!stmt.out && isStarterChain(chainNode)) {
+        if (!stmt.write && isStarterChain(chainNode)) {
              pushDiag('S006', stmt.chain[0])
         }
 
-        const outName = stmt.out ? stmt.out.name : 'o0'
+        const writeName = stmt.write ? stmt.write.name : 'o0'
         const states = []
 
         function processChain(calls, input, options = {}) {
             const allowStarterless = options.allowStarterless === true
             let current = input
             for (const original of calls) {
+                // Handle Read node (pipeline built-in for reading 2D surfaces)
+                if (original.type === 'Read') {
+                    const surface = toSurface(original.surface)
+                    if (!surface) {
+                        pushDiag('S001', original, 'read() requires a valid surface reference')
+                        continue
+                    }
+                    const idx = tempIndex++
+                    const step = {
+                        op: '_read',
+                        args: { tex: surface },
+                        from: null,
+                        temp: idx,
+                        builtin: true
+                    }
+                    chain.push(step)
+                    current = idx
+                    continue
+                }
+                
+                // Handle Read3D node (pipeline built-in for reading 3D textures)
+                if (original.type === 'Read3D') {
+                    const tex3d = original.tex3d?.name ? { kind: 'tex3d', name: original.tex3d.name } : null
+                    const geo = original.geo?.name ? { kind: 'geo', name: original.geo.name } : null
+                    if (!tex3d || !geo) {
+                        pushDiag('S001', original, 'read3d() requires tex3d and geo references')
+                        continue
+                    }
+                    const idx = tempIndex++
+                    const step = {
+                        op: '_read3d',
+                        args: { tex3d, geo },
+                        from: null,
+                        temp: idx,
+                        builtin: true
+                    }
+                    chain.push(step)
+                    current = idx
+                    continue
+                }
+                
                 const call = resolveCall({...original})
                 const effectiveNamespace = call.namespace || { searchOrder: programSearchOrder }
                 const resolution = resolveCallTarget(call.name, effectiveNamespace)
@@ -455,7 +500,7 @@ export function validate(ast) {
                 }
                 if (opName === 'prev') {
                     const idx = tempIndex++
-                    const args = {tex:{kind:'output', name: outName}}
+                    const args = {tex:{kind:'output', name: writeName}}
                     const namespaceSnapshot = buildNamespaceSnapshot(call.namespace, resolution)
                     const step = {op: opName, args, from: current, temp: idx}
                     if (namespaceSnapshot) { step.namespace = namespaceSnapshot }
@@ -667,6 +712,50 @@ export function validate(ast) {
                                 pushDiag('S001', node)
                                 value = def.default
                             }
+                        } else if (node && node.type === 'Oscillator') {
+                            // Oscillator node - resolve the oscType enum value and pass through
+                            // The oscillator will be evaluated at runtime by the pipeline
+                            const oscTypeNode = node.oscType
+                            let oscTypeValue = 0
+                            if (oscTypeNode && oscTypeNode.type === 'Member') {
+                                const resolved = resolveEnum(oscTypeNode.path)
+                                if (typeof resolved === 'number') {
+                                    oscTypeValue = resolved
+                                } else if (resolved && resolved.type === 'Number') {
+                                    oscTypeValue = resolved.value
+                                }
+                            } else if (oscTypeNode && oscTypeNode.type === 'Ident') {
+                                // Try resolving as oscKind.{name}
+                                const resolved = resolveEnum(['oscKind', oscTypeNode.name])
+                                if (typeof resolved === 'number') {
+                                    oscTypeValue = resolved
+                                } else if (resolved && resolved.type === 'Number') {
+                                    oscTypeValue = resolved.value
+                                }
+                            }
+                            // Resolve min, max, speed, offset, seed from the oscillator node
+                            const resolveOscParam = (param) => {
+                                if (!param) return undefined
+                                if (param.type === 'Number') return param.value
+                                if (param.type === 'Boolean') return param.value ? 1 : 0
+                                if (param.type === 'Member') {
+                                    const r = resolveEnum(param.path)
+                                    if (typeof r === 'number') return r
+                                    if (r && r.type === 'Number') return r.value
+                                }
+                                return undefined
+                            }
+                            value = {
+                                oscillator: true,
+                                oscType: oscTypeValue,
+                                min: resolveOscParam(node.min) ?? 0,
+                                max: resolveOscParam(node.max) ?? 1,
+                                speed: resolveOscParam(node.speed) ?? 1,
+                                offset: resolveOscParam(node.offset) ?? 0,
+                                seed: resolveOscParam(node.seed) ?? 1,
+                                // Keep original AST for unparsing
+                                _ast: node
+                            }
                         } else if (node && node.type === 'Member') {
                             const cur = resolveEnum(node.path)
                             if (typeof cur === 'number') {
@@ -766,7 +855,7 @@ export function validate(ast) {
                         call,
                         originalCall: original,
                         args,
-                        outName,
+                        writeName,
                         from: fromInput,
                         allocateTemp: () => tempIndex++,
                         addStep: (step) => {
@@ -801,15 +890,15 @@ export function validate(ast) {
         }
 
         const finalIndex = processChain(stmt.chain, null)
-        let outSurf = null
-        if (stmt.out) {
-            if (stmt.out.type === 'FeedbackRef') {
-                outSurf = {kind:'feedback', name: stmt.out.name}
+        let writeSurf = null
+        if (stmt.write) {
+            if (stmt.write.type === 'FeedbackRef') {
+                writeSurf = {kind:'feedback', name: stmt.write.name}
             } else {
-                outSurf = {kind:'output', name: stmt.out.name}
+                writeSurf = {kind:'output', name: stmt.write.name}
             }
         }
-        return {chain, out: outSurf, final: finalIndex, states}
+        return {chain, write: writeSurf, final: finalIndex, states}
     }
 
     function compileBlock(body) {

@@ -64,14 +64,14 @@ test('Verify 8 Outputs', async () => {
 })
 
 test('Parse o7 Output', () => {
-    const code = 'search basics\nosc().out(o7)'
+    const code = 'search basics\nnoise().write(o7)'
     const tokens = lex(code)
     const ast = parse(tokens)
     
-    // AST structure: { plans: [ { chain: [...], out: { type: 'OutputRef', name: 'o7' } } ] }
+    // AST structure: { plans: [ { chain: [...], write: { type: 'OutputRef', name: 'o7' } } ] }
     const plan = ast.plans[0]
-    if (plan.out.name !== 'o7') {
-        throw new Error(`Expected output name o7, got ${plan.out.name}`)
+    if (plan.write.name !== 'o7') {
+        throw new Error(`Expected output name o7, got ${plan.write.name}`)
     }
-    console.log('Successfully parsed .out(o7)')
+    console.log('Successfully parsed .write(o7)')
 })

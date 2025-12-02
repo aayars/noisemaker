@@ -13,7 +13,9 @@
  * Continue       ::= 'continue'
  * Return         ::= 'return' Expr?
  * VarAssign      ::= 'let' Ident '=' Expr
- * ChainStmt      ::= Chain ('.out(' (OutputRef | FeedbackRef)? ')')?
+ * ChainStmt      ::= Chain WriteDirective?
+ * WriteDirective ::= '.write(' (OutputRef | FeedbackRef)? ')'
+ *                  | '.write3d(' Ident ',' Ident ')'
  * Chain          ::= Call ('.' Call)*
  * Expr           ::= Chain | NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | FeedbackRef | SourceRef | Func | '(' Expr ')'
  * Call           ::= Ident '(' ArgList? ')'
@@ -32,6 +34,12 @@
  * Boolean        ::= 'true' | 'false'
  * Color          ::= '#' HexDigit HexDigit HexDigit ( HexDigit HexDigit HexDigit )?
  * HexDigit       ::= Digit | 'A'…'F' | 'a'…'f'
+ * 
+ * Special Call Transformations:
+ * - read(surface) → src(surface)  (alias for src)
+ * - read3d(tex3d, geo) → Read3D node
+ * - osc(oscKind, ...) → Oscillator node
+ * 
  * @param {Array} tokens Token stream from the lexer
  * @returns {object} AST
  */
@@ -65,7 +73,7 @@ export function parse(tokens) {
     const memberTokenTypes = new Set([
         'IDENT', 'SOURCE_REF', 'OUTPUT_REF', 'FEEDBACK_REF',
         'LET', 'RENDER', 'TRUE', 'FALSE', 'IF', 'ELIF', 'ELSE',
-        'LOOP', 'BREAK', 'CONTINUE', 'RETURN', 'OUT'
+        'LOOP', 'BREAK', 'CONTINUE', 'RETURN', 'WRITE', 'WRITE3D'
     ])
 
     const cloneNamespaceMeta = (meta) => {
@@ -81,6 +89,63 @@ export function parse(tokens) {
             return JSON.parse(JSON.stringify(meta))
         } catch {
             return null
+        }
+    }
+
+    /**
+     * Transform an osc() call into an Oscillator AST node.
+     * 
+     * Oscillator signature:
+     * osc(type, min?, max?, speed?, offset?, seed?)
+     * 
+     * All params except 'type' are optional and support kwargs.
+     * 
+     * type: oscKind enum (sine, tri, saw, sawInv, square, noise)
+     * min: minimum output value (default 0)
+     * max: maximum output value (default 1)
+     * speed: integer multiplier for animation duration (default 1)
+     * offset: phase offset 0..1 (default 0)
+     * seed: noise seed (default 1, only used for noise type)
+     */
+    function transformOscInvocation(call, nameToken) {
+        const args = Array.isArray(call.args) ? call.args : []
+        const kwargs = call.kwargs || {}
+
+        // Parameter order: type, min, max, speed, offset, seed
+        const paramOrder = ['type', 'min', 'max', 'speed', 'offset', 'seed']
+        const defaults = {
+            min: { type: 'Number', value: 0 },
+            max: { type: 'Number', value: 1 },
+            speed: { type: 'Number', value: 1 },
+            offset: { type: 'Number', value: 0 },
+            seed: { type: 'Number', value: 1 }
+        }
+
+        const resolved = {}
+
+        // Resolve each parameter from positional args or kwargs
+        for (let i = 0; i < paramOrder.length; i++) {
+            const paramName = paramOrder[i]
+            if (kwargs[paramName] !== undefined) {
+                resolved[paramName] = kwargs[paramName]
+            } else if (i < args.length) {
+                resolved[paramName] = args[i]
+            } else if (defaults[paramName] !== undefined) {
+                resolved[paramName] = defaults[paramName]
+            }
+        }
+
+        const typeNode = resolved.type
+
+        return {
+            type: 'Oscillator',
+            oscType: typeNode,
+            min: resolved.min,
+            max: resolved.max,
+            speed: resolved.speed,
+            offset: resolved.offset,
+            seed: resolved.seed,
+            loc: { line: nameToken.line, col: nameToken.col }
         }
     }
 
@@ -346,35 +411,67 @@ export function parse(tokens) {
         }
 
         const chain = parseChain()
-        let out = null
-        if (peek().type === 'DOT' && tokens[current + 1]?.type === 'OUT') {
-            advance() // consume '.'
-            advance() // consume 'out'
-            expect('LPAREN', "Expect '('")
-            if (peek().type === 'OUTPUT_REF') {
-                out = {type: 'OutputRef', name: advance().lexeme}
-            } else if (peek().type === 'FEEDBACK_REF') {
-                out = {type: 'FeedbackRef', name: advance().lexeme}
-            }
-            expect('RPAREN', "Expect ')'")
-            // default to o0 when .out() has no argument
-            if (!out) {
-                out = {type: 'OutputRef', name: 'o0'}
+        let write = null
+        let write3d = null
+        
+        // Check for .write() or .write3d()
+        if (peek().type === 'DOT') {
+            const nextType = tokens[current + 1]?.type
+            if (nextType === 'WRITE') {
+                advance() // consume '.'
+                advance() // consume 'write'
+                expect('LPAREN', "Expect '('")
+                if (peek().type === 'OUTPUT_REF') {
+                    write = {type: 'OutputRef', name: advance().lexeme}
+                } else if (peek().type === 'FEEDBACK_REF') {
+                    write = {type: 'FeedbackRef', name: advance().lexeme}
+                }
+                expect('RPAREN', "Expect ')'")
+                // default to o0 when .write() has no argument
+                if (!write) {
+                    write = {type: 'OutputRef', name: 'o0'}
+                }
+            } else if (nextType === 'WRITE3D') {
+                advance() // consume '.'
+                advance() // consume 'write3d'
+                expect('LPAREN', "Expect '('")
+                // Parse tex3d reference
+                let tex3d = null
+                if (peek().type === 'IDENT' || peek().type === 'OUTPUT_REF') {
+                    tex3d = peek().type === 'OUTPUT_REF' 
+                        ? {type: 'OutputRef', name: advance().lexeme}
+                        : {type: 'Ident', name: advance().lexeme}
+                } else {
+                    throw new SyntaxError(`Expected tex3d reference in write3d() at line ${peek().line} col ${peek().col}`)
+                }
+                expect('COMMA', "Expect ',' between tex3d and geo in write3d()")
+                // Parse geo reference
+                let geo = null
+                if (peek().type === 'IDENT' || peek().type === 'OUTPUT_REF') {
+                    geo = peek().type === 'OUTPUT_REF'
+                        ? {type: 'OutputRef', name: advance().lexeme}
+                        : {type: 'Ident', name: advance().lexeme}
+                } else {
+                    throw new SyntaxError(`Expected geo reference in write3d() at line ${peek().line} col ${peek().col}`)
+                }
+                expect('RPAREN', "Expect ')'")
+                write3d = {tex3d, geo}
             }
         }
-        // If no .out() is present, out remains null.
+        // If no .write() is present, write remains null.
         // The validator will check if this is allowed (e.g. for non-generator chains or nested usage).
         
-        return {chain, out}
+        return {chain, write, write3d}
     }
 
     function parseChain(context = 'statement') {
         const calls = [parseCall()]
         while (peek().type === 'DOT') {
-            if (tokens[current + 1]?.type === 'OUT') {
+            const nextType = tokens[current + 1]?.type
+            if (nextType === 'WRITE' || nextType === 'WRITE3D') {
                 if (context === 'expression') {
                     const t = tokens[current + 1]
-                    throw new SyntaxError(`'.out()' is only allowed at the end of a statement at line ${t.line} col ${t.col}`)
+                    throw new SyntaxError(`'.write()' is only allowed at the end of a statement at line ${t.line} col ${t.col}`)
                 }
                 break
             }
@@ -436,6 +533,30 @@ export function parse(tokens) {
         if (keyword) call.kwargs = kwargs
         if (nameToken.lexeme === 'from') {
             return transformFromInvocation(call, nameToken)
+        }
+        if (nameToken.lexeme === 'osc') {
+            return transformOscInvocation(call, nameToken)
+        }
+        // read() is a pipeline built-in for reading 2D surfaces (semantic inverse of write)
+        if (nameToken.lexeme === 'read') {
+            // Extract surface reference from args or kwargs
+            let surface = args[0] || kwargs.tex || kwargs.surface
+            return {
+                type: 'Read',
+                surface: surface,
+                loc: { line: nameToken.line, col: nameToken.col }
+            }
+        }
+        // read3d() reads from both tex3d and geo surfaces
+        if (nameToken.lexeme === 'read3d') {
+            let tex3d = args[0] || kwargs.tex3d
+            let geo = args[1] || kwargs.geo
+            return {
+                type: 'Read3D',
+                tex3d: tex3d,
+                geo: geo,
+                loc: { line: nameToken.line, col: nameToken.col }
+            }
         }
         return call
     }

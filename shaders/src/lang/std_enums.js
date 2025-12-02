@@ -6,6 +6,16 @@ Object.keys(palettes).forEach((name, index) => {
     paletteEnum[name] = { type: 'Number', value: index };
 });
 
+// Oscillator kind enum for osc() function
+const oscKindEnum = {
+    sine: { type: 'Number', value: 0 },      // 0 -> 1 -> 0
+    tri: { type: 'Number', value: 1 },       // 0 -> 1 -> 0 (linear)
+    saw: { type: 'Number', value: 2 },       // 0 -> 1
+    sawInv: { type: 'Number', value: 3 },    // 1 -> 0
+    square: { type: 'Number', value: 4 },    // on/off
+    noise: { type: 'Number', value: 5 }      // periodic 2D noise
+};
+
 export const stdEnums = {
     color: {
         mono: { type: 'Number', value: 0 },
@@ -20,5 +30,6 @@ export const stdEnums = {
         square: { type: 'Number', value: 4 },
         noise: { type: 'Number', value: 5 }
     },
+    oscKind: oscKindEnum,
     palette: paletteEnum
 }

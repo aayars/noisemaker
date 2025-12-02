@@ -40,10 +40,10 @@ const SolidEffect = {
     ]
 }
 
-const OscEffect = {
-    name: "Osc",
+const WaveEffect = {
+    name: "Wave",
     namespace: "basics",
-    func: "osc",
+    func: "wave",
     globals: {
         freq: { type: "float", default: 10, min: 0, max: 100 }
     },
@@ -51,7 +51,7 @@ const OscEffect = {
         {
             name: "main",
             type: "render",
-            program: "osc",
+            program: "wave",
             inputs: {},
             outputs: { color: "outputTex" }
         }
@@ -87,22 +87,22 @@ registerOp('basics.solid', {
         { name: 'b', type: 'float', default: 0 }
     ]
 })
-registerOp('basics.osc', {
-    name: 'osc',
+registerOp('basics.wave', {
+    name: 'wave',
     args: [{ name: 'freq', type: 'float', default: 10 }]
 })
 registerOp('basics.blend', {
     name: 'blend',
     args: [{ name: 'tex', type: 'surface' }]
 })
-registerStarterOps(['basics.solid', 'basics.osc'])
+registerStarterOps(['basics.solid', 'basics.wave'])
 
 registerEffect('basics.solid', SolidEffect)
-registerEffect('basics.osc', OscEffect)
+registerEffect('basics.wave', WaveEffect)
 registerEffect('basics.blend', BlendEffect)
 
 test('Integration - Simple Generator', () => {
-    const source = 'search basics\nsolid(1, 0, 0).out(o0)'
+    const source = 'search basics\nsolid(1, 0, 0).write(o0)'
     const graph = compileGraph(source)
     
     if (!graph) {
@@ -117,7 +117,7 @@ test('Integration - Simple Generator', () => {
 })
 
 test('Integration - Chain with Parameters', () => {
-    const source = 'search basics\nosc(20).out(o0)'
+    const source = 'search basics\nwave(20).write(o0)'
     const graph = compileGraph(source)
     
     if (!graph || !graph.passes) {
@@ -133,7 +133,7 @@ test('Integration - Chain with Parameters', () => {
 })
 
 test('Integration - Texture Allocation', () => {
-    const source = 'search basics\nsolid(1, 0.5, 0).out(o0)'
+    const source = 'search basics\nsolid(1, 0.5, 0).write(o0)'
     const graph = compileGraph(source)
     
     if (!graph.textures) {
@@ -144,7 +144,7 @@ test('Integration - Texture Allocation', () => {
 })
 
 test('Integration - Resource Allocation', () => {
-    const source = 'search basics\nsolid(1, 0, 0).out(o0)'
+    const source = 'search basics\nsolid(1, 0, 0).write(o0)'
     const graph = compileGraph(source)
     
     if (!graph.allocations) {
@@ -156,9 +156,9 @@ test('Integration - Resource Allocation', () => {
 
 test('Integration - Multiple Outputs', () => {
     const sources = [
-        'search basics\nsolid(1, 0, 0).out(o0)',
-        'search basics\nsolid(0, 1, 0).out(o1)',
-        'search basics\nsolid(0, 0, 1).out(o2)'
+        'search basics\nsolid(1, 0, 0).write(o0)',
+        'search basics\nsolid(0, 1, 0).write(o1)',
+        'search basics\nsolid(0, 0, 1).write(o2)'
     ]
     
     for (const source of sources) {
@@ -172,7 +172,7 @@ test('Integration - Multiple Outputs', () => {
 })
 
 test('Integration - Graph Metadata', () => {
-    const source = 'search basics\nsolid(1, 1, 1).out(o0)'
+    const source = 'search basics\nsolid(1, 1, 1).write(o0)'
     const graph = compileGraph(source)
     
     if (!graph.id) {
@@ -191,7 +191,7 @@ test('Integration - Graph Metadata', () => {
 })
 
 test('Integration - Hash Consistency', () => {
-    const source = 'search basics\nsolid(1, 0, 0).out(o0)'
+    const source = 'search basics\nsolid(1, 0, 0).write(o0)'
     
     const graph1 = compileGraph(source)
     const graph2 = compileGraph(source)
@@ -200,7 +200,7 @@ test('Integration - Hash Consistency', () => {
         throw new Error('Graph IDs should be identical for same source')
     }
     
-    const differentSource = 'search basics\nsolid(0, 1, 0).out(o0)'
+    const differentSource = 'search basics\nsolid(0, 1, 0).write(o0)'
     const graph3 = compileGraph(differentSource)
     
     if (graph1.id === graph3.id) {

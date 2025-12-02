@@ -12,7 +12,7 @@ const diagnostics = {
   S003: { stage: 'semantic', severity: 'error', message: 'Variable used before assignment' },
   S004: { stage: 'semantic', severity: 'error', message: 'Cannot assign null or undefined' },
   S005: { stage: 'semantic', severity: 'error', message: 'Illegal chain structure' },
-  S006: { stage: 'semantic', severity: 'error', message: 'Starter chain missing out() call' },
+  S006: { stage: 'semantic', severity: 'error', message: 'Starter chain missing write() call' },
   R001: { stage: 'runtime', severity: 'error', message: 'Runtime error' }
 }
 

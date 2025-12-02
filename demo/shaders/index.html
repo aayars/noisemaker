@@ -1183,10 +1183,23 @@
             return false;
         }
 
-        // Check if effect is a 3D generator (has outputTex3d but doesn't need inputTex3d)
+        // Check if effect is a 3D generator (fills a volume - like noise3d, cell3d, shape3d, fractal3d)
+        // These effects self-initialize their volumes with volumeSize parameter
+        const KNOWN_3D_GENERATORS = ['noise3d', 'cell3d', 'shape3d', 'fractal3d'];
         function is3dGenerator(effect) {
             if (!effect || !effect.instance) return false;
-            return effect.instance.outputTex3d && !needsInputTex3d(effect);
+            const func = effect.instance.func;
+            return effect.instance.outputTex3d && KNOWN_3D_GENERATORS.includes(func);
+        }
+        
+        // Check if effect is a 3D processor (modifies a volume - like flow3d, rd3d, ca3d)
+        // These effects need a 3D generator upstream to provide volume content
+        // If inputTex3d is provided, its dimensions take precedence over local volumeSize
+        const KNOWN_3D_PROCESSORS = ['flow3d', 'rd3d', 'ca3d'];
+        function is3dProcessor(effect) {
+            if (!effect || !effect.instance) return false;
+            const func = effect.instance.func;
+            return effect.instance.outputTex3d && KNOWN_3D_PROCESSORS.includes(func);
         }
 
         function buildDslSource(effect) {
@@ -1207,8 +1220,27 @@
             const starter = isStarterEffect(effect);
             const hasTex = hasTexSurfaceParam(effect);
 
+            // 3D volume generators self-initialize their volumes and need render3d() to visualize
+            // noise3d(volumeSize: x64, scale: 3).render3d().write(o0)
+            // Check this FIRST before starter/transform categorization
+            if (is3dGenerator(effect)) {
+                const params = [];
+                if (effect.instance.globals) {
+                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
+                        const value = parameterValues[key];
+                        if (value === undefined || value === null) {
+                            continue;
+                        }
+                        params.push(`${key}: ${formatValue(value, spec)}`);
+                    }
+                }
+                const paramString = params.join(', ');
+                // 3D generators self-initialize, just chain with render3d()
+                return `search nu, vol\n${funcName}(${paramString}).render3d().write(o0)`;
+            }
+
             if (starter) {
-                // Starter effect: effectName(...).out(o0)
+                // Starter effect: effectName(...).write(o0)
                 const params = [];
                 if (effect.instance.globals) {
                     for (const [key, spec] of Object.entries(effect.instance.globals)) {
@@ -1230,14 +1262,14 @@
                     const outputSurface = 'o0';
                     // Ensure tex parameter is passed to the effect
                     const paramsWithTex = paramString ? `tex: src(${sourceSurface}), ${paramString}` : `tex: src(${sourceSurface})`;
-                    return `${searchDirective}noise(seed: 1, ridges: true).out(${sourceSurface})\n${funcName}(${paramsWithTex}).out(${outputSurface})`;
+                    return `${searchDirective}noise(seed: 1, ridges: true).write(${sourceSurface})\n${funcName}(${paramsWithTex}).write(${outputSurface})`;
                 }
-                return `${searchDirective}${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}${funcName}(${paramString}).write(o0)`;
             } else if (hasTex) {
                 // Mixer effect (has inputTex and tex): two noise sources
                 // The pipeline always presents o0 to screen, so output to o0
-                // noise(seed: 1, ridged: true).out(o1)
-                // noise(seed: 2, ridged: true).effectName(tex: src(o1), ...).out(o0)
+                // noise(seed: 1, ridged: true).write(o1)
+                // noise(seed: 2, ridged: true).effectName(tex: src(o1), ...).write(o0)
                 const params = [];
                 // Always include tex: src(o1) for mixer effects
                 params.push(`tex: src(o1)`);
@@ -1255,11 +1287,11 @@
                     }
                 }
                 const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1, ridges: true).out(o1)
-noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
-            } else if (needsInputTex3d(effect)) {
-                // 3D consumer effect (needs inputTex3d): chain with a 3D generator
-                // noise3d().flow3d().out(o0)
+                return `${searchDirective}noise(seed: 1, ridges: true).write(o1)
+noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
+            } else if (is3dProcessor(effect)) {
+                // 3D processor effect (needs inputTex3d): chain with a 3D generator and render3d
+                // noise3d(volumeSize: x32).flow3d().render3d().write(o0)
                 const params = [];
                 let consumerVolumeSize = 32;  // default
                 if (effect.instance.globals) {
@@ -1275,14 +1307,14 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                     }
                 }
                 const paramString = params.join(', ');
-                // Use noise3d as the 3D generator - match volumeSize to consumer
-                const generatorDsl = `noise3d(volumeSize: ${consumerVolumeSize})`;
+                // noise3d() generates volume content, effect processes, render3d() visualizes
+                const generatorDsl = `noise3d(volumeSize: x${consumerVolumeSize})`;
                 if (paramString) {
-                    return `search nu\n${generatorDsl}.${funcName}(${paramString}).out(o0)`;
+                    return `search nu, vol\n${generatorDsl}.${funcName}(${paramString}).render3d().write(o0)`;
                 }
-                return `search nu\n${generatorDsl}.${funcName}().out(o0)`;
+                return `search nu, vol\n${generatorDsl}.${funcName}().render3d().write(o0)`;
             } else {
-                // Simple transform effect (has inputTex only): noise().effectName(...).out(o0)
+                // Simple transform effect (has inputTex only): noise().effectName(...).write(o0)
                 const params = [];
                 if (effect.instance.globals) {
                     for (const [key, spec] of Object.entries(effect.instance.globals)) {
@@ -1294,7 +1326,7 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                     }
                 }
                 const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1, ridges: true).${funcName}(${paramString}).out(o0)`;
+                return `${searchDirective}noise(seed: 1, ridges: true).${funcName}(${paramString}).write(o0)`;
             }
         }
 
@@ -1778,10 +1810,11 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 pipeline.resize(pipeline.width, pipeline.height, zoomValue);
             }
             
-            // volumeSize affects internal effect textures - need to recreate them
+            // volumeSize affects internal effect textures AND is a pipeline-inherited uniform
+            // Use setUniform to update ALL passes (not just the owning step) and resize textures
             for (const params of Object.values(effectParameterValues)) {
-                if ('volumeSize' in params && pipeline.updateParameterTextures) {
-                    pipeline.updateParameterTextures({ volumeSize: params.volumeSize });
+                if ('volumeSize' in params && pipeline.setUniform) {
+                    pipeline.setUniform('volumeSize', params.volumeSize);
                     break;
                 }
             }
@@ -2087,7 +2120,8 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).out(o0)`;
                 { namespace: 'basics', path: '../../shaders/effects/basics' },
                 { namespace: 'nd', path: '../../shaders/effects/nd' },
                 { namespace: 'nm', path: '../../shaders/effects/nm' },
-                { namespace: 'nu', path: '../../shaders/effects/nu' }
+                { namespace: 'nu', path: '../../shaders/effects/nu' },
+                { namespace: 'vol', path: '../../shaders/effects/vol' }
             ];
 
             const effects = [];

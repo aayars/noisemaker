@@ -3,7 +3,7 @@
 Polymorphic DSL
 ===============
 
-Polymorphic is the DSL powering the Noisemaker Rendering Pipeline, enabling live-coding visuals by chaining functions like ``noise().bloom().out()``. The Polymorphic DSL serves as the high-level builder for the pipeline, allowing users to define complex, multi-pass effects declaratively.
+Polymorphic is the DSL powering the Noisemaker Rendering Pipeline, enabling live-coding visuals by chaining functions like ``noise().bloom().write()``. The Polymorphic DSL serves as the high-level builder for the pipeline, allowing users to define complex, multi-pass effects declaratively.
 
 The language evaluates to a Directed Acyclic Graph (DAG) of render passes executed on the GPU. Each valid program must materialize its generator chains into explicit outputs so that the pipeline can schedule and double-buffer them deterministically.
 
@@ -23,7 +23,7 @@ Grammar
    Continue       ::= 'continue'
    Return         ::= 'return' Expr?
    VarAssign      ::= 'let' Ident '=' Expr
-   ChainStmt      ::= Chain ('.out(' OutputRef? ')')?
+   ChainStmt      ::= Chain ('.write(' OutputRef? ')')?
    Chain          ::= Call ( '.' Call )*
    Expr           ::= Chain | NumberExpr | String | Boolean | Color | Ident | Member | OutputRef | SourceRef | Func | '(' Expr ')'
    Call           ::= Ident '(' ArgList? ')'
@@ -53,8 +53,8 @@ Grammar
 **Output Materialization:**
 
 
-* Any chain that begins with a generator **must** terminate with ``.out(<surface>)``; omitting ``.out()`` on a generator chain yields diagnostic ``S006``.
-* Chains that extend an existing surface (e.g., reading via ``src(o0)`` and applying additional nodes) may omit ``.out()`` only when they are nested inside another chain that eventually writes to a surface.
+* Any chain that begins with a generator **must** terminate with ``.write(<surface>)``; omitting ``.write()`` on a generator chain yields diagnostic ``S006``.
+* Chains that extend an existing surface (e.g., reading via ``src(o0)`` and applying additional nodes) may omit ``.write()`` only when they are nested inside another chain that eventually writes to a surface.
 
 **Generators:**
 A chain must start with a Generator function (an effect with no inputs).
@@ -99,7 +99,7 @@ Programs may declare variables with ``let`` and reuse them. Variables can alias 
 .. code-block:: none
 
   let pattern = noise
-  pattern(20).out(o0)
+  pattern(20).write(o0)
 
 **Semantics:**
 
@@ -116,7 +116,7 @@ Invoking variables that store function calls merges stored arguments with call-s
 .. code-block:: none
 
   let tuned = noise(5)
-  tuned(amp:0.5).out(o0)
+  tuned(amp:0.5).write(o0)
 
 **Merge Rules:**
 
@@ -157,7 +157,7 @@ Every program **must** begin with a ``search`` directive that defines the namesp
 .. code-block:: none
 
   search nd, basics
-  noise3d(seed: 1).translate(x: 0, y: 0).out(o0)
+  noise3d(seed: 1).translate(x: 0, y: 0).write(o0)
 
 When a function like ``noise3d()`` is called, the runtime walks the search order (``nd``, then ``basics``) until a matching effect is found.
 
@@ -179,9 +179,117 @@ For example, the ``noise`` effect accepts a ``colorMode`` parameter with values 
 
 * **Shorthand identifier:** ``colorMode: rgb`` (validator auto-prefixes to ``color.rgb``)
 * **Full path:** ``colorMode: color.rgb``
-* **Member expression:** ``let mode = color.mono; noise(colorMode: mode).out(o0)``
+* **Member expression:** ``let mode = color.mono; noise(colorMode: mode).write(o0)``
 
 The runtime resolves these enum references to their integer counterparts before binding to the shader.
+
+Oscillators
+-----------
+
+Oscillators are objects that generate time-varying values for animating effect parameters. They produce looping values synchronized with the animation duration, making them ideal for creating smooth, repeating animations.
+
+Creating Oscillators
+^^^^^^^^^^^^^^^^^^^^
+
+Use the ``osc()`` function to create an oscillator:
+
+.. code-block:: none
+
+   osc(type: oscKind.sine)
+
+**Parameters:**
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - type
+     - oscKind
+     - (required)
+     - Oscillator waveform type
+   * - min
+     - number
+     - 0
+     - Minimum output value
+   * - max
+     - number
+     - 1
+     - Maximum output value
+   * - speed
+     - int
+     - 1
+     - Loop speed multiplier (divides evenly into animation duration)
+   * - offset
+     - number
+     - 0
+     - Phase offset (0..1)
+   * - seed
+     - number
+     - 1
+     - Random seed (noise type only)
+
+**Oscillator Types (oscKind):**
+
+* ``oscKind.sine`` - Smooth sine wave: 0 → 1 → 0
+* ``oscKind.tri`` - Linear triangle wave: 0 → 1 → 0
+* ``oscKind.saw`` - Sawtooth wave: 0 → 1
+* ``oscKind.sawInv`` - Inverted sawtooth: 1 → 0
+* ``oscKind.square`` - Square wave: 0 or 1
+* ``oscKind.noise`` - Periodic 2D noise (seamlessly looping)
+
+Usage Examples
+^^^^^^^^^^^^^^
+
+**Basic oscillating parameter:**
+
+.. code-block:: none
+
+   search basics
+   noise(scale: osc(type: oscKind.sine, min: 2, max: 8)).write(o0)
+
+**Using variables for reusable oscillators:**
+
+.. code-block:: none
+
+   search basics
+   let scaleOsc = osc(type: oscKind.sine, min: 2, max: 8)
+   let rotOsc = osc(type: oscKind.saw, min: 0, max: 360)
+   noise(scale: scaleOsc, rotation: rotOsc).write(o0)
+
+**Speed control for synchronized loops:**
+
+.. code-block:: none
+
+   search basics
+   // speed: 2 means the oscillator completes 2 cycles per animation loop
+   noise(scale: osc(type: oscKind.tri, min: 1, max: 10, speed: 2)).write(o0)
+
+**Phase offset for staggered animations:**
+
+.. code-block:: none
+
+   search basics
+   let osc1 = osc(type: oscKind.sine, offset: 0)
+   let osc2 = osc(type: oscKind.sine, offset: 0.25)
+   let osc3 = osc(type: oscKind.sine, offset: 0.5)
+   // Three oscillators at different phases create wave-like patterns
+
+**Noise oscillator with seed:**
+
+.. code-block:: none
+
+   search basics
+   noise(scale: osc(type: oscKind.noise, min: 2, max: 8, seed: 42)).write(o0)
+
+Runtime Behavior
+^^^^^^^^^^^^^^^^
+
+Oscillators are evaluated per-frame based on the current animation time. The pipeline normalizes time to a 0..1 range over the animation duration (default 10 seconds), then applies the speed multiplier and offset before computing the waveform value.
+
+The resulting value is mapped from the internal 0..1 range to the specified min..max range, making oscillators suitable for any numeric parameter regardless of its expected range.
 
 Pipeline Integration
 --------------------
@@ -199,6 +307,32 @@ When the evaluator encounters a function call like ``.bloom(0.5)``:
 #. **Parameter Binding:** Binds arguments to the effect's ``globals``.
 #. **Chain Connection:** Connects the output of the previous node to the input of the new instance.
 
+Texture I/O
+^^^^^^^^^^^
+
+The DSL provides symmetric operations for reading and writing textures:
+
+**2D Textures:**
+
+* **write(surface):** Writes the chain output to a 2D surface.
+  
+  - Example: ``noise(10).write(o0)``
+  - Surfaces: ``o0``-``o7`` (global), ``f0``-``f3`` (feedback)
+
+* **read(surface):** Reads from a 2D surface. Built-in to the pipeline, no namespace required.
+  
+  - Example: ``read(o0).bloom(0.5).write(o1)``
+
+**3D Textures:**
+
+* **write3d(tex3d, geo):** Writes to both a 3D texture and its geometry buffer.
+  
+  - Example: ``noise3d(10).write3d(vol0, geo0)``
+
+* **read3d(tex3d, geo):** Reads from both a 3D texture and its geometry buffer. Built-in to the pipeline.
+  
+  - Example: ``read3d(vol0, geo0).rayMarch().write(o0)``
+
 Surfaces and Outputs
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -206,8 +340,8 @@ The DSL allows writing to named outputs (Surfaces) and reading from them.
 
 
 * **Global Surfaces:** ``o0``, ``o1``, ``o2``, ``o3``, ``o4``, ``o5``, ``o6``, ``o7`` are persistent textures.
-* **Output:** ``.out(o0)`` marks the chain as writing to ``o0``.
-* **Input:** ``src(o0)`` creates a read dependency on ``o0``.
+* **Output:** ``.write(o0)`` marks the chain as writing to ``o0``.
+* **Input:** ``read(o0)`` or ``src(o0)`` creates a read dependency on ``o0``.
 
 Feedback Loops
 ^^^^^^^^^^^^^^
@@ -259,7 +393,7 @@ Diagnostics
    * - S006
      - Semantic
      - Error
-     - Starter chain missing out() call
+     - Starter chain missing write() call
    * - R001
      - Runtime
      - Error
@@ -271,4 +405,4 @@ Common Errors
 
 
 * **S005 (Illegal chain structure):** Generator functions (like ``osc``, ``noise``) must appear at the start of a chain. They cannot consume an existing chain output.
-* **S006 (Starter chain missing out):** Generator-driven chains must end with ``.out()`` to produce a reusable surface.
+* **S006 (Starter chain missing write):** Generator-driven chains must end with ``.write()`` to produce a reusable surface.

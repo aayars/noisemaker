@@ -37,15 +37,15 @@ function test(name, code, check, expectError = null) {
     }
 }
 
-test('Simple Chain', 'search basics\nosc(10).out(o0)', (ast) => {
+test('Simple Chain', 'search basics\nnoise(10).write(o0)', (ast) => {
     if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
     const plan = ast.plans[0];
     if (plan.chain.length !== 1) throw new Error('Expected 1 call in chain');
-    if (plan.chain[0].name !== 'osc') throw new Error('Expected osc');
-    if (plan.out.name !== 'o0') throw new Error('Expected output o0');
+    if (plan.chain[0].name !== 'noise') throw new Error('Expected noise');
+    if (plan.write.name !== 'o0') throw new Error('Expected write o0');
 });
 
-test('Loop', 'search basics\nloop 5 { osc(10).out(o0) }', (ast) => {
+test('Loop', 'search basics\nloop 5 { noise(10).write(o0) }', (ast) => {
     if (ast.plans.length !== 1) throw new Error('Expected 1 plan (LoopStmt)');
     const loop = ast.plans[0];
     if (loop.type !== 'LoopStmt') throw new Error('Expected LoopStmt');
@@ -53,25 +53,25 @@ test('Loop', 'search basics\nloop 5 { osc(10).out(o0) }', (ast) => {
     if (loop.body.length !== 1) throw new Error('Expected 1 statement in body');
 });
 
-test('Variable Assignment', 'search basics\nlet x = osc(10)', (ast) => {
+test('Variable Assignment', 'search basics\nlet x = noise(10)', (ast) => {
     if (ast.vars.length !== 1) throw new Error('Expected 1 var');
     const v = ast.vars[0];
     if (v.name !== 'x') throw new Error('Expected var x');
     // Single call chain is unwrapped to Call node
     if (v.expr.type !== 'Call') throw new Error('Expected Call type');
-    if (v.expr.name !== 'osc') throw new Error('Expected osc');
+    if (v.expr.name !== 'noise') throw new Error('Expected noise');
 });
 
-test('Arrow Function', 'search basics\nlet f = () => osc(10)', (ast) => {
+test('Arrow Function', 'search basics\nlet f = () => noise(10)', (ast) => {
     const v = ast.vars[0];
     if (v.expr.type !== 'Func') throw new Error('Expected Func type');
-    if (v.expr.src !== 'osc(10)') throw new Error('Expected src osc(10)');
+    if (v.expr.src !== 'noise(10)') throw new Error('Expected src noise(10)');
 });
 
 test('Arrow Function in Loop', `search basics
 loop 5 {
-  let f = () => osc(10)
-  f().out(o0)
+  let f = () => noise(10)
+  f().write(o0)
 }
 `, (ast) => {
     const loop = ast.plans[0];
@@ -86,7 +86,7 @@ loop 5 {
     if (call.chain[0].name !== 'f') throw new Error('Expected call to f second');
 });
 
-test('Search Directive - Single Namespace', 'search nd\nnoise(10).out(o0)', (ast) => {
+test('Search Directive - Single Namespace', 'search nd\nnoise(10).write(o0)', (ast) => {
     if (!ast.namespace) throw new Error('Expected namespace metadata');
     if (!ast.namespace.searchOrder) throw new Error('Expected searchOrder');
     if (ast.namespace.searchOrder.length !== 1) throw new Error('Expected 1 namespace in searchOrder');
@@ -94,7 +94,7 @@ test('Search Directive - Single Namespace', 'search nd\nnoise(10).out(o0)', (ast
     if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
 });
 
-test('Search Directive - Multiple Namespaces', 'search nd, basics, nm\nnoise(10).out(o0)', (ast) => {
+test('Search Directive - Multiple Namespaces', 'search nd, basics, nm\nnoise(10).write(o0)', (ast) => {
     if (!ast.namespace) throw new Error('Expected namespace metadata');
     if (!ast.namespace.searchOrder) throw new Error('Expected searchOrder');
     if (ast.namespace.searchOrder.length !== 3) throw new Error('Expected 3 namespaces in searchOrder');
@@ -103,7 +103,7 @@ test('Search Directive - Multiple Namespaces', 'search nd, basics, nm\nnoise(10)
     if (ast.namespace.searchOrder[2] !== 'nm') throw new Error('Expected nm third');
 });
 
-test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (_ast) => {
+test('Missing Search Directive - Should Error', 'noise(10).write(o0)', (_ast) => {
     throw new Error('Should have thrown SyntaxError for missing search directive');
 }, (e) => {
     // This test expects an error
@@ -113,7 +113,7 @@ test('Missing Search Directive - Should Error', 'noise(10).out(o0)', (_ast) => {
     return true;
 });
 
-test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).out(o0)', (_ast) => {
+test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).write(o0)', (_ast) => {
     throw new Error('Should have thrown SyntaxError for inline namespace');
 }, (e) => {
     // This test expects an error
@@ -121,4 +121,22 @@ test('Inline Namespace - Should Error', 'search nd\nnd.noise(10).out(o0)', (_ast
     if (!e.message.includes('Inline namespace syntax')) throw new Error('Expected inline namespace error message');
     console.log('PASS: Inline Namespace - Should Error (correctly caught)');
     return true;
+});
+
+test('read() creates Read node', 'search basics\nread(o0).write(o1)', (ast) => {
+    if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
+    const plan = ast.plans[0];
+    if (plan.chain.length !== 1) throw new Error('Expected 1 call in chain');
+    // read() creates a Read node (pipeline built-in)
+    if (plan.chain[0].type !== 'Read') throw new Error('Expected Read node type');
+    if (plan.chain[0].surface.name !== 'o0') throw new Error('Expected surface o0');
+    if (plan.write.name !== 'o1') throw new Error('Expected write o1');
+});
+
+test('write3d parses correctly', 'search basics\nnoise(10).write3d(vol0, geo0)', (ast) => {
+    if (ast.plans.length !== 1) throw new Error('Expected 1 plan');
+    const plan = ast.plans[0];
+    if (!plan.write3d) throw new Error('Expected write3d');
+    if (plan.write3d.tex3d.name !== 'vol0') throw new Error('Expected tex3d vol0');
+    if (plan.write3d.geo.name !== 'geo0') throw new Error('Expected geo geo0');
 });

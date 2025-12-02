@@ -19,7 +19,8 @@ export function lex(src) {
     const keywords = {
         let: 'LET',
         render: 'RENDER',
-        out: 'OUT',
+        write: 'WRITE',
+        write3d: 'WRITE3D',
         true: 'TRUE',
         false: 'FALSE',
         if: 'IF',

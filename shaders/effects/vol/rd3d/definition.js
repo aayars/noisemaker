@@ -1,0 +1,180 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * vol/rd3d - 3D reaction-diffusion simulation
+ * 
+ * Generates a 3D reaction-diffusion volume stored as a 2D atlas texture.
+ * Can be used standalone or chained after another 3D effect.
+ * 
+ * Usage:
+ *   rd3d(volumeSize: x32).render3d().write(o0)
+ *   noise3d().rd3d().render3d().write(o0)  // uses noise3d's volume size
+ * 
+ * If inputTex3d is provided from upstream, its dimensions take precedence
+ * over volumeSize. Otherwise, allocates fresh volumes.
+ */
+export default class Rd3D extends Effect {
+  name = "Rd3D";
+  namespace = "vol";
+  func = "rd3d";
+
+  // 3D volumes stored as 2D atlas: volumeSize x (volumeSize * volumeSize)
+  // If inputTex3d is provided, its dimensions take precedence
+  textures = {
+    volumeCache: { 
+      width: { param: 'volumeSize', default: 32 }, 
+      height: { param: 'volumeSize', power: 2, default: 1024 }, 
+      format: "rgba16f" 
+    },
+    geoBuffer: {
+      width: { param: 'volumeSize', default: 32 },
+      height: { param: 'volumeSize', power: 2, default: 1024 },
+      format: "rgba16f"
+    },
+    // State texture for reaction-diffusion simulation
+    // Uses 'global' prefix for automatic ping-pong double-buffering by pipeline
+    globalRdState: { 
+      width: { param: 'volumeSize', default: 32 }, 
+      height: { param: 'volumeSize', power: 2, default: 1024 }, 
+      format: "rgba16f" 
+    }
+  };
+
+  globals = {
+    "volumeSize": {
+      "type": "int",
+      "default": 32,
+      "uniform": "volumeSize",
+      "choices": {
+        "x16": 16,
+        "x32": 32,
+        "x64": 64,
+        "x128": 128
+      },
+      "ui": {
+        "label": "volume size",
+        "control": "dropdown"
+      }
+    },
+    "seed": {
+        "type": "float",
+        "default": 1,
+        "min": 0,
+        "max": 100,
+        "uniform": "seed"
+    },
+    "iterations": {
+      "type": "int",
+      "default": 8,
+      "uniform": "iterations",
+      "min": 1,
+      "max": 32,
+      "ui": {
+        "label": "iterations per frame",
+        "control": "slider"
+      }
+    },
+    "feed": {
+      "type": "float",
+      "default": 55,
+      "uniform": "feed",
+      "min": 10,
+      "max": 110,
+      "ui": {
+        "label": "feed rate",
+        "control": "slider"
+      }
+    },
+    "kill": {
+      "type": "float",
+      "default": 62,
+      "uniform": "kill",
+      "min": 45,
+      "max": 70,
+      "ui": {
+        "label": "kill rate",
+        "control": "slider"
+      }
+    },
+    "rate1": {
+      "type": "float",
+      "default": 100,
+      "uniform": "rate1",
+      "min": 50,
+      "max": 120,
+      "ui": {
+        "label": "diffusion rate A",
+        "control": "slider"
+      }
+    },
+    "rate2": {
+      "type": "float",
+      "default": 50,
+      "uniform": "rate2",
+      "min": 20,
+      "max": 80,
+      "ui": {
+        "label": "diffusion rate B",
+        "control": "slider"
+      }
+    },
+    "speed": {
+      "type": "float",
+      "default": 100,
+      "uniform": "speed",
+      "min": 10,
+      "max": 200,
+      "ui": {
+        "label": "simulation speed",
+        "control": "slider"
+      }
+    },
+    "colorMode": {
+        "type": "int",
+        "default": 0,
+        "uniform": "colorMode",
+        "choices": {
+            "mono": 0,
+            "gradient": 1
+        },
+        "ui": {
+            "label": "color mode",
+            "control": "dropdown"
+        }
+    },
+    "weight": {
+        "type": "float",
+        "default": 0,
+        "min": 0,
+        "max": 100,
+        "uniform": "weight",
+        "ui": {
+            "label": "input weight",
+            "control": "slider"
+        }
+    }
+  };
+
+  passes = [
+    {
+      name: "simulate",
+      program: "simulate",
+      repeat: "iterations",
+      viewport: { 
+        width: { param: 'volumeSize', default: 32, inputOverride: 'inputTex3d' },
+        height: { param: 'volumeSize', power: 2, default: 1024, inputOverride: 'inputTex3d' }
+      },
+      inputs: {
+        stateTex: "globalRdState",
+        seedTex: "inputTex3d"
+      },
+      outputs: {
+        color: "globalRdState"
+      }
+    }
+  ];
+
+  // Expose volume for downstream effects
+  outputTex3d = "globalRdState";
+  outputGeo = "geoBuffer";
+}

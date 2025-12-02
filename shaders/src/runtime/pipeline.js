@@ -6,6 +6,120 @@
 import { WebGL2Backend } from './backends/webgl2.js'
 import { WebGPUBackend } from './backends/webgpu.js'
 
+/**
+ * Oscillator evaluation functions.
+ * Each returns a value between 0 and 1 based on the time phase.
+ * 
+ * Oscillator types:
+ * 0: sine    - 0 → 1 → 0 (smooth)
+ * 1: tri     - 0 → 1 → 0 (linear)
+ * 2: saw     - 0 → 1
+ * 3: sawInv  - 1 → 0
+ * 4: square  - 0 or 1
+ * 5: noise   - periodic 2D noise
+ */
+const TAU = Math.PI * 2
+
+function oscSine(t) {
+    // Half-cycle sine: 0 → 1 → 0 over t=0..1
+    return Math.sin((t % 1) * Math.PI)
+}
+
+function oscTri(t) {
+    // Triangle wave: 0 → 1 → 0 over t=0..1
+    const tf = t % 1
+    return 1 - Math.abs(tf * 2 - 1)
+}
+
+function oscSaw(t) {
+    // Sawtooth: 0 → 1 over t=0..1
+    return t % 1
+}
+
+function oscSawInv(t) {
+    // Inverted sawtooth: 1 → 0 over t=0..1
+    return 1 - (t % 1)
+}
+
+function oscSquare(t) {
+    // Square wave: 0 or 1
+    return (t % 1) >= 0.5 ? 1 : 0
+}
+
+// Simple hash for noise
+function hash21(px, py, s) {
+    let x = (px * 234.34 + s) % 1
+    let y = (py * 435.345 + s) % 1
+    if (x < 0) x += 1
+    if (y < 0) y += 1
+    const p = x + y + (x + y) * 34.23
+    return (x * y * p) % 1
+}
+
+// Value noise 2D
+function noise2D(px, py, s) {
+    const ix = Math.floor(px)
+    const iy = Math.floor(py)
+    let fx = px - ix
+    let fy = py - iy
+    fx = fx * fx * (3 - 2 * fx)
+    fy = fy * fy * (3 - 2 * fy)
+    
+    const a = hash21(ix, iy, s)
+    const b = hash21(ix + 1, iy, s)
+    const c = hash21(ix, iy + 1, s)
+    const d = hash21(ix + 1, iy + 1, s)
+    
+    return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy
+}
+
+// Looping noise - samples on a circle for seamless temporal loops
+function oscNoise(t, seed) {
+    const temporal = t % 1
+    const angle = temporal * TAU
+    const radius = 2
+    const loopX = Math.cos(angle) * radius
+    const loopY = Math.sin(angle) * radius
+    const n1 = noise2D(loopX + seed, loopY + seed, seed)
+    const n2 = noise2D(loopX + seed * 2, loopY + seed * 2, seed)
+    return (n1 + n2) / 2
+}
+
+/**
+ * Evaluate an oscillator value based on current time and animation duration.
+ * 
+ * @param {object} osc - Oscillator configuration
+ * @param {number} osc.oscType - 0:sine, 1:tri, 2:saw, 3:sawInv, 4:square, 5:noise
+ * @param {number} osc.min - Minimum output value
+ * @param {number} osc.max - Maximum output value
+ * @param {number} osc.speed - Speed multiplier (integer, divides evenly into loop)
+ * @param {number} osc.offset - Phase offset 0..1
+ * @param {number} osc.seed - Noise seed (for noise type only)
+ * @param {number} normalizedTime - Time normalized to animation duration (0..1)
+ * @returns {number} The evaluated oscillator value
+ */
+function evaluateOscillator(osc, normalizedTime) {
+    const { oscType, min, max, speed, offset, seed } = osc
+    
+    // Apply speed and offset
+    const t = normalizedTime * speed + offset
+    
+    // Get raw oscillator value (0..1)
+    let value
+    switch (oscType) {
+        case 0: value = oscSine(t); break
+        case 1: value = oscTri(t); break
+        case 2: value = oscSaw(t); break
+        case 3: value = oscSawInv(t); break
+        case 4: value = oscSquare(t); break
+        case 5: value = oscNoise(t, seed); break
+        default: value = 0
+    }
+    
+    // Map to min..max range
+    return min + value * (max - min)
+}
+
 export class Pipeline {
     constructor(graph, backend) {
         this.graph = graph
@@ -19,6 +133,16 @@ export class Pipeline {
         this.height = 0
         this.zoom = 1  // Zoom factor for effect surfaces
         this.frameReadTextures = null
+        this.animationDuration = 10  // Default animation loop duration in seconds
+    }
+
+    /**
+     * Set the animation duration for oscillators.
+     * Oscillators loop evenly over this duration.
+     * @param {number} seconds - Animation loop duration in seconds
+     */
+    setAnimationDuration(seconds) {
+        this.animationDuration = seconds
     }
 
     /**
@@ -577,11 +701,14 @@ export class Pipeline {
         if (this.graph && this.graph.passes) {
             try {
                 for (let i = 0; i < this.graph.passes.length; i++) {
-                    const pass = this.graph.passes[i];
+                    const originalPass = this.graph.passes[i];
                     // Check pass conditions
-                    if (this.shouldSkipPass(pass)) {
+                    if (this.shouldSkipPass(originalPass)) {
                         continue
                     }
+                    
+                    // Resolve oscillators in pass uniforms for this frame
+                    const pass = this.resolvePassUniforms(originalPass, time)
                     
                     // Determine iteration count (repeat N times per frame)
                     const repeatCount = this.resolveRepeatCount(pass)
@@ -650,6 +777,49 @@ export class Pipeline {
             aspectRatio: aspectValue, // Alias for shaders expecting this name
             // Add more global uniforms as needed
         }
+    }
+
+    /**
+     * Resolve oscillators in a uniform value.
+     * If the value is an oscillator configuration, evaluate it.
+     * @param {any} value - The uniform value (may be an oscillator config)
+     * @param {number} time - Current time in seconds
+     * @returns {any} The resolved value
+     */
+    resolveUniformValue(value, time) {
+        // Check if this is an oscillator configuration
+        if (value && typeof value === 'object' && value.oscillator === true) {
+            const normalizedTime = (time / this.animationDuration) % 1
+            return evaluateOscillator(value, normalizedTime)
+        }
+        return value
+    }
+
+    /**
+     * Resolve all oscillators in pass uniforms for the current frame.
+     * @param {Object} pass - The pass definition
+     * @param {number} time - Current time in seconds
+     * @returns {Object} Pass with resolved uniforms
+     */
+    resolvePassUniforms(pass, time) {
+        if (!pass.uniforms) return pass
+        
+        const resolvedUniforms = {}
+        let hasOscillators = false
+        
+        for (const [name, value] of Object.entries(pass.uniforms)) {
+            const resolved = this.resolveUniformValue(value, time)
+            resolvedUniforms[name] = resolved
+            if (resolved !== value) {
+                hasOscillators = true
+            }
+        }
+        
+        // Only create a new pass object if we resolved oscillators
+        if (hasOscillators) {
+            return { ...pass, uniforms: resolvedUniforms }
+        }
+        return pass
     }
 
     /**

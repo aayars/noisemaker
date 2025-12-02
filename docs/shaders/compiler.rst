@@ -32,7 +32,7 @@ The compilation process occurs in four distinct stages:
 The parser converts the raw string input into a structured tree representation.
 
 
-* **Input:** ``string`` (e.g., ``osc(10).out(o0)``)
+* **Input:** ``string`` (e.g., ``osc(10).write(o0)``)
 * **Output:** ``ProgramNode`` (AST Root)
 
 2.1 Lexical Analysis
@@ -53,7 +53,7 @@ The lexer tokenizes the input, handling:
 
 The parser constructs the AST based on the grammar defined in :ref:`Polymorphic DSL <shader-language>`. Unlike traditional ESTree-like structures, the Polymorphic parser produces a specialized AST optimized for the pipeline's needs.
 
-**Example AST for ``osc(10).out(o0)``:**
+**Example AST for ``osc(10).write(o0)``:**
 
 .. code-block:: json
 
@@ -79,7 +79,7 @@ The parser constructs the AST based on the grammar defined in :ref:`Polymorphic 
 
 
 * **Flat Chains:** Chains are represented as a flat array of ``Call`` nodes, not nested ``CallExpression`` objects.
-* **Explicit Output:** The ``.out()`` directive is parsed separately from the chain and stored in the ``out`` property of the statement.
+* **Explicit Output:** The ``.write()`` directive is parsed separately from the chain and stored in the ``out`` property of the statement.
 * **Separated State:** Variable assignments (``vars``) and render instructions (``plans``) are segregated at the root level. ``plans`` is an array of ``ChainStmt`` nodes.
 
 ----

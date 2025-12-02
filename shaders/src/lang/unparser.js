@@ -6,6 +6,40 @@
  */
 
 /**
+ * Map oscillator type number to oscKind enum name
+ */
+const oscKindNames = ['sine', 'tri', 'saw', 'sawInv', 'square', 'noise'];
+
+/**
+ * Format an oscillator value for DSL output
+ * @param {object} osc - Oscillator configuration object
+ * @returns {string} DSL representation of the oscillator
+ */
+function formatOscillator(osc) {
+    const typeName = oscKindNames[osc.oscType] || 'sine';
+    const parts = [`type: oscKind.${typeName}`];
+    
+    // Only include non-default values
+    if (osc.min !== 0) {
+        parts.push(`min: ${osc.min}`);
+    }
+    if (osc.max !== 1) {
+        parts.push(`max: ${osc.max}`);
+    }
+    if (osc.speed !== 1) {
+        parts.push(`speed: ${osc.speed}`);
+    }
+    if (osc.offset !== 0) {
+        parts.push(`offset: ${osc.offset}`);
+    }
+    if (osc.seed !== 1 && osc.oscType === 5) {  // Only include seed for noise type
+        parts.push(`seed: ${osc.seed}`);
+    }
+    
+    return `osc(${parts.join(', ')})`;
+}
+
+/**
  * Format a value for DSL output
  * @param {any} value - The value to format
  * @param {object} spec - Optional parameter spec for type hints
@@ -63,7 +97,53 @@ function formatValue(value, spec, customFormatter) {
     }
     
     if (typeof value === 'object') {
+        // Handle oscillator configuration
+        if (value.oscillator === true) {
+            return formatOscillator(value);
+        }
+        // Handle oscillator AST from _ast property
+        if (value._ast && value._ast.type === 'Oscillator') {
+            return formatOscillator(value);
+        }
         // Handle special AST node types
+        if (value.type === 'Oscillator') {
+            // This is a raw Oscillator AST node - format it
+            const typePath = value.oscType;
+            let typeName = 'sine';
+            if (typePath && typePath.type === 'Member' && typePath.path) {
+                typeName = typePath.path[typePath.path.length - 1];
+            } else if (typePath && typePath.type === 'Ident') {
+                typeName = typePath.name;
+            }
+            const parts = [`type: oscKind.${typeName}`];
+            if (value.min && value.min.type === 'Number' && value.min.value !== 0) {
+                parts.push(`min: ${value.min.value}`);
+            }
+            if (value.max && value.max.type === 'Number' && value.max.value !== 1) {
+                parts.push(`max: ${value.max.value}`);
+            }
+            if (value.speed && value.speed.type === 'Number' && value.speed.value !== 1) {
+                parts.push(`speed: ${value.speed.value}`);
+            }
+            if (value.offset && value.offset.type === 'Number' && value.offset.value !== 0) {
+                parts.push(`offset: ${value.offset.value}`);
+            }
+            if (value.seed && value.seed.type === 'Number' && value.seed.value !== 1) {
+                parts.push(`seed: ${value.seed.value}`);
+            }
+            return `osc(${parts.join(', ')})`;
+        }
+        // Handle Read node (pipeline built-in)
+        if (value.type === 'Read') {
+            const surfaceName = value.surface?.name || value.surface;
+            return `read(${surfaceName})`;
+        }
+        // Handle Read3D node (pipeline built-in)
+        if (value.type === 'Read3D') {
+            const tex3dName = value.tex3d?.name || value.tex3d;
+            const geoName = value.geo?.name || value.geo;
+            return `read3d(${tex3dName}, ${geoName})`;
+        }
         if (value.type === 'OutputRef') {
             return value.name;
         }
@@ -150,6 +230,20 @@ function unparsePlan(plan, options = {}) {
     // Build chain from steps
     const callParts = [];
     for (const step of plan.chain) {
+        // Handle built-in _read step
+        if (step.op === '_read' && step.builtin) {
+            const texName = step.args?.tex?.name || step.args?.tex;
+            callParts.push(`read(${texName})`);
+            continue;
+        }
+        // Handle built-in _read3d step
+        if (step.op === '_read3d' && step.builtin) {
+            const tex3dName = step.args?.tex3d?.name || step.args?.tex3d;
+            const geoName = step.args?.geo?.name || step.args?.geo;
+            callParts.push(`read3d(${tex3dName}, ${geoName})`);
+            continue;
+        }
+        
         const call = {
             name: step.op,
             kwargs: {},
@@ -176,9 +270,15 @@ function unparsePlan(plan, options = {}) {
     
     result = callParts.join('.');
     
-    // Add output directive
-    if (plan.out) {
-        result += `.out(${plan.out})`;
+    // Add write directive
+    if (plan.write) {
+        result += `.write(${plan.write})`;
+    }
+    // Add write3d directive
+    if (plan.write3d) {
+        const tex3d = plan.write3d.tex3d?.name || plan.write3d.tex3d;
+        const geo = plan.write3d.geo?.name || plan.write3d.geo;
+        result += `.write3d(${tex3d}, ${geo})`;
     }
     
     return result;
@@ -214,6 +314,21 @@ export function unparse(compiled, overrides = {}, options = {}) {
         const callParts = [];
         
         for (const step of plan.chain) {
+            // Handle builtin read operations specially
+            if (step.builtin && step.op === '_read') {
+                const texName = step.args?.tex?.name || step.args?.tex;
+                callParts.push(`read(${texName})`);
+                globalStepIndex++;
+                continue;
+            }
+            if (step.builtin && step.op === '_read3d') {
+                const tex3d = step.args?.tex3d?.name || step.args?.tex3d;
+                const geo = step.args?.geo?.name || step.args?.geo;
+                callParts.push(`read3d(${tex3d}, ${geo})`);
+                globalStepIndex++;
+                continue;
+            }
+            
             // Check for parameter overrides for this step
             const stepOverrides = overrides[globalStepIndex] || {};
             
@@ -269,10 +384,16 @@ export function unparse(compiled, overrides = {}, options = {}) {
         
         let line = callParts.join('.');
         
-        // Add output directive
-        if (plan.out) {
-            const outName = typeof plan.out === 'string' ? plan.out : plan.out.name;
-            line += `.out(${outName})`;
+        // Add write directive
+        if (plan.write) {
+            const writeName = typeof plan.write === 'string' ? plan.write : plan.write.name;
+            line += `.write(${writeName})`;
+        }
+        // Add write3d directive
+        if (plan.write3d) {
+            const tex3d = plan.write3d.tex3d?.name || plan.write3d.tex3d;
+            const geo = plan.write3d.geo?.name || plan.write3d.geo;
+            line += `.write3d(${tex3d}, ${geo})`;
         }
         
         lines.push(line);

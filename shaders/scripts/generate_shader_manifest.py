@@ -42,12 +42,14 @@ def scan_effect(effect_dir):
     if not result["wgsl"]:
         del result["wgsl"]
     
-    return result if result else None
+    # Return empty dict for effects with no shaders (e.g., texture-only effects like render3d)
+    # This allows them to be registered in the manifest even without shader files
+    return result
 
 def main():
     manifest = {}
     
-    for namespace in ["basics", "nd", "nm", "nu"]:
+    for namespace in ["basics", "nd", "nm", "nu", "vol"]:
         ns_dir = EFFECTS_ROOT / namespace
         if not ns_dir.exists():
             continue
@@ -60,8 +62,8 @@ def main():
             
             effect_id = f"{namespace}/{effect_dir.name}"
             effect_manifest = scan_effect(effect_dir)
-            if effect_manifest:
-                manifest[effect_id] = effect_manifest
+            # Include all effects that have a definition.js, even if they have no shaders
+            manifest[effect_id] = effect_manifest
     
     with open(OUTPUT_FILE, "w") as f:
         json.dump(manifest, f, separators=(',', ':'), sort_keys=True)

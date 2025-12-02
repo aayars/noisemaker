@@ -434,7 +434,7 @@ Surfaces ``o0``..``o7`` and ``f0``..``f3`` are **reserved exclusively for user c
 8.0.1 Global Surface Behavior
 """""""""""""""""""""""""""""
 
-Frame index ``F`` selects read buffer = ``(F-1) mod 2``, write buffer = ``F mod 2``. A chain writing ``.out(o0)`` targets write buffer; chains reading ``o0`` before its write in frame use read buffer. After a write to ``oN``, subsequent reads in the same frame see the freshly written content. Validation forbids multiple writes to same surface in a frame unless explicitly marked ``compositeAllowed`` (future extension) (``ERR_SURFACE_MULTIWRITE``).
+Frame index ``F`` selects read buffer = ``(F-1) mod 2``, write buffer = ``F mod 2``. A chain writing ``.write(o0)`` targets write buffer; chains reading ``o0`` before its write in frame use read buffer. After a write to ``oN``, subsequent reads in the same frame see the freshly written content. Validation forbids multiple writes to same surface in a frame unless explicitly marked ``compositeAllowed`` (future extension) (``ERR_SURFACE_MULTIWRITE``).
 
 8.0.2 Feedback Surface Behavior
 """""""""""""""""""""""""""""""
@@ -453,10 +453,10 @@ This ping-pong blitting strategy ensures temporal coherence for feedback effects
 .. code-block:: text
 
    // Write current frame to feedback surface
-   osc(10).out(f0)
+   osc(10).write(f0)
    
    // Read previous frame from f0, blend with new content, output to screen
-   src(f0).blend(osc(20), 0.1).out(o0)
+   src(f0).blend(osc(20), 0.1).write(o0)
 
 8.1 Resize Behavior
 ^^^^^^^^^^^^^^^^^^^^
