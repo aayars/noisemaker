@@ -9,7 +9,7 @@ MCP (Model Context Protocol) server exposing shader testing tools for VS Code Co
 npm install
 
 # Test the harness
-node shaders/mcp/test-harness.js basics/noise
+node shaders/mcp/test-harness.js --effects basics/noise --backend webgl2
 ```
 
 ## Documentation
@@ -23,16 +23,24 @@ node shaders/mcp/test-harness.js basics/noise
 
 ## Tools
 
+### Browser-Based Tools (require browser session)
+
 | Tool | Purpose |
 |------|---------|
-| `compile_effect` | Verify shader compiles cleanly |
-| `render_effect_frame` | Render frame, check for monochrome output |
-| `describe_effect_frame` | AI vision analysis of rendered output |
-| `benchmark_effect_fps` | Measure sustained framerate |
+| `compileEffect` | Verify shader compiles cleanly |
+| `renderEffectFrame` | Render frame, check for monochrome output |
+| `describeEffectFrame` | AI vision analysis of rendered output |
+| `benchmarkEffectFPS` | Measure sustained framerate |
 | `testUniformResponsiveness` | Verify uniform controls affect output |
+| `testNoPassthrough` | Verify filter effects modify input (not passthrough) |
+
+### On-Disk Tools (no browser required)
+
+| Tool | Purpose |
+|------|---------|
 | `checkEffectStructure` | Detect unused files, naming issues, leaked uniforms |
-| `test_no_passthrough` | Verify filter effects modify input (not passthrough) |
-| `check_alg_equiv` | Compare GLSL/WGSL algorithmic equivalence |
+| `checkAlgEquiv` | Compare GLSL/WGSL algorithmic equivalence |
+| `generateShaderManifest` | Rebuild shader manifest |
 
 See [Tool Reference](docs/TOOL_REFERENCE.md) for complete input/output schemas.
 
@@ -41,8 +49,15 @@ See [Tool Reference](docs/TOOL_REFERENCE.md) for complete input/output schemas.
 The implementation follows a three-layer design:
 
 1. **Core Operations** (`core-operations.js`) - Pure library functions for shader testing
-2. **Browser Harness** (`browser-harness.js`) - Playwright-based browser session management
+2. **Browser Harness** (`browser-harness.js`) - Session-based browser lifecycle management
 3. **MCP Server** (`server.js`) - Thin façade exposing tools over stdio
+
+Each browser-based tool invocation:
+1. Creates a fresh browser session
+2. Loads the demo UI and configures the backend
+3. Runs the test for each specified effect (with grace periods)
+4. Tears down the browser session
+5. Returns structured results
 
 See [Architecture](docs/ARCHITECTURE.md) for details.
 
@@ -66,20 +81,62 @@ See [Architecture](docs/ARCHITECTURE.md) for details.
 
 See [VS Code Integration](docs/VSCODE_INTEGRATION.md) for MCP server configuration.
 
-## Test Harness
+## Test Harness CLI
 
 Run the test harness to verify the setup:
 
 ```bash
-node test-harness.js [pattern] [flags]
+node test-harness.js --effects <patterns> --backend <backend> [flags]
 ```
 
-See [Tool Reference](docs/TOOL_REFERENCE.md) for complete flag documentation and examples.
+### Required Flags
+
+| Flag | Description |
+|------|-------------|
+| `--backend <backend>` | `webgl2` or `webgpu` (REQUIRED) |
+| `--webgl2`, `--glsl` | Shortcut for `--backend webgl2` |
+| `--webgpu`, `--wgsl` | Shortcut for `--backend webgpu` |
+
+### Effect Selection
+
+| Flag | Description |
+|------|-------------|
+| `--effects <patterns>` | CSV of effect IDs or glob patterns |
+
+### Test Selection
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Run ALL optional tests |
+| `--benchmark` | Run FPS test |
+| `--uniforms` | Test uniform responsiveness |
+| `--structure` | Check naming, unused files, leaked uniforms |
+| `--alg-equiv` | Check GLSL/WGSL algorithmic equivalence |
+| `--passthrough` | Check filter effects don't pass through input |
+| `--no-vision` | Skip AI vision validation |
+
+### Examples
+
+```bash
+# Basic compile + render + vision check
+node test-harness.js --effects basics/noise --backend webgl2
+
+# Multiple effects with glob pattern
+node test-harness.js --effects "basics/*" --webgl2 --benchmark
+
+# All tests on WebGPU
+node test-harness.js --effects "nm/*" --webgpu --all
+
+# Multiple specific effects
+node test-harness.js --effects "basics/noise,nm/worms" --glsl --uniforms
+```
+
+See [Tool Reference](docs/TOOL_REFERENCE.md) for complete flag documentation.
 
 ## Development Notes
 
-- The browser harness launches a headless Chromium with WebGPU support
+- Each tool invocation gets a fresh browser session (no stale state)
+- The browser harness launches Chromium with WebGPU support
 - A local HTTP server (`shaders/scripts/serve.js`) is started automatically
-- Each tool call reuses the same browser session for efficiency
 - Console errors from the browser are captured and included in results
-- The core operations are designed to be reusable by the test suite
+- A 125ms grace period is applied between effects for stability

@@ -7,29 +7,34 @@ This guide shows how a coding agent should use the MCP shader tools during devel
 ### 1. After Modifying a Shader
 
 ```
-Agent: [edits shaders/effects/basics/noise.js]
+Agent: [edits shaders/effects/basics/noise/definition.js]
 
 Agent: Let me verify the shader compiles...
-→ compile_effect({ effect_id: "basics/noise" })
+→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
 
 Response:
 {
-  "status": "ok",
+  "effect_id": "basics/noise",
   "backend": "webgl2",
-  "passes": [{ "id": "basics/noise", "status": "ok" }]
+  "success": true,
+  "passes": [{ "pass_id": "main", "compiled": true, "errors": [] }],
+  "console_errors": []
 }
 
 Agent: Compilation successful. Let me check the visual output...
-→ render_effect_frame({ effect_id: "basics/noise" })
+→ renderEffectFrame({ effect_id: "basics/noise", backend: "webgl2" })
 
 Response:
 {
-  "status": "ok",
+  "effect_id": "basics/noise",
+  "backend": "webgl2",
+  "success": true,
   "metrics": {
     "is_monochrome": false,
     "unique_sampled_colors": 847,
-    "luma_variance": 0.042
-  }
+    "luma_variance": 5312.4
+  },
+  "console_errors": []
 }
 
 Agent: The shader produces varied visual output. Done.
@@ -39,21 +44,28 @@ Agent: The shader produces varied visual output. Done.
 
 ```
 Agent: [edits shader, introduces syntax error]
-→ compile_effect({ effect_id: "basics/noise" })
+→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
 
 Response:
 {
-  "status": "error",
-  "message": "Compilation failed: unexpected token at line 42"
+  "effect_id": "basics/noise",
+  "backend": "webgl2",
+  "success": false,
+  "passes": [{
+    "pass_id": "main",
+    "compiled": false,
+    "errors": ["unexpected token at line 42"]
+  }],
+  "console_errors": []
 }
 
 Agent: Syntax error on line 42. Let me fix that...
 [fixes the error]
-→ compile_effect({ effect_id: "basics/noise" })
+→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
 
 Response:
 {
-  "status": "ok"
+  "success": true
 }
 ```
 
@@ -61,19 +73,21 @@ Response:
 
 ```
 Agent: The shader compiles but something looks wrong...
-→ describe_effect_frame({
+→ describeEffectFrame({
     effect_id: "basics/noise",
+    backend: "webgl2",
     prompt: "Does this look like smooth gradient noise? Are there any artifacts?"
   })
 
 Response:
 {
-  "status": "ok",
-  "vision": {
-    "description": "The image shows blocky, pixelated noise rather than smooth gradients. There appear to be banding artifacts in the color transitions.",
-    "tags": ["noise", "pixelated", "banding", "artifact"],
-    "notes": "The noise appears to be using nearest-neighbor sampling instead of linear interpolation."
-  }
+  "effect_id": "basics/noise",
+  "backend": "webgl2",
+  "success": true,
+  "description": "The image shows blocky, pixelated noise rather than smooth gradients. There appear to be banding artifacts in the color transitions.",
+  "tags": ["noise", "pixelated", "banding", "artifact"],
+  "notes": "The noise appears to be using nearest-neighbor sampling instead of linear interpolation.",
+  "console_errors": []
 }
 
 Agent: Ah, I need to fix the texture sampling mode...
@@ -83,22 +97,30 @@ Agent: Ah, I need to fix the texture sampling mode...
 
 ```
 Agent: Let me verify performance on this complex effect...
-→ benchmark_effect_fps({
+→ benchmarkEffectFPS({
     effect_id: "nd/physarum",
+    backend: "webgl2",
     target_fps: 60,
     duration_seconds: 3
   })
 
 Response:
 {
-  "status": "ok",
+  "effect_id": "nd/physarum",
+  "backend": "webgl2",
+  "success": true,
+  "target_fps": 60,
   "achieved_fps": 58.5,
   "meets_target": false,
-  "stats": {
-    "frame_count": 175,
-    "avg_frame_time_ms": 17.1,
-    "p95_frame_time_ms": 19.2
-  }
+  "frame_times": {
+    "min_ms": 14.2,
+    "max_ms": 21.3,
+    "avg_ms": 17.1,
+    "p95_ms": 19.2
+  },
+  "total_frames": 175,
+  "duration_seconds": 3,
+  "console_errors": []
 }
 
 Agent: Slightly below 60fps. The p95 shows some frame spikes. 
@@ -109,13 +131,17 @@ Agent: Slightly below 60fps. The p95 shows some frame spikes.
 
 ```
 Agent: The controls don't seem to be affecting the output...
-→ testUniformResponsiveness({ effect_id: "nm/worms" })
+→ testUniformResponsiveness({ effect_id: "nm/worms", backend: "webgl2" })
 
 Response:
 {
-  "status": "error",
-  "tested_uniforms": ["stride:✗", "kink:✗", "lifetime:✗"],
-  "details": "No uniforms affected output"
+  "effect_id": "nm/worms",
+  "backend": "webgl2",
+  "success": false,
+  "uniforms_tested": 3,
+  "responsive_uniforms": [],
+  "unresponsive_uniforms": ["stride", "kink", "lifetime"],
+  "console_errors": []
 }
 
 Agent: None of the uniforms are working. Let me check if the 
@@ -124,13 +150,17 @@ Agent: None of the uniforms are working. Let me check if the
 
 Agent: I need to add uniform: "uniformName" to each global...
 [fixes definition.js]
-→ testUniformResponsiveness({ effect_id: "nm/worms" })
+→ testUniformResponsiveness({ effect_id: "nm/worms", backend: "webgl2" })
 
 Response:
 {
-  "status": "ok",
-  "tested_uniforms": ["stride:✓", "kink:✓", "lifetime:✓"],
-  "details": "Uniforms affect output"
+  "effect_id": "nm/worms",
+  "backend": "webgl2",
+  "success": true,
+  "uniforms_tested": 3,
+  "responsive_uniforms": ["stride", "kink", "lifetime"],
+  "unresponsive_uniforms": [],
+  "console_errors": []
 }
 
 Agent: All uniforms now affect the output correctly.
@@ -144,11 +174,14 @@ Agent: Let me verify the effect structure follows conventions...
 
 Response:
 {
-  "status": "ok",
-  "hasInlineShaders": false,
-  "namingIssues": [],
-  "unusedFiles": [],
-  "leakedInternalUniforms": []
+  "effect_id": "nm/worms",
+  "success": true,
+  "issues": [],
+  "summary": {
+    "total_issues": 0,
+    "errors": 0,
+    "warnings": 0
+  }
 }
 
 Agent: Structure looks good - no inline shaders, proper naming, 
@@ -159,16 +192,16 @@ Agent: Structure looks good - no inline shaders, proper naming,
 
 ```
 Agent: Let me verify GLSL and WGSL produce equivalent results...
-→ check_alg_equiv({ effect_id: "nm/worms" })
+→ checkAlgEquiv({ effect_id: "nm/worms" })
 
 Response:
 {
-  "status": "ok",
-  "pairs": [
-    { "program": "agent", "parity": "equivalent" },
-    { "program": "deposit", "parity": "equivalent" }
-  ],
-  "summary": "2 shader pairs checked, all equivalent"
+  "effect_id": "nm/worms",
+  "success": true,
+  "pairs_checked": 2,
+  "equivalent_pairs": 2,
+  "divergent_pairs": [],
+  "notes": "All shader pairs implement equivalent algorithms"
 }
 
 Agent: Both GLSL and WGSL implementations are algorithmically equivalent.
@@ -178,14 +211,16 @@ Agent: Both GLSL and WGSL implementations are algorithmically equivalent.
 
 ```
 Agent: Let me verify this filter actually modifies its input...
-→ test_no_passthrough({ effect_id: "nm/sobel" })
+→ testNoPassthrough({ effect_id: "nm/sobel", backend: "webgl2" })
 
 Response:
 {
-  "status": "ok",
-  "isFilterEffect": true,
-  "similarity": 0.23,
-  "details": "Filter modifies input: similarity=23.45%, diff=76.55%"
+  "effect_id": "nm/sobel",
+  "backend": "webgl2",
+  "success": true,
+  "is_passthrough": false,
+  "similarity_percent": 23.4,
+  "console_errors": []
 }
 
 Agent: Good - the filter produces 76% difference from input.
@@ -198,26 +233,26 @@ Start: Agent modifies a shader file
           │
           ▼
     ┌─────────────┐
-    │ compile_    │───── error ────▶ Fix syntax/semantic errors
-    │ effect      │                         │
+    │ compile     │───── error ────▶ Fix syntax/semantic errors
+    │ Effect      │                         │
     └─────────────┘                         │
           │ ok                              │
           ▼                                 │
     ┌─────────────┐                         │
-    │ render_     │───── monochrome ──▶ Fix rendering logic
-    │ effect_frame│                         │
+    │ render      │───── monochrome ──▶ Fix rendering logic
+    │ EffectFrame │                         │
     └─────────────┘                         │
           │ varied output                   │
           ▼                                 │
     ┌─────────────┐                         │
-    │ Visual      │───── issues ──────▶ describe_effect_frame
+    │ Visual      │───── issues ──────▶ describeEffectFrame
     │ OK?         │                    then fix based on feedback
     └─────────────┘                         │
           │ yes                             │
           ▼                                 │
     ┌─────────────┐                         │
     │ Performance │───── too slow ────▶ Optimize, then
-    │ critical?   │                    benchmark_effect_fps
+    │ critical?   │                    benchmarkEffectFPS
     └─────────────┘                         │
           │ no/ok                           │
           ▼                                 │
@@ -228,16 +263,17 @@ Start: Agent modifies a shader file
 
 | Situation | Tool to Use |
 |-----------|-------------|
-| Just edited shader code | `compile_effect` |
-| Shader compiles, need to verify output | `render_effect_frame` |
-| Output looks wrong, need diagnosis | `describe_effect_frame` |
-| Complex effect, need perf check | `benchmark_effect_fps` |
+| Just edited shader code | `compileEffect` |
+| Shader compiles, need to verify output | `renderEffectFrame` |
+| Output looks wrong, need diagnosis | `describeEffectFrame` |
+| Complex effect, need perf check | `benchmarkEffectFPS` |
 | Controls not affecting output | `testUniformResponsiveness` |
 | Check file organization & naming | `checkEffectStructure` |
-| Verify GLSL/WGSL produce same results | `check_alg_equiv` |
-| Verify filter modifies input | `test_no_passthrough` |
+| Verify GLSL/WGSL produce same results | `checkAlgEquiv` |
+| Verify filter modifies input | `testNoPassthrough` |
+| Rebuild shader manifest | `generateShaderManifest` |
 | Run ALL validation tests | Test harness with `--all` flag |
-| Quick sanity check | `compile_effect` only |
+| Quick sanity check | `compileEffect` only |
 
 ## Best Practices
 
@@ -246,10 +282,11 @@ Start: Agent modifies a shader file
 3. **Use vision sparingly** - It's slower and costs API credits
 4. **Benchmark at the end** - Only after correctness is verified
 5. **Trust the numbers** - `unique_sampled_colors < 10` is suspicious
+6. **Always specify backend** - Every browser-based tool requires it
 
 ## When to Use Vision
 
-The `describe_effect_frame` tool calls OpenAI's GPT-4o vision model. Use it when:
+The `describeEffectFrame` tool calls OpenAI's GPT-4o vision model. Use it when:
 
 - **Metrics look OK but you're unsure about quality** - "Is this actually noise or just random garbage?"
 - **Debugging subtle visual bugs** - "Are there banding artifacts in the gradients?"
@@ -257,9 +294,9 @@ The `describe_effect_frame` tool calls OpenAI's GPT-4o vision model. Use it when
 - **Checking for regressions** - "Does this match what the effect should produce?"
 
 **Don't use it for:**
-- Compilation errors (use `compile_effect`)
-- Blank/monochrome detection (use `render_effect_frame` metrics)
-- Performance issues (use `benchmark_effect_fps`)
+- Compilation errors (use `compileEffect`)
+- Blank/monochrome detection (use `renderEffectFrame` metrics)
+- Performance issues (use `benchmarkEffectFPS`)
 
 **Cost consideration:** Each vision call costs ~$0.01-0.03 depending on image size. The tool is conditional on having an API key in `.openai` file.
 
@@ -268,8 +305,24 @@ The `describe_effect_frame` tool calls OpenAI's GPT-4o vision model. Use it when
 Effect IDs match the directory structure under `shaders/effects/`:
 
 ```
-basics/noise      → shaders/effects/basics/noise.js
-basics/solid      → shaders/effects/basics/solid.js
-nd/physarum       → shaders/effects/nd/physarum.js
-distort/warp      → shaders/effects/distort/warp.js
+basics/noise      → shaders/effects/basics/noise/
+basics/solid      → shaders/effects/basics/solid/
+nd/physarum       → shaders/effects/nd/physarum/
+nm/worms          → shaders/effects/nm/worms/
+```
+
+## CLI Examples
+
+```bash
+# Basic compile + render + vision check
+node test-harness.js --effects basics/noise --backend webgl2
+
+# Multiple effects with glob pattern
+node test-harness.js --effects "basics/*" --webgl2 --benchmark
+
+# All tests on WebGPU
+node test-harness.js --effects "nm/*" --webgpu --all
+
+# Structure check (on-disk, no browser)
+node test-harness.js --effects "nm/worms" --structure
 ```

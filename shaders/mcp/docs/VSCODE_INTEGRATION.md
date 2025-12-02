@@ -9,6 +9,7 @@
 ```bash
 # From project root
 npm install
+cd shaders/mcp && npm install
 npx playwright install chromium
 ```
 
@@ -33,16 +34,40 @@ The MCP server is configured in `.vscode/settings.json`:
 
 ### API Key Setup
 
-For AI vision features (`describe_effect_frame`), create a `.openai` file in the project root:
+For AI vision features (`describeEffectFrame`, `checkAlgEquiv`), create a `.openai` file in the project root:
 ```bash
 echo "sk-..." > .openai
 ```
 
 ## How It Works
 
-1. **On first tool call**: MCP server starts, launches headless browser, loads demo page
-2. **On subsequent calls**: Reuses existing browser session (fast)
-3. **On VS Code shutdown**: Browser and server are cleaned up
+1. **On each tool call**: Fresh browser session is created
+2. **HTTP server**: Started once, reused across calls
+3. **Browser lifecycle**: Created and destroyed per invocation
+4. **On VS Code shutdown**: Server process terminates
+
+The explicit setup/teardown per call ensures reliability and prevents stale state.
+
+## Available Tools
+
+### Browser-Based Tools
+
+| Tool | Purpose |
+|------|---------|
+| `compileEffect` | Verify shader compiles cleanly |
+| `renderEffectFrame` | Render frame, check for monochrome output |
+| `describeEffectFrame` | AI vision analysis of rendered output |
+| `benchmarkEffectFPS` | Measure sustained framerate |
+| `testUniformResponsiveness` | Verify uniform controls affect output |
+| `testNoPassthrough` | Verify filter effects modify input |
+
+### On-Disk Tools
+
+| Tool | Purpose |
+|------|---------|
+| `checkEffectStructure` | Detect unused files, naming issues, leaked uniforms |
+| `checkAlgEquiv` | Compare GLSL/WGSL algorithmic equivalence |
+| `generateShaderManifest` | Rebuild shader manifest from disk |
 
 ## Verifying Setup
 
@@ -50,28 +75,32 @@ echo "sk-..." > .openai
 
 ```bash
 cd /path/to/py-noisemaker
-node shaders/mcp/test-harness.js basics/noise
+node shaders/mcp/test-harness.js --effects basics/noise --backend webgl2
 ```
 
 Expected output:
 ```
-Starting browser harness...
+Starting browser session...
+Backend: webgl2
 
-=== Available Effects ===
-Found 42 effects
-First 10: basics/noise, basics/solid, ...
+=== Compile Check: basics/noise ===
+✓ Compiled successfully
 
-=== Testing compile_effect("basics/noise") ===
-{
-  "status": "ok",
-  "backend": "webgl2",
-  "passes": [...]
-}
+=== Render Check: basics/noise ===
+✓ Rendered (not monochrome)
+  unique_colors: 847
+  luma_variance: 5312.4
 
-=== Testing render_effect_frame("basics/noise") ===
-Status: ok
-Metrics: { "is_monochrome": false, ... }
-...
+Browser session closed.
+```
+
+### Test multiple effects:
+
+```bash
+node shaders/mcp/test-harness.js --effects "basics/*" --webgl2
+
+# With all tests
+node shaders/mcp/test-harness.js --effects "nm/worms" --webgl2 --all
 ```
 
 ### Test the MCP server directly:
@@ -100,7 +129,7 @@ npx playwright install chromium
 
 ### "No OpenAI API key found"
 
-Create a `.openai` file in the project root with your API key. Only needed for `describe_effect_frame`. Other tools work without it.
+Create a `.openai` file in the project root with your API key. Only needed for `describeEffectFrame` and `checkAlgEquiv`. Other tools work without it.
 
 ### Server won't start
 
@@ -110,3 +139,32 @@ lsof -i :4173
 ```
 
 Kill any existing process and retry.
+
+### Browser session not closing
+
+Each tool call should create and destroy its own browser. If you see lingering Chromium processes, check for errors in the MCP server output.
+
+```bash
+# Find and kill orphaned browsers
+pkill -f "chromium.*--headless"
+```
+
+## Backend Selection
+
+All browser-based tools require a `backend` parameter:
+
+- `"webgl2"` (aliases: `--glsl`, `--webgl2`) - Use WebGL2 with GLSL shaders
+- `"webgpu"` (aliases: `--wgsl`, `--webgpu`) - Use WebGPU with WGSL shaders
+
+When calling via MCP, specify in the request:
+```json
+{
+  "effect_id": "basics/noise",
+  "backend": "webgl2"
+}
+```
+
+When using the CLI:
+```bash
+node test-harness.js --effects basics/noise --backend webgl2
+```

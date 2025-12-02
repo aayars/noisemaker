@@ -5,13 +5,25 @@
  * This MCP server exposes shader testing capabilities as tools that can be
  * used by VS Code Copilot coding agent. It provides:
  * 
- * - compile_effect: Compile a shader and verify it compiles cleanly
- * - render_effect_frame: Render a frame and check for monochrome/blank output
- * - describe_effect_frame: Use AI vision to describe rendered output
- * - benchmark_effect_fps: Verify shader can sustain target framerate
+ * BROWSER-BASED TOOLS (require browser session):
+ * - compileEffect: Compile a shader and verify it compiles cleanly
+ * - renderEffectFrame: Render a frame and check for monochrome/blank output
+ * - describeEffectFrame: Use AI vision to describe rendered output
+ * - benchmarkEffectFPS: Verify shader can sustain target framerate
+ * - testUniformResponsiveness: Verify uniform controls affect output
+ * - testNoPassthrough: Verify filter effects modify their input
  * 
- * The server uses a persistent browser session via Playwright to execute
- * shader operations in a real WebGL2/WebGPU context.
+ * ON-DISK TOOLS (no browser required):
+ * - checkEffectStructure: Detect unused files, naming issues, leaked uniforms
+ * - checkAlgEquiv: Compare GLSL/WGSL algorithmic equivalence
+ * - generateShaderManifest: Rebuild shader manifest
+ * 
+ * Each browser-based tool invocation:
+ * 1. Creates a fresh browser session
+ * 2. Loads the demo UI and configures the backend
+ * 3. Runs the test for each specified effect
+ * 4. Tears down the browser session
+ * 5. Returns structured results
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -20,14 +32,26 @@ import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Import the browser harness (we'll create this next)
-import { BrowserHarness } from './browser-harness.js';
+import { 
+    BrowserSession, 
+    checkEffectStructureOnDisk, 
+    checkAlgEquivOnDisk,
+    matchEffects,
+    gracePeriod
+} from './browser-harness.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 const server = new Server(
     {
         name: 'noisemaker-shader-tools',
-        version: '1.0.0',
+        version: '2.0.0',
     },
     {
         capabilities: {
@@ -36,66 +60,68 @@ const server = new Server(
     }
 );
 
-// Browser harness singleton
-let browserHarness = null;
-
 /**
- * Get or create the browser harness
- */
-async function getHarness() {
-    if (!browserHarness) {
-        browserHarness = new BrowserHarness();
-        await browserHarness.init();
-    }
-    return browserHarness;
-}
-
-/**
- * Tool definitions
+ * Tool definitions with new camelCase naming convention.
+ * 
+ * Browser-based tools accept:
+ * - effect_id or effects: Single effect ID or CSV of effect IDs/glob patterns
+ * - backend: "webgl2" or "webgpu" (required)
+ * 
+ * On-disk tools accept:
+ * - effect_id or effects: Single effect ID or CSV of effect IDs/glob patterns
+ * - backend: May be required for some tools
  */
 const TOOLS = [
+    // =========================================================================
+    // BROWSER-BASED TOOLS
+    // =========================================================================
     {
-        name: 'compile_effect',
-        description: 'Compile a shader effect and verify it compiles cleanly. Returns detailed pass-level diagnostics.',
+        name: 'compileEffect',
+        description: 'Compile shader effect(s) and verify they compile cleanly. Returns detailed pass-level diagnostics for each effect.',
         inputSchema: {
             type: 'object',
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "basics/noise", "nd/physarum")'
+                    description: 'Single effect identifier (e.g., "basics/noise"). Use "effects" for multiple.'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns (e.g., "basics/noise,nm/*"). Overrides effect_id.'
                 },
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    description: 'Rendering backend to use'
+                    description: 'Rendering backend to use (required)'
                 }
             },
-            required: ['effect_id', 'backend']
+            required: ['backend']
         }
     },
     {
-        name: 'render_effect_frame',
-        description: 'Render a single frame of a shader effect and analyze if the output is monochrome/blank. Returns image metrics and a captured frame.',
+        name: 'renderEffectFrame',
+        description: 'Render a single frame of shader effect(s) and analyze if the output is monochrome/blank. Returns image metrics for each effect.',
         inputSchema: {
             type: 'object',
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "basics/noise")'
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
                 },
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    description: 'Rendering backend to use'
+                    description: 'Rendering backend to use (required)'
                 },
                 test_case: {
                     type: 'object',
                     description: 'Optional test configuration',
                     properties: {
-                        time: {
-                            type: 'number',
-                            description: 'Time value to render at'
-                        },
+                        time: { type: 'number', description: 'Time value to render at' },
                         resolution: {
                             type: 'array',
                             items: { type: 'number' },
@@ -103,10 +129,7 @@ const TOOLS = [
                             maxItems: 2,
                             description: 'Resolution [width, height]'
                         },
-                        seed: {
-                            type: 'number',
-                            description: 'Random seed for reproducibility'
-                        },
+                        seed: { type: 'number', description: 'Random seed' },
                         uniforms: {
                             type: 'object',
                             additionalProperties: true,
@@ -115,18 +138,22 @@ const TOOLS = [
                     }
                 }
             },
-            required: ['effect_id', 'backend']
+            required: ['backend']
         }
     },
     {
-        name: 'describe_effect_frame',
+        name: 'describeEffectFrame',
         description: 'Render a frame and get an AI vision description. Uses OpenAI GPT-4 Vision to analyze the rendered output.',
         inputSchema: {
             type: 'object',
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "basics/noise")'
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
                 },
                 prompt: {
                     type: 'string',
@@ -135,47 +162,35 @@ const TOOLS = [
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    description: 'Rendering backend to use'
+                    description: 'Rendering backend to use (required)'
                 },
                 test_case: {
                     type: 'object',
                     description: 'Optional test configuration',
                     properties: {
-                        time: {
-                            type: 'number',
-                            description: 'Time value to render at'
-                        },
-                        resolution: {
-                            type: 'array',
-                            items: { type: 'number' },
-                            minItems: 2,
-                            maxItems: 2,
-                            description: 'Resolution [width, height]'
-                        },
-                        seed: {
-                            type: 'number',
-                            description: 'Random seed'
-                        },
-                        uniforms: {
-                            type: 'object',
-                            additionalProperties: true,
-                            description: 'Uniform overrides'
-                        }
+                        time: { type: 'number' },
+                        resolution: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 },
+                        seed: { type: 'number' },
+                        uniforms: { type: 'object', additionalProperties: true }
                     }
                 }
             },
-            required: ['effect_id', 'prompt', 'backend']
+            required: ['prompt', 'backend']
         }
     },
     {
-        name: 'benchmark_effect_fps',
-        description: 'Benchmark a shader effect to verify it can sustain a target framerate. Runs the effect for a specified duration and measures frame times.',
+        name: 'benchmarkEffectFPS',
+        description: 'Benchmark shader effect(s) to verify they can sustain a target framerate. Runs each effect for a specified duration and measures frame times.',
         inputSchema: {
             type: 'object',
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "basics/noise")'
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
                 },
                 target_fps: {
                     type: 'number',
@@ -197,46 +212,197 @@ const TOOLS = [
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    description: 'Rendering backend'
+                    description: 'Rendering backend (required)'
                 }
             },
-            required: ['effect_id', 'target_fps', 'backend']
+            required: ['target_fps', 'backend']
         }
     },
     {
-        name: 'check_alg_equiv',
-        description: 'Check algorithmic equivalence between GLSL and WGSL shader implementations. Uses AI to compare shader pairs and flag divergent implementations. Only flags truly divergent algorithms, not language-specific syntax differences.',
+        name: 'testUniformResponsiveness',
+        description: 'Test that uniform controls affect shader output. Renders with default values, then with modified values, and checks if output differs.',
         inputSchema: {
             type: 'object',
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "basics/noise", "nm/worms")'
-                }
-            },
-            required: ['effect_id']
-        }
-    },
-    {
-        name: 'test_no_passthrough',
-        description: 'Test that a filter effect does NOT pass through its input unchanged. Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN. This test captures both input and output textures on the same frame and computes their similarity. Fails if textures are >99% similar.',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                effect_id: {
+                    description: 'Single effect identifier'
+                },
+                effects: {
                     type: 'string',
-                    description: 'Effect identifier (e.g., "nm/sobel", "nm/rotate")'
+                    description: 'CSV of effect IDs or glob patterns'
                 },
                 backend: {
                     type: 'string',
                     enum: ['webgl2', 'webgpu'],
-                    description: 'Rendering backend to use'
+                    description: 'Rendering backend (required)'
                 }
             },
-            required: ['effect_id', 'backend']
+            required: ['backend']
+        }
+    },
+    {
+        name: 'testNoPassthrough',
+        description: 'Test that filter effect(s) do NOT pass through input unchanged. Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN. Compares input and output textures on the same frame. Fails if textures are >99% similar.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                effect_id: {
+                    type: 'string',
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    description: 'Rendering backend (required)'
+                }
+            },
+            required: ['backend']
+        }
+    },
+    
+    // =========================================================================
+    // ON-DISK TOOLS (no browser required)
+    // =========================================================================
+    {
+        name: 'checkEffectStructure',
+        description: 'Check effect structure on disk for unused files, broken references, naming issues, and leaked/unbound uniforms. Does NOT require a browser.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                effect_id: {
+                    type: 'string',
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    description: 'Backend to check (affects which shader directory is scanned)'
+                }
+            },
+            required: ['backend']
+        }
+    },
+    {
+        name: 'checkAlgEquiv',
+        description: 'Check algorithmic equivalence between GLSL and WGSL shader implementations using AI. Only flags truly divergent algorithms, not language-specific syntax differences. Does NOT require a browser.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                effect_id: {
+                    type: 'string',
+                    description: 'Single effect identifier'
+                },
+                effects: {
+                    type: 'string',
+                    description: 'CSV of effect IDs or glob patterns'
+                }
+            },
+            required: []
+        }
+    },
+    {
+        name: 'generateShaderManifest',
+        description: 'Regenerate the shader manifest by running the manifest generation script. Does NOT require a browser.',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
         }
     }
 ];
+
+/**
+ * Parse effects from arguments.
+ * Returns array of effect patterns from either effect_id or effects parameter.
+ */
+function parseEffects(args) {
+    if (args.effects) {
+        return args.effects.split(',').map(e => e.trim()).filter(e => e);
+    }
+    if (args.effect_id) {
+        return [args.effect_id];
+    }
+    return [];
+}
+
+/**
+ * Resolve effect patterns to actual effect IDs using browser session.
+ */
+async function resolveEffects(session, patterns) {
+    if (patterns.length === 0) {
+        throw new Error('No effects specified. Provide effect_id or effects parameter.');
+    }
+    
+    const allEffects = await session.listEffects();
+    const resolved = new Set();
+    
+    for (const pattern of patterns) {
+        const matches = matchEffects(allEffects, pattern);
+        if (matches.length === 0) {
+            throw new Error(`No effects matched pattern: ${pattern}`);
+        }
+        for (const m of matches) {
+            resolved.add(m);
+        }
+    }
+    
+    return Array.from(resolved).sort();
+}
+
+/**
+ * Run a browser-based test on multiple effects.
+ * Follows the common main loop pattern.
+ */
+async function runBrowserTest(args, testFn) {
+    const patterns = parseEffects(args);
+    const backend = args.backend;
+    
+    if (!backend) {
+        throw new Error('backend parameter is required');
+    }
+    
+    // Setup: Create fresh browser session
+    const session = new BrowserSession({ backend, headless: true });
+    
+    try {
+        await session.setup();
+        
+        // Resolve effect patterns
+        const effectIds = await resolveEffects(session, patterns);
+        
+        // Main loop: Test each effect
+        const results = {};
+        for (const effectId of effectIds) {
+            try {
+                results[effectId] = await testFn(session, effectId, args);
+            } catch (err) {
+                results[effectId] = { status: 'error', error: err.message };
+            }
+            
+            // Grace period between effects
+            await gracePeriod();
+        }
+        
+        return {
+            backend,
+            effects_tested: effectIds.length,
+            results
+        };
+        
+    } finally {
+        // Teardown: Close browser session
+        await session.teardown();
+    }
+}
 
 /**
  * Handle list tools request
@@ -252,107 +418,197 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     
     try {
-        const harness = await getHarness();
+        let result;
         
         switch (name) {
-            case 'compile_effect': {
-                const result = await harness.compileEffect(
-                    args.effect_id,
-                    { backend: args.backend }
-                );
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
-                };
+            // =================================================================
+            // BROWSER-BASED TOOLS
+            // =================================================================
+            
+            case 'compileEffect': {
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.compileEffect(effectId);
+                });
+                break;
             }
             
-            case 'render_effect_frame': {
+            case 'renderEffectFrame': {
                 const testCase = args.test_case || {};
-                const result = await harness.renderEffectFrame(
-                    args.effect_id,
-                    {
-                        backend: args.backend,
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.renderEffectFrame(effectId, {
                         time: testCase.time,
                         resolution: testCase.resolution,
                         seed: testCase.seed,
                         uniforms: testCase.uniforms
-                    }
-                );
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
-                };
+                    });
+                });
+                break;
             }
             
-            case 'describe_effect_frame': {
+            case 'describeEffectFrame': {
                 const testCase = args.test_case || {};
-                const result = await harness.describeEffectFrame(
-                    args.effect_id,
-                    args.prompt,
-                    {
-                        backend: args.backend,
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.describeEffectFrame(effectId, args.prompt, {
                         time: testCase.time,
                         resolution: testCase.resolution,
                         seed: testCase.seed,
                         uniforms: testCase.uniforms
-                    }
-                );
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
-                };
+                    });
+                });
+                break;
             }
             
-            case 'benchmark_effect_fps': {
-                const result = await harness.benchmarkEffectFps(
-                    args.effect_id,
-                    {
+            case 'benchmarkEffectFPS': {
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.benchmarkEffectFps(effectId, {
                         targetFps: args.target_fps,
                         durationSeconds: args.duration_seconds,
-                        resolution: args.resolution,
-                        backend: args.backend
+                        resolution: args.resolution
+                    });
+                });
+                break;
+            }
+            
+            case 'testUniformResponsiveness': {
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.testUniformResponsiveness(effectId);
+                });
+                break;
+            }
+            
+            case 'testNoPassthrough': {
+                result = await runBrowserTest(args, async (session, effectId) => {
+                    return await session.testNoPassthrough(effectId);
+                });
+                break;
+            }
+            
+            // =================================================================
+            // ON-DISK TOOLS (no browser required)
+            // =================================================================
+            
+            case 'checkEffectStructure': {
+                const patterns = parseEffects(args);
+                const backend = args.backend;
+                
+                if (!backend) {
+                    throw new Error('backend parameter is required');
+                }
+                
+                // For on-disk tools, we need to get effect list differently
+                // or just pass the patterns through as-is
+                const results = {};
+                for (const pattern of patterns) {
+                    // If it's an exact effect ID, use it directly
+                    if (!pattern.includes('*') && !pattern.includes('?') && !pattern.startsWith('/')) {
+                        try {
+                            results[pattern] = await checkEffectStructureOnDisk(pattern, { backend });
+                        } catch (err) {
+                            results[pattern] = { status: 'error', error: err.message };
+                        }
+                    } else {
+                        // For glob patterns, we'd need to resolve them
+                        // For now, just report that patterns require browser
+                        results[pattern] = { 
+                            status: 'error', 
+                            error: 'Glob patterns require browser session to resolve. Use exact effect IDs for on-disk tools.' 
+                        };
                     }
-                );
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
+                }
+                
+                result = {
+                    backend,
+                    effects_tested: Object.keys(results).length,
+                    results
                 };
+                break;
             }
             
-            case 'check_alg_equiv': {
-                const result = await harness.checkShaderParity(args.effect_id);
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
+            case 'checkAlgEquiv': {
+                const patterns = parseEffects(args);
+                
+                const results = {};
+                for (const pattern of patterns) {
+                    if (!pattern.includes('*') && !pattern.includes('?') && !pattern.startsWith('/')) {
+                        try {
+                            results[pattern] = await checkAlgEquivOnDisk(pattern);
+                        } catch (err) {
+                            results[pattern] = { status: 'error', error: err.message };
+                        }
+                    } else {
+                        results[pattern] = { 
+                            status: 'error', 
+                            error: 'Glob patterns require browser session to resolve. Use exact effect IDs for on-disk tools.' 
+                        };
+                    }
+                }
+                
+                result = {
+                    effects_tested: Object.keys(results).length,
+                    results
                 };
+                break;
             }
             
-            case 'test_no_passthrough': {
-                const result = await harness.testNoPassthrough(
-                    args.effect_id,
-                    { backend: args.backend }
-                );
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify(result, null, 2)
-                    }]
-                };
+            case 'generateShaderManifest': {
+                result = await new Promise((resolve, _reject) => {
+                    const scriptPath = path.join(PROJECT_ROOT, 'shaders/scripts/generate_shader_manifest.py');
+                    
+                    const proc = spawn('python3', [scriptPath], {
+                        cwd: PROJECT_ROOT,
+                        stdio: ['ignore', 'pipe', 'pipe']
+                    });
+                    
+                    let stdout = '';
+                    let stderr = '';
+                    
+                    proc.stdout.on('data', (data) => {
+                        stdout += data.toString();
+                    });
+                    
+                    proc.stderr.on('data', (data) => {
+                        stderr += data.toString();
+                    });
+                    
+                    proc.on('close', (code) => {
+                        resolve({
+                            status: code === 0 ? 'ok' : 'error',
+                            exit_code: code,
+                            stdout: stdout.trim(),
+                            stderr: stderr.trim()
+                        });
+                    });
+                    
+                    proc.on('error', (err) => {
+                        resolve({
+                            status: 'error',
+                            error: `Failed to spawn process: ${err.message}`
+                        });
+                    });
+                    
+                    // Timeout after 30 seconds
+                    setTimeout(() => {
+                        proc.kill('SIGTERM');
+                        resolve({
+                            status: 'error',
+                            error: 'Process timed out after 30 seconds'
+                        });
+                    }, 30000);
+                });
+                break;
             }
             
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
+        
+        return {
+            content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+            }]
+        };
+        
     } catch (error) {
         return {
             content: [{
@@ -368,32 +624,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 /**
- * Cleanup on exit
- */
-async function cleanup() {
-    if (browserHarness) {
-        await browserHarness.close();
-        browserHarness = null;
-    }
-}
-
-process.on('SIGINT', async () => {
-    await cleanup();
-    process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-    await cleanup();
-    process.exit(0);
-});
-
-/**
  * Start the server
  */
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error('Noisemaker Shader Tools MCP server running on stdio');
+    console.error('Noisemaker Shader Tools MCP server v2.0.0 running on stdio');
 }
 
 main().catch((error) => {

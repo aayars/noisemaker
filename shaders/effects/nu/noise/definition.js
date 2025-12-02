@@ -5,7 +5,6 @@ export default class Noise extends Effect {
   namespace = "nu";
   func = "noise";
 
-  // Simplified: mono (0) and rgb (1) only, no hsv mode
   globals = {
     "scale": {
         "type": "float",

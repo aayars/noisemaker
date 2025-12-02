@@ -1,19 +1,20 @@
 /**
  * Browser Harness for Shader Effect Testing
  * 
- * Manages a persistent Playwright browser session for executing shader
- * operations in a real WebGL2/WebGPU context. This harness:
+ * Provides explicit setup/teardown lifecycle for browser-based shader testing.
+ * Each tool invocation follows this pattern:
  * 
- * - Launches a Chromium browser with WebGPU support
- * - Starts a local HTTP server for the demo page
- * - Provides methods that map to the core operations
- * - Handles browser lifecycle management
+ * 1. Setup: Launch browser, open fresh page, load demo UI
+ * 2. Configure: Set backend (webgl2 or webgpu)
+ * 3. Main loop: For each effect, load/compile and run the specific test
+ * 4. Teardown: Close page, close browser, clean up resources
+ * 
+ * This design ensures no stale browser state between invocations.
  */
 
 import { chromium } from '@playwright/test';
 import { spawn } from 'child_process';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 import {
     compileEffect,
@@ -31,50 +32,133 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
+/** Grace period between effect tests (ms) */
+const GRACE_PERIOD_MS = 125;
+
 /**
- * Browser harness for shader testing
+ * Shared HTTP server management.
+ * The server is started once and reused across harness instances.
  */
-export class BrowserHarness {
+let sharedServerProcess = null;
+let sharedServerRefCount = 0;
+const SERVER_HOST = '127.0.0.1';
+const SERVER_PORT = 4173;
+
+/**
+ * Start the shared HTTP server if not already running.
+ * @returns {Promise<void>}
+ */
+async function acquireServer() {
+    if (sharedServerRefCount > 0) {
+        sharedServerRefCount++;
+        return;
+    }
+    
+    return new Promise((resolve, reject) => {
+        const serverScript = path.join(PROJECT_ROOT, 'shaders/scripts/serve.js');
+        
+        sharedServerProcess = spawn('node', [serverScript], {
+            cwd: PROJECT_ROOT,
+            env: {
+                ...process.env,
+                HOST: SERVER_HOST,
+                PORT: String(SERVER_PORT)
+            },
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        
+        let started = false;
+        
+        sharedServerProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            if (output.includes('listening') || !started) {
+                started = true;
+            }
+        });
+        
+        sharedServerProcess.stderr.on('data', () => {
+            // Server logs to stderr
+        });
+        
+        sharedServerProcess.on('error', (err) => {
+            reject(new Error(`Failed to start server: ${err.message}`));
+        });
+        
+        // Give server time to start
+        setTimeout(() => {
+            sharedServerRefCount++;
+            resolve();
+        }, 1000);
+    });
+}
+
+/**
+ * Release the shared HTTP server reference.
+ * Server is killed when last reference is released.
+ */
+function releaseServer() {
+    sharedServerRefCount--;
+    if (sharedServerRefCount <= 0 && sharedServerProcess) {
+        sharedServerProcess.kill('SIGTERM');
+        sharedServerProcess.unref();
+        sharedServerProcess = null;
+        sharedServerRefCount = 0;
+    }
+}
+
+/**
+ * Launch browser options for WebGPU support.
+ */
+function getBrowserLaunchOptions(headless) {
+    return {
+        headless,
+        args: [
+            '--enable-unsafe-webgpu',
+            '--enable-features=Vulkan',
+            '--enable-webgpu-developer-features',
+            '--disable-gpu-sandbox',
+            process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=vulkan',
+        ]
+    };
+}
+
+/**
+ * Browser Session - manages a single browser/page lifecycle.
+ * 
+ * Each session has explicit setup() and teardown() methods.
+ * No state persists between sessions.
+ */
+export class BrowserSession {
     constructor(options = {}) {
         this.options = {
-            host: options.host || '127.0.0.1',
-            port: options.port || 4173,
+            host: options.host || SERVER_HOST,
+            port: options.port || SERVER_PORT,
             headless: options.headless !== false,
+            backend: options.backend || 'webgl2',
             ...options
         };
         
         this.browser = null;
         this.context = null;
         this.page = null;
-        this.serverProcess = null;
         this.baseUrl = `http://${this.options.host}:${this.options.port}`;
-        
-        // Track shader file changes for smart reload
-        this.shadersDirty = false;
-        this.fileWatchers = [];  // Track all watchers for proper cleanup
-        this.lastReloadTime = 0;
+        this.consoleMessages = [];
+        this._isSetup = false;
     }
     
     /**
-     * Initialize the browser harness
+     * Setup: Launch browser, open page, load demo, configure backend.
      */
-    async init() {
-        // Start the HTTP server
-        await this.startServer();
+    async setup() {
+        if (this._isSetup) {
+            throw new Error('Session already set up. Call teardown() first.');
+        }
         
-        // Launch browser with WebGPU support
-        const launchOptions = {
-            headless: this.options.headless,
-            args: [
-                '--enable-unsafe-webgpu',
-                '--enable-features=Vulkan',
-                '--enable-webgpu-developer-features',
-                '--disable-gpu-sandbox',
-                process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=vulkan',
-            ]
-        };
+        // Ensure HTTP server is running
+        await acquireServer();
         
-        this.browser = await chromium.launch(launchOptions);
+        // Launch browser
+        this.browser = await chromium.launch(getBrowserLaunchOptions(this.options.headless));
         this.context = await this.browser.newContext({
             viewport: { width: 1280, height: 720 },
             ignoreHTTPSErrors: true
@@ -88,7 +172,6 @@ export class BrowserHarness {
         this.consoleMessages = [];
         this.page.on('console', msg => {
             const text = msg.text();
-            // Capture relevant messages for debugging
             if (text.includes('Error') || text.includes('error') || text.includes('warning') || 
                 text.includes('Storage') || text.includes('getOutput') ||
                 text.includes('[bindTextures]') || text.includes('DSL') ||
@@ -109,10 +192,10 @@ export class BrowserHarness {
             this.consoleMessages.push({ type: 'pageerror', text: error.message });
         });
         
-        // Navigate to the demo page
-        await this.page.goto(`${this.baseUrl}/demo/shaders/`);
+        // Navigate to demo page
+        await this.page.goto(`${this.baseUrl}/demo/shaders/`, { waitUntil: 'networkidle' });
         
-        // Wait for the app to be ready
+        // Wait for app to be ready
         await this.page.waitForFunction(() => {
             const app = document.getElementById('app-container');
             return !!app && window.getComputedStyle(app).display !== 'none';
@@ -124,362 +207,97 @@ export class BrowserHarness {
             { timeout: STATUS_TIMEOUT }
         );
         
-        // Start watching shader files for changes
-        this.startFileWatcher();
-        this.lastReloadTime = Date.now();
+        // Configure backend
+        await this._setBackend(this.options.backend);
+        
+        this._isSetup = true;
     }
     
     /**
-     * Start watching shader files for changes
+     * Teardown: Close page, close browser, release resources.
      */
-    startFileWatcher() {
-        const _shadersDir = path.join(PROJECT_ROOT, 'shaders');
-        const srcDir = path.join(PROJECT_ROOT, 'shaders/src');
-        const effectsDir = path.join(PROJECT_ROOT, 'shaders/effects');
-        
-        // Watch for changes in shader directories
-        const watchDirs = [srcDir, effectsDir];
-        
-        for (const dir of watchDirs) {
-            if (fs.existsSync(dir)) {
-                const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
-                    if (filename && (filename.endsWith('.js') || filename.endsWith('.glsl') || 
-                        filename.endsWith('.wgsl') || filename.endsWith('.json'))) {
-                        this.shadersDirty = true;
-                    }
-                });
-                // Track all watchers for proper cleanup
-                this.fileWatchers.push(watcher);
-            }
+    async teardown() {
+        if (this.page) {
+            await this.page.close().catch(() => {});
+            this.page = null;
         }
-    }
-    
-    /**
-     * Reload the page unconditionally.
-     * Always reloads to ensure we pick up any shader/code changes.
-     * @returns {Promise<boolean>} True if page was reloaded
-     */
-    async reloadIfDirty() {
-        // Always reload on every request to ensure fresh state
-        this.shadersDirty = false;
+        
+        if (this.context) {
+            await this.context.close().catch(() => {});
+            this.context = null;
+        }
+        
+        if (this.browser) {
+            await this.browser.close().catch(() => {});
+            this.browser = null;
+        }
+        
+        releaseServer();
         this.consoleMessages = [];
-        
-        // Clear browser cache to ensure fresh module imports
-        // This is crucial for ES module hot reloading
-        const client = await this.context.newCDPSession(this.page);
-        await client.send('Network.clearBrowserCache');
-        await client.detach();
-        
-        // Use goto with cache bypass instead of reload
-        // This forces a fresh fetch of all resources including ES modules
-        await this.page.goto(`${this.baseUrl}/demo/shaders/`, { 
-            waitUntil: 'networkidle' 
-        });
-        
-        // Wait for the app to be ready again
-        await this.page.waitForFunction(() => {
-            const app = document.getElementById('app-container');
-            return !!app && window.getComputedStyle(app).display !== 'none';
-        }, { timeout: STATUS_TIMEOUT });
-        
-        // Wait for effects to load
-        await this.page.waitForFunction(
-            () => document.querySelectorAll('#effect-select option').length > 0,
-            { timeout: STATUS_TIMEOUT }
-        );
-        
-        this.lastReloadTime = Date.now();
-        return true;
+        this._isSetup = false;
     }
     
     /**
-     * Start the HTTP server
+     * Set the rendering backend.
+     * @param {'webgl2'|'webgpu'} backend
      */
-    async startServer() {
-        return new Promise((resolve, reject) => {
-            const serverScript = path.join(PROJECT_ROOT, 'shaders/scripts/serve.js');
+    async _setBackend(backend) {
+        const targetBackend = backend === 'webgpu' ? 'wgsl' : 'glsl';
+        
+        await this.page.evaluate(async ({ targetBackend, timeout }) => {
+            const currentBackend = typeof window.__noisemakerCurrentBackend === 'function'
+                ? window.__noisemakerCurrentBackend()
+                : 'glsl';
             
-            this.serverProcess = spawn('node', [serverScript], {
-                cwd: PROJECT_ROOT,
-                env: {
-                    ...process.env,
-                    HOST: this.options.host,
-                    PORT: String(this.options.port)
-                },
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
-            
-            let started = false;
-            
-            this.serverProcess.stdout.on('data', (data) => {
-                const output = data.toString();
-                if (output.includes('listening') || !started) {
-                    started = true;
+            if (currentBackend !== targetBackend) {
+                const radio = document.querySelector(`input[name="backend"][value="${targetBackend}"]`);
+                if (radio) {
+                    radio.click();
+                    const switchStart = Date.now();
+                    while (Date.now() - switchStart < timeout) {
+                        const status = document.getElementById('status');
+                        const text = (status?.textContent || '').toLowerCase();
+                        const pipeline = window.__noisemakerRenderingPipeline;
+                        const pipelineBackend = pipeline?.backend?.getName?.()?.toLowerCase() || '';
+                        const expectedBackend = targetBackend === 'wgsl' ? 'webgpu' : 'webgl2';
+                        
+                        if (text.includes(`switched to ${targetBackend}`) && 
+                            pipelineBackend.includes(expectedBackend.toLowerCase())) {
+                            break;
+                        }
+                        await new Promise(r => setTimeout(r, 10));
+                    }
                 }
-            });
-            
-            this.serverProcess.stderr.on('data', (_data) => {
-                // Server logs to stderr
-            });
-            
-            this.serverProcess.on('error', (err) => {
-                reject(new Error(`Failed to start server: ${err.message}`));
-            });
-            
-            // Give server time to start
-            setTimeout(() => {
-                if (!started) {
-                    // Try to connect anyway
-                }
-                resolve();
-            }, 1000);
-        });
+            }
+        }, { targetBackend, timeout: STATUS_TIMEOUT });
     }
     
     /**
-     * Clear console messages
+     * Clear console messages.
      */
     clearConsoleMessages() {
         this.consoleMessages = [];
     }
     
     /**
-     * Get console messages
+     * Get console messages.
      */
     getConsoleMessages() {
         return this.consoleMessages || [];
     }
     
     /**
-     * Compile an effect
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     */
-    async compileEffect(effectId, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await compileEffect(this.page, effectId, options);
-        
-        // Include any console errors in the result
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Render an effect frame and compute metrics
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     */
-    async renderEffectFrame(effectId, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await renderEffectFrame(this.page, effectId, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Benchmark effect FPS
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     */
-    async benchmarkEffectFps(effectId, options = {}) {
-        // Benchmarks MUST run in headed mode for accurate GPU timing
-        // Headless browsers don't have proper vsync/rAF timing
-        if (this.options.headless) {
-            // Launch a temporary headed browser for the benchmark
-            const headedBrowser = await chromium.launch({
-                headless: false,
-                args: [
-                    '--enable-unsafe-webgpu',
-                    '--enable-features=Vulkan',
-                    '--enable-webgpu-developer-features',
-                    '--disable-gpu-sandbox',
-                    process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=vulkan',
-                ]
-            });
-            
-            try {
-                const context = await headedBrowser.newContext({
-                    viewport: { width: 1280, height: 720 },
-                    ignoreHTTPSErrors: true
-                });
-                const page = await context.newPage();
-                page.setDefaultTimeout(STATUS_TIMEOUT);
-                
-                // Capture console messages
-                const consoleMessages = [];
-                page.on('console', msg => {
-                    const text = msg.text();
-                    if (text.includes('Error') || text.includes('error') || 
-                        text.includes('[compileEffect]') || text.includes('[expand]') ||
-                        msg.type() === 'error' || msg.type() === 'warning') {
-                        consoleMessages.push({ type: msg.type(), text });
-                    }
-                });
-                
-                // Navigate to demo
-                await page.goto(`${this.baseUrl}/demo/shaders/`, { waitUntil: 'networkidle' });
-                await page.waitForFunction(() => {
-                    const app = document.getElementById('app-container');
-                    return !!app && window.getComputedStyle(app).display !== 'none';
-                }, { timeout: STATUS_TIMEOUT });
-                await page.waitForFunction(
-                    () => document.querySelectorAll('#effect-select option').length > 0,
-                    { timeout: STATUS_TIMEOUT }
-                );
-                
-                // Run the benchmark
-                const result = await benchmarkEffectFps(page, effectId, options);
-                
-                if (consoleMessages.length > 0) {
-                    result.console_errors = consoleMessages.map(m => m.text);
-                }
-                
-                return result;
-            } finally {
-                await headedBrowser.close();
-            }
-        }
-        
-        // Already in headed mode, use existing page
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await benchmarkEffectFps(this.page, effectId, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Describe effect frame with AI vision
-     * @param {string} effectId - Effect identifier
-     * @param {string} prompt - Vision prompt
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     */
-    async describeEffectFrame(effectId, prompt, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await describeEffectFrame(this.page, effectId, prompt, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Check effect structure for unused files and compute pass requirements
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[]}>}
-     */
-    async checkEffectStructure(effectId, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await checkEffectStructure(effectId, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Check algorithmic parity between GLSL and WGSL shader implementations
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     * @returns {Promise<{status: 'ok'|'error'|'divergent', pairs: Array, summary: string}>}
-     */
-    async checkShaderParity(effectId, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await checkShaderParity(effectId, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Check if an effect is a filter-type effect (takes texture input)
-     * @param {string} effectId - Effect identifier
-     * @returns {Promise<boolean>}
-     */
-    async isFilterEffect(effectId) {
-        return await isFilterEffect(effectId);
-    }
-    
-    /**
-     * Test that a filter effect does NOT pass through its input unchanged.
-     * Passthrough/no-op/placeholder shaders are STRICTLY FORBIDDEN.
-     * @param {string} effectId - Effect identifier
-     * @param {object} options
-     * @param {'webgl2'|'webgpu'} [options.backend='webgl2'] - Rendering backend
-     * @param {boolean} [options.skipCompile] - Skip initial compilation (effect already loaded)
-     * @param {boolean} [options.skipReload] - Skip page reload (caller already reloaded)
-     * @returns {Promise<{status: 'ok'|'error'|'skipped'|'passthrough', isFilterEffect: boolean, similarity: number, details: string}>}
-     */
-    async testNoPassthrough(effectId, options = {}) {
-        if (!options.skipReload) {
-            await this.reloadIfDirty();
-        }
-        this.consoleMessages = [];
-        const result = await testNoPassthrough(this.page, effectId, options);
-        
-        if (this.consoleMessages.length > 0) {
-            result.console_errors = this.consoleMessages.map(m => m.text);
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Get list of available effects
+     * List available effects.
      */
     async listEffects() {
-        const effects = await this.page.$$eval(
+        return await this.page.$$eval(
             '#effect-select option',
             options => options.map(opt => opt.value).filter(v => v)
         );
-        return effects;
     }
     
     /**
-     * Get effect globals (parameters) for the currently loaded effect
-     * @returns {Promise<Object>} Map of parameter names to their specs
+     * Get effect globals (parameters) for the currently loaded effect.
      */
     async getEffectGlobals() {
         return await this.page.evaluate(() => {
@@ -492,44 +310,189 @@ export class BrowserHarness {
     }
     
     /**
-     * Test if an effect responds to uniform control changes
-     * Renders with default values, then with modified values, and checks if output differs
-     * @param {string} effectId - Effect to test
-     * @param {object} options
-     * @param {boolean} [options.skipCompile] - Skip initial compilation (effect already loaded)
-     * @returns {Promise<{status: 'ok'|'error'|'skipped', tested_uniforms: string[], details: string}>}
+     * Reset all uniforms to their default values.
+     */
+    async resetUniformsToDefaults() {
+        await this.page.evaluate(() => {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            const effect = window.__noisemakerCurrentEffect;
+            
+            if (!pipeline || !effect?.instance?.globals) return;
+            
+            const globals = effect.instance.globals;
+            
+            for (const [_key, spec] of Object.entries(globals)) {
+                if (!spec.uniform) continue;
+                
+                const defaultVal = spec.default ?? spec.min ?? 0;
+                
+                if (pipeline.setUniform) {
+                    pipeline.setUniform(spec.uniform, defaultVal);
+                } else {
+                    if (pipeline.globalUniforms) {
+                        pipeline.globalUniforms[spec.uniform] = defaultVal;
+                    }
+                    for (const pass of pipeline.graph?.passes || []) {
+                        if (pass.uniforms && spec.uniform in pass.uniforms) {
+                            pass.uniforms[spec.uniform] = defaultVal;
+                        }
+                    }
+                }
+            }
+            
+            // Reset time
+            if (pipeline.setUniform) {
+                if ('time' in (pipeline.globalUniforms || {})) pipeline.setUniform('time', 0);
+                if ('u_time' in (pipeline.globalUniforms || {})) pipeline.setUniform('u_time', 0);
+            } else if (pipeline.globalUniforms) {
+                if ('time' in pipeline.globalUniforms) pipeline.globalUniforms.time = 0;
+                if ('u_time' in pipeline.globalUniforms) pipeline.globalUniforms.u_time = 0;
+            }
+            for (const pass of pipeline.graph?.passes || []) {
+                if (pass.uniforms) {
+                    if ('time' in pass.uniforms) pass.uniforms.time = 0;
+                    if ('u_time' in pass.uniforms) pass.uniforms.u_time = 0;
+                }
+            }
+        });
+    }
+    
+    // =========================================================================
+    // Core test operations - wrap core-operations.js functions
+    // =========================================================================
+    
+    /**
+     * Compile an effect.
+     */
+    async compileEffect(effectId) {
+        this.clearConsoleMessages();
+        const result = await compileEffect(this.page, effectId, { backend: this.options.backend });
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        return result;
+    }
+    
+    /**
+     * Render an effect frame and compute metrics.
+     */
+    async renderEffectFrame(effectId, options = {}) {
+        this.clearConsoleMessages();
+        const result = await renderEffectFrame(this.page, effectId, {
+            backend: this.options.backend,
+            ...options
+        });
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        return result;
+    }
+    
+    /**
+     * Benchmark effect FPS.
+     */
+    async benchmarkEffectFps(effectId, options = {}) {
+        // Benchmarks MUST run in headed mode for accurate GPU timing
+        if (this.options.headless) {
+            const headedBrowser = await chromium.launch(getBrowserLaunchOptions(false));
+            
+            try {
+                const context = await headedBrowser.newContext({
+                    viewport: { width: 1280, height: 720 },
+                    ignoreHTTPSErrors: true
+                });
+                const page = await context.newPage();
+                page.setDefaultTimeout(STATUS_TIMEOUT);
+                
+                const consoleMessages = [];
+                page.on('console', msg => {
+                    const text = msg.text();
+                    if (text.includes('Error') || text.includes('error') || 
+                        text.includes('[compileEffect]') || text.includes('[expand]') ||
+                        msg.type() === 'error' || msg.type() === 'warning') {
+                        consoleMessages.push({ type: msg.type(), text });
+                    }
+                });
+                
+                await page.goto(`${this.baseUrl}/demo/shaders/`, { waitUntil: 'networkidle' });
+                await page.waitForFunction(() => {
+                    const app = document.getElementById('app-container');
+                    return !!app && window.getComputedStyle(app).display !== 'none';
+                }, { timeout: STATUS_TIMEOUT });
+                await page.waitForFunction(
+                    () => document.querySelectorAll('#effect-select option').length > 0,
+                    { timeout: STATUS_TIMEOUT }
+                );
+                
+                const result = await benchmarkEffectFps(page, effectId, {
+                    backend: this.options.backend,
+                    ...options
+                });
+                
+                if (consoleMessages.length > 0) {
+                    result.console_errors = consoleMessages.map(m => m.text);
+                }
+                
+                return result;
+            } finally {
+                await headedBrowser.close();
+            }
+        }
+        
+        this.clearConsoleMessages();
+        const result = await benchmarkEffectFps(this.page, effectId, {
+            backend: this.options.backend,
+            ...options
+        });
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Describe effect frame with AI vision.
+     */
+    async describeEffectFrame(effectId, prompt, options = {}) {
+        this.clearConsoleMessages();
+        const result = await describeEffectFrame(this.page, effectId, prompt, {
+            backend: this.options.backend,
+            ...options
+        });
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Test uniform responsiveness.
      */
     async testUniformResponsiveness(effectId, options = {}) {
-        await this.reloadIfDirty();
-        this.consoleMessages = [];
+        this.clearConsoleMessages();
+        const _backend = this.options.backend;
         
-        const backend = options.backend || 'webgl2';
-        
-        // Only compile if not already loaded
         if (!options.skipCompile) {
-            const compileResult = await this.compileEffect(effectId, { backend, skipReload: true });
+            const compileResult = await this.compileEffect(effectId);
             if (compileResult.status === 'error') {
                 return { status: 'error', tested_uniforms: [], details: compileResult.message };
             }
         }
         
-        // Get globals
         const globals = await this.getEffectGlobals();
         
-        // Find testable numeric uniforms (with min/max range or numeric type with default)
         const testableUniforms = [];
         for (const [name, spec] of Object.entries(globals)) {
             if (!spec.uniform) continue;
-            
-            // Skip non-numeric types
             if (spec.type === 'boolean' || spec.type === 'button' || spec.type === 'member') continue;
             
-            // Has explicit range
             if (typeof spec.min === 'number' && typeof spec.max === 'number' && spec.min !== spec.max) {
                 testableUniforms.push({ name, uniformName: spec.uniform, spec });
-            }
-            // Has default and is float/int type - use synthetic range
-            else if (typeof spec.default === 'number' && (spec.type === 'float' || spec.type === 'int')) {
+            } else if (typeof spec.default === 'number' && (spec.type === 'float' || spec.type === 'int')) {
                 const syntheticSpec = {
                     ...spec,
                     min: spec.default * 0.1,
@@ -543,13 +506,7 @@ export class BrowserHarness {
             return { status: 'skipped', tested_uniforms: [], details: 'No testable numeric uniforms' };
         }
         
-        // Render with default values and capture a hash
-        const baseRender = await this.renderEffectFrame(effectId, { 
-            skipCompile: true, 
-            skipReload: true,
-            backend,
-            warmupFrames: 5
-        });
+        const baseRender = await this.renderEffectFrame(effectId, { skipCompile: true, warmupFrames: 5 });
         if (baseRender.status === 'error') {
             return { status: 'error', tested_uniforms: [], details: baseRender.error };
         }
@@ -557,57 +514,43 @@ export class BrowserHarness {
         const baseMeanLuma = baseRender.metrics?.mean_rgb ? 
             (baseRender.metrics.mean_rgb[0] + baseRender.metrics.mean_rgb[1] + baseRender.metrics.mean_rgb[2]) / 3 : 0;
         
-        // Test each uniform
         const testedUniforms = [];
         let anyResponded = false;
         
-        for (const { name, uniformName, spec } of testableUniforms.slice(0, 3)) { // Test up to 3 uniforms
-            // Pick a value that will produce visible change
-            // Avoid values exactly 1.0 apart (which wrap identically with fract())
+        for (const { name, uniformName, spec } of testableUniforms.slice(0, 3)) {
             const defaultVal = spec.default ?? spec.min;
             const range = spec.max - spec.min;
             let testVal;
             
             if (range <= 0) {
-                testVal = defaultVal; // Can't test - no range
+                testVal = defaultVal;
             } else if (defaultVal === spec.min) {
-                // Default is at min, use 75% of range (avoids 1.0 wrap)
                 testVal = spec.min + range * 0.75;
             } else if (defaultVal === spec.max) {
-                // Default is at max, use 25% of range
                 testVal = spec.min + range * 0.25;
             } else {
-                // Default is in middle - move 50% toward whichever extreme is farther
                 const distToMin = defaultVal - spec.min;
                 const distToMax = spec.max - defaultVal;
-                if (distToMax > distToMin) {
-                    testVal = defaultVal + distToMax * 0.5;
-                } else {
-                    testVal = defaultVal - distToMin * 0.5;
-                }
+                testVal = distToMax > distToMin 
+                    ? defaultVal + distToMax * 0.5 
+                    : defaultVal - distToMin * 0.5;
             }
             
-            // For int types, round
             if (spec.type === 'int') {
                 testVal = Math.round(testVal);
             }
             
-            // Apply the uniform change only to passes belonging to this effect
-            // (not to upstream generator passes that may have same-named uniforms)
             await this.page.evaluate(({ uniformName, testVal, effectId }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
                 if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
                 
-                // Parse effectId to get namespace/func
                 const parts = effectId.split('/');
                 const effectNamespace = parts.length > 1 ? parts[0] : null;
                 const effectFunc = parts[parts.length - 1];
                 
-                // Only set on passes that belong to this effect (not upstream generators)
                 for (const pass of pipeline.graph.passes) {
                     if (!pass.uniforms || !(uniformName in pass.uniforms)) continue;
                     
-                    // Check if this pass belongs to the effect we're testing
                     const matchesNamespace = effectNamespace && pass.effectNamespace === effectNamespace;
                     const matchesFunc = pass.effectFunc === effectFunc;
                     
@@ -617,20 +560,13 @@ export class BrowserHarness {
                 }
             }, { uniformName, testVal, effectId });
             
-            // Render with the new uniform value - need enough frames for change to take effect
-            const testRender = await this.renderEffectFrame(effectId, {
-                skipCompile: true,
-                skipReload: true,
-                backend,
-                warmupFrames: 5
-            });
+            const testRender = await this.renderEffectFrame(effectId, { skipCompile: true, warmupFrames: 5 });
             
             if (testRender.status === 'ok') {
                 const testHash = testRender.metrics?.unique_sampled_colors || 0;
                 const testMeanLuma = testRender.metrics?.mean_rgb ?
                     (testRender.metrics.mean_rgb[0] + testRender.metrics.mean_rgb[1] + testRender.metrics.mean_rgb[2]) / 3 : 0;
                 
-                // Check if output changed meaningfully
                 const colorDiff = Math.abs(testHash - baseHash);
                 const lumaDiff = Math.abs(testMeanLuma - baseMeanLuma);
                 
@@ -642,17 +578,14 @@ export class BrowserHarness {
                 }
             }
             
-            // Reset uniform to default only on effect-specific passes
             await this.page.evaluate(({ uniformName, defaultVal, effectId }) => {
                 const pipeline = window.__noisemakerRenderingPipeline;
                 if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
                 
-                // Parse effectId to get namespace/func
                 const parts = effectId.split('/');
                 const effectNamespace = parts.length > 1 ? parts[0] : null;
                 const effectFunc = parts[parts.length - 1];
                 
-                // Only reset on passes that belong to this effect
                 for (const pass of pipeline.graph.passes) {
                     if (!pass.uniforms || !(uniformName in pass.uniforms)) continue;
                     
@@ -663,10 +596,9 @@ export class BrowserHarness {
                         pass.uniforms[uniformName] = defaultVal;
                     }
                 }
-            }, { uniformName, defaultVal, effectId });
+            }, { uniformName, defaultVal: defaultVal, effectId });
         }
         
-        // Always reset all uniforms to defaults at the end of the test
         await this.resetUniformsToDefaults();
         
         return {
@@ -677,110 +609,126 @@ export class BrowserHarness {
     }
     
     /**
-     * Reset all uniforms to their default values, including time and seed.
-     * This ensures a clean state between tests.
+     * Test that a filter effect does NOT pass through input unchanged.
      */
-    async resetUniformsToDefaults() {
-        await this.page.evaluate(() => {
-            const pipeline = window.__noisemakerRenderingPipeline;
-            const effect = window.__noisemakerCurrentEffect;
-            
-            if (!pipeline || !effect?.instance?.globals) return;
-            
-            const globals = effect.instance.globals;
-            
-            // Reset all uniforms to their default values
-            // Use setUniform if available to trigger texture resizing for dimension params
-            for (const [_key, spec] of Object.entries(globals)) {
-                if (!spec.uniform) continue;
-                
-                const defaultVal = spec.default ?? spec.min ?? 0;
-                
-                // Use setUniform method if available (triggers texture resizing)
-                if (pipeline.setUniform) {
-                    pipeline.setUniform(spec.uniform, defaultVal);
-                } else {
-                    // Fallback: Apply to pipeline.globalUniforms directly
-                    if (pipeline.globalUniforms) {
-                        pipeline.globalUniforms[spec.uniform] = defaultVal;
-                    }
-                    
-                    // Also apply to all passes
-                    for (const pass of pipeline.graph?.passes || []) {
-                        if (pass.uniforms && spec.uniform in pass.uniforms) {
-                            pass.uniforms[spec.uniform] = defaultVal;
-                        }
-                    }
-                }
-            }
-            
-            // Also reset built-in time to known values
-            // NOTE: Do NOT reset seed here - it's an effect-specific parameter set by DSL
-            if (pipeline.setUniform) {
-                if ('time' in (pipeline.globalUniforms || {})) {
-                    pipeline.setUniform('time', 0);
-                }
-                if ('u_time' in (pipeline.globalUniforms || {})) {
-                    pipeline.setUniform('u_time', 0);
-                }
-            } else if (pipeline.globalUniforms) {
-                if ('time' in pipeline.globalUniforms) {
-                    pipeline.globalUniforms.time = 0;
-                }
-                if ('u_time' in pipeline.globalUniforms) {
-                    pipeline.globalUniforms.u_time = 0;
-                }
-            }
-            for (const pass of pipeline.graph?.passes || []) {
-                if (pass.uniforms) {
-                    // Reset time to 0
-                    if ('time' in pass.uniforms) {
-                        pass.uniforms.time = 0;
-                    }
-                    if ('u_time' in pass.uniforms) {
-                        pass.uniforms.u_time = 0;
-                    }
-                }
-            }
+    async testNoPassthrough(effectId, options = {}) {
+        this.clearConsoleMessages();
+        const result = await testNoPassthrough(this.page, effectId, {
+            backend: this.options.backend,
+            ...options
         });
+        
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        
+        return result;
     }
     
     /**
-     * Close the browser harness
+     * Check if an effect is a filter-type effect.
      */
+    async isFilterEffect(effectId) {
+        return await isFilterEffect(effectId);
+    }
+}
+
+// =========================================================================
+// On-disk tools (no browser required)
+// =========================================================================
+
+/**
+ * Check effect structure for unused files, naming issues, etc.
+ * This is an on-disk operation - no browser needed.
+ */
+export async function checkEffectStructureOnDisk(effectId, options = {}) {
+    return await checkEffectStructure(effectId, options);
+}
+
+/**
+ * Check algorithmic parity between GLSL and WGSL.
+ * This is an on-disk operation with AI analysis - no browser needed.
+ */
+export async function checkAlgEquivOnDisk(effectId, options = {}) {
+    return await checkShaderParity(effectId, options);
+}
+
+/**
+ * Match effect IDs against a pattern (glob or regex).
+ * @param {string[]} effects - All available effect IDs
+ * @param {string} pattern - Glob or regex pattern
+ * @returns {string[]} Matching effect IDs
+ */
+export function matchEffects(effects, pattern) {
+    // Regex pattern (starts with /)
+    if (pattern.startsWith('/')) {
+        const regexStr = pattern.slice(1, pattern.lastIndexOf('/'));
+        const flags = pattern.slice(pattern.lastIndexOf('/') + 1);
+        const regex = new RegExp(regexStr, flags);
+        return effects.filter(e => regex.test(e));
+    }
+    
+    // Glob pattern (contains * or ?)
+    if (pattern.includes('*') || pattern.includes('?')) {
+        const regexStr = pattern
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*')
+            .replace(/\?/g, '.');
+        const regex = new RegExp(`^${regexStr}$`);
+        return effects.filter(e => regex.test(e));
+    }
+    
+    // Exact match
+    return effects.filter(e => e === pattern);
+}
+
+/**
+ * Wait for a grace period between effects.
+ */
+export async function gracePeriod() {
+    await new Promise(r => setTimeout(r, GRACE_PERIOD_MS));
+}
+
+// =========================================================================
+// Legacy exports for backward compatibility
+// =========================================================================
+
+/**
+ * @deprecated Use BrowserSession instead
+ */
+export class BrowserHarness extends BrowserSession {
+    constructor(options = {}) {
+        super(options);
+    }
+    
+    async init() {
+        await this.setup();
+    }
+    
     async close() {
-        // Close all file watchers
-        for (const watcher of this.fileWatchers) {
-            watcher.close();
-        }
-        this.fileWatchers = [];
-        
-        if (this.page) {
-            await this.page.close();
-            this.page = null;
-        }
-        
-        if (this.context) {
-            await this.context.close();
-            this.context = null;
-        }
-        
-        if (this.browser) {
-            await this.browser.close();
-            this.browser = null;
-        }
-        
-        if (this.serverProcess) {
-            this.serverProcess.kill('SIGTERM');
-            // Unref to allow process exit even if kill is slow
-            this.serverProcess.unref();
-            this.serverProcess = null;
-        }
+        await this.teardown();
+    }
+    
+    async reloadIfDirty() {
+        // No-op in new model - each session starts fresh
+    }
+    
+    // Delegate to checkEffectStructure for on-disk checks
+    async checkEffectStructure(effectId, options = {}) {
+        return await checkEffectStructureOnDisk(effectId, {
+            backend: this.options.backend,
+            ...options
+        });
+    }
+    
+    // Delegate to checkShaderParity for on-disk checks
+    async checkShaderParity(effectId, options = {}) {
+        return await checkAlgEquivOnDisk(effectId, options);
     }
 }
 
 /**
- * Create a browser harness with default options
+ * @deprecated Use new BrowserSession() and call setup() instead
  */
 export async function createBrowserHarness(options = {}) {
     const harness = new BrowserHarness(options);
