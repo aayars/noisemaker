@@ -306,7 +306,7 @@ export async function renderEffectFrame(page, effectId, options = {}) {
     // Apply uniform overrides BEFORE warmup so they take effect during rendering
     // Use setUniform method to trigger texture resizing for dimension params
     if (options.uniforms) {
-        const uniformApplyResult = await page.evaluate((uniforms) => {
+        const _uniformApplyResult = await page.evaluate((uniforms) => {
             const pipeline = window.__noisemakerRenderingPipeline;
             if (!pipeline) {
                 console.log('[MCP-UNIFORM] No pipeline found');

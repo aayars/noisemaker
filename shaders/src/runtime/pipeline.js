@@ -354,7 +354,7 @@ export class Pipeline {
                 if (texId.startsWith('global_')) {
                     // "global_node_0_caState" -> find the surface name after last underscore segment
                     // Actually, we need to match against our surfaces Map
-                    const parts = texId.replace('global_', '').split('_')
+                    const _parts = texId.replace('global_', '').split('_')
                     // Try to find matching surface - could be "caState" or "node_0_caState"
                     for (const name of this.surfaces.keys()) {
                         if (texId.includes(name) || texId.endsWith(name)) {
