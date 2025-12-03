@@ -146,6 +146,8 @@ void main() {
     vec2 res = resolution;
     if (res.x < 1.0) res = vec2(1024.0, 1024.0);
     vec2 st = gl_FragCoord.xy / res;
+    // Center UVs so zoom scales from center, not corner
+    st -= 0.5;
     st.x *= aspect;
     // Invert scale to match vnoise convention: higher scale = fewer cells (zoomed in)
     float freq = max(0.1, 100.0 / max(scale, 0.01));

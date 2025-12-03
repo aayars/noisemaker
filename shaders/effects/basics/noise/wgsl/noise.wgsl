@@ -9,7 +9,7 @@
 @group(0) @binding(7) var<uniform> colorMode: i32;
 @group(0) @binding(8) var<uniform> hueRotation: f32;
 @group(0) @binding(9) var<uniform> hueRange: f32;
-@group(0) @binding(10) var<uniform> ridged: i32;
+@group(0) @binding(10) var<uniform> ridges: i32;
 
 /* 3D gradient noise with quintic interpolation
    Animated using periodic z-axis for seamless looping
@@ -149,6 +149,8 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     if (res.x < 1.0) { res = vec2<f32>(1024.0, 1024.0); }
     var st = position.xy / res;
     st.y = 1.0 - st.y;  // Flip Y to match WebGL coordinate system
+    // Center UVs so zoom scales from center, not corner
+    st = st - 0.5;
     st.x = st.x * aspect;
     st = st * scale;
     
@@ -158,14 +160,14 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     var r: f32;
     var g: f32;
     var b: f32;
-    if (colorMode == 2 && ridged != 0) {
+    if (colorMode == 2 && ridges != 0) {
         r = fbm(st, timeAngle, 0.0, 0);
         g = fbm(st, timeAngle, 1.33, 0);
-        b = fbm(st, timeAngle, 2.67, ridged);
+        b = fbm(st, timeAngle, 2.67, ridges);
     } else {
-        r = fbm(st, timeAngle, 0.0, ridged);
-        g = fbm(st, timeAngle, 1.33, ridged);
-        b = fbm(st, timeAngle, 2.67, ridged);
+        r = fbm(st, timeAngle, 0.0, ridges);
+        g = fbm(st, timeAngle, 1.33, ridges);
+        b = fbm(st, timeAngle, 2.67, ridges);
     }
     
     var col: vec3<f32>;

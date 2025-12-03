@@ -10,7 +10,7 @@ uniform int octaves;
 uniform int colorMode;
 uniform float hueRotation;
 uniform float hueRange;
-uniform int ridged;
+uniform int ridges;
 
 out vec4 fragColor;
 
@@ -155,6 +155,8 @@ void main() {
     vec2 res = resolution;
     if (res.x < 1.0) res = vec2(1024.0, 1024.0);
     vec2 st = gl_FragCoord.xy / res;
+    // Center UVs so zoom scales from center, not corner
+    st -= 0.5;
     st.x *= aspect;
     st *= scale;
     
@@ -162,14 +164,14 @@ void main() {
     float timeAngle = time * TAU;
     
     float r, g, b;
-    if (colorMode == 2 && ridged != 0) {
+    if (colorMode == 2 && ridges != 0) {
         r = fbm(st, timeAngle, 0.0, 0);
         g = fbm(st, timeAngle, 1.33, 0);
-        b = fbm(st, timeAngle, 2.67, ridged);
+        b = fbm(st, timeAngle, 2.67, ridges);
     } else {
-        r = fbm(st, timeAngle, 0.0, ridged);
-        g = fbm(st, timeAngle, 1.33, ridged);
-        b = fbm(st, timeAngle, 2.67, ridged);
+        r = fbm(st, timeAngle, 0.0, ridges);
+        g = fbm(st, timeAngle, 1.33, ridges);
+        b = fbm(st, timeAngle, 2.67, ridges);
     }
     
     vec3 col;

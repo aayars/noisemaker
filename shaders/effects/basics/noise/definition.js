@@ -42,7 +42,7 @@ export default class Noise extends Effect {
     "ridges": {
         "type": "boolean",
         "default": false,
-        "uniform": "ridged"
+        "uniform": "ridges"
     },
     "seed": {
         "type": "float",

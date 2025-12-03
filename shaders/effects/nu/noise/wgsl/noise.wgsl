@@ -139,6 +139,8 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     if (res.x < 1.0) { res = vec2<f32>(1024.0, 1024.0); }
     var st = position.xy / res;
     st.y = 1.0 - st.y;  // Flip Y to match WebGL coordinate system
+    // Center UVs so zoom scales from center, not corner
+    st = st - 0.5;
     st.x = st.x * aspect;
     // Invert scale to match vnoise convention: higher scale = fewer cells (zoomed in)
     let freq = max(0.1, 100.0 / max(scale, 0.01));
