@@ -7,9 +7,9 @@
 
 import { lex } from '../src/lang/lexer.js';
 import { parse } from '../src/lang/parser.js';
-import { validate, registerStarterOps } from '../src/lang/validator.js';
+import { registerStarterOps } from '../src/lang/validator.js';
 import { compile } from '../src/lang/index.js';
-import { formatValue, unparse } from '../src/lang/unparser.js';
+import { formatValue } from '../src/lang/unparser.js';
 import { registerOp } from '../src/lang/ops.js';
 
 // Register test ops

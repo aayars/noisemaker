@@ -102,14 +102,14 @@ export default class MediaInput extends Effect {
         horizontal: 2,
         vertical: 3,
         "Mirror:": null,
-        leftRight: 11,
-        leftRight: 12,
-        upDown: 13,
-        upDown: 14,
-        lRUD: 15,
-        lRUD: 16,
-        lRUD: 17,
-        lRUD: 18
+        leftToRight: 11,
+        rightToLeft: 12,
+        upToDown: 13,
+        downToUp: 14,
+        lrUd: 15,
+        lrDu: 16,
+        rlUd: 17,
+        rlDu: 18
       },
       ui: {
         label: "flip/mirror",

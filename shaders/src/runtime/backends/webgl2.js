@@ -311,7 +311,7 @@ export class WebGL2Backend extends Backend {
         // Also invalidate any MRT FBOs that reference this texture
         // MRT FBO IDs contain the texture IDs in their name (e.g., "mrt_node_0_pass_0_texA_texB")
         const mrtToDelete = []
-        for (const [fboId, mrtFbo] of this.fbos.entries()) {
+        for (const fboId of this.fbos.keys()) {
             if (fboId.startsWith('mrt_') && fboId.includes(id)) {
                 mrtToDelete.push(fboId)
             }

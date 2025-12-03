@@ -47,8 +47,7 @@ export default class Render3D extends Effect {
             "v128": 128
         },
         "ui": {
-            "label": "volume resolution",
-            "control": "dropdown"
+            "control": false  // Always inherited from upstream volume effect
         }
     },
     "filtering": {

@@ -176,7 +176,7 @@ export function expand(compilationResult) {
             // uniforms like volumeSize that are set by upstream 3D generators.
             // Only set defaults if the uniform isn't already set from upstream.
             if (effectDef.globals) {
-                for (const [key, def] of Object.entries(effectDef.globals)) {
+                for (const def of Object.values(effectDef.globals)) {
                     if (def.uniform && def.default !== undefined) {
                         // Skip if already set from upstream (preserve pipeline inheritance)
                         if (pipelineUniforms[def.uniform] !== undefined) {
@@ -208,6 +208,12 @@ export function expand(compilationResult) {
                     let uniformName = argName;
                     if (effectDef.globals && effectDef.globals[argName] && effectDef.globals[argName].uniform) {
                         uniformName = effectDef.globals[argName].uniform;
+                    }
+                    
+                    // If this effect has a 3D input from upstream, inherit volumeSize
+                    // rather than using the local arg value
+                    if (uniformName === 'volumeSize' && currentInput3d && pipelineUniforms['volumeSize'] !== undefined) {
+                        continue;
                     }
                     
                     // Extract value
@@ -288,6 +294,12 @@ export function expand(compilationResult) {
                         let uniformName = argName;
                         if (effectDef.globals && effectDef.globals[argName] && effectDef.globals[argName].uniform) {
                             uniformName = effectDef.globals[argName].uniform;
+                        }
+                        
+                        // If this effect has a 3D input from upstream, inherit volumeSize
+                        // rather than using the local arg value
+                        if (uniformName === 'volumeSize' && currentInput3d && pipelineUniforms['volumeSize'] !== undefined) {
+                            continue;
                         }
                         
                         // Extract value
