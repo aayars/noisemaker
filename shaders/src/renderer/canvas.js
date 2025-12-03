@@ -522,10 +522,12 @@ export class CanvasRenderer {
      * @param {string} dsl - DSL source code
      * @param {object} [options] - Compilation options
      * @param {number} [options.zoom=1] - Zoom factor
+     * @param {object} [options.shaderOverrides] - Per-step shader overrides
      * @returns {Promise<object>} The created pipeline
      */
     async compile(dsl, options = {}) {
         const zoom = options.zoom || 1;
+        const shaderOverrides = options.shaderOverrides;
         
         this._currentDsl = dsl;
         
@@ -535,10 +537,11 @@ export class CanvasRenderer {
                 width: this._width,
                 height: this._height,
                 preferWebGPU: this._preferWebGPU,
-                zoom
+                zoom,
+                shaderOverrides
             });
         } else {
-            const newGraph = recompile(this._pipeline, dsl);
+            const newGraph = recompile(this._pipeline, dsl, { shaderOverrides });
             if (!newGraph) {
                 const previousPipeline = this._pipeline;
                 this._pipeline = await createRuntime(dsl, {
@@ -546,7 +549,8 @@ export class CanvasRenderer {
                     width: this._width,
                     height: this._height,
                     preferWebGPU: this._preferWebGPU,
-                    zoom
+                    zoom,
+                    shaderOverrides
                 });
                 try {
                     previousPipeline?.backend?.destroy?.();

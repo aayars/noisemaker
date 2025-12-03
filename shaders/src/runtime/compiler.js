@@ -12,6 +12,7 @@ import { createPipeline } from './pipeline.js'
  * Compile DSL source into an executable graph
  * @param {string} source - DSL source code
  * @param {object} options - Compilation options
+ * @param {object} [options.shaderOverrides] - Per-step shader overrides, keyed by step index
  * @returns {object} Compiled graph ready for execution
  */
 export function compileGraph(source, options = {}) {
@@ -29,7 +30,10 @@ export function compileGraph(source, options = {}) {
     }
     
     // Stage 2: Expand logical graph into render passes
-    const { passes, errors: expandErrors, programs, textureSpecs, renderSurface } = expand(compilationResult)
+    const { passes, errors: expandErrors, programs, textureSpecs, renderSurface } = expand(
+        compilationResult,
+        { shaderOverrides: options.shaderOverrides }
+    )
     
     if (expandErrors && expandErrors.length > 0) {
         throw {
@@ -135,13 +139,16 @@ function hashSource(source) {
  * Hot reload support - recompile and swap graph
  * @param {Pipeline} pipeline - Existing pipeline
  * @param {string} newSource - New DSL source
+ * @param {object} [options] - Recompilation options
+ * @param {object} [options.shaderOverrides] - Per-step shader overrides
  * @returns {object} New graph (pipeline will update on next frame)
  */
-export function recompile(pipeline, newSource) {
+export function recompile(pipeline, newSource, options = {}) {
     try {
         const newGraph = compileGraph(newSource, {
             width: pipeline.width,
-            height: pipeline.height
+            height: pipeline.height,
+            shaderOverrides: options.shaderOverrides
         })
         
         // Swap graph on pipeline

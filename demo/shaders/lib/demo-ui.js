@@ -298,6 +298,7 @@ export class DemoUI {
         // State
         this._parameterValues = {};
         this._effectParameterValues = {}; // Map: step_N -> {param: value}
+        this._shaderOverrides = {}; // Map: stepIndex -> { programName: { glsl?, wgsl?, fragment?, vertex? } }
         this._parsedDslStructure = [];
         this._allEffects = [];
         
@@ -324,6 +325,11 @@ export class DemoUI {
     /** @returns {object} Effect parameter values by step */
     get effectParameterValues() {
         return this._effectParameterValues;
+    }
+    
+    /** @returns {object} Shader source overrides by step index */
+    get shaderOverrides() {
+        return this._shaderOverrides;
     }
     
     /** @returns {Array} All effect placeholders */
@@ -745,8 +751,232 @@ export class DemoUI {
             }
 
             contentDiv.appendChild(controlsDiv);
+            
+            // Add shader editor section if effect has shaders
+            if (effectDef.shaders) {
+                const shaderSection = this._createShaderEditorSection(effectInfo, effectDef);
+                contentDiv.appendChild(shaderSection);
+            }
+            
             moduleDiv.appendChild(contentDiv);
             this._controlsContainer.appendChild(moduleDiv);
+        }
+    }
+    
+    /**
+     * Create the shader editor section for an effect
+     * @private
+     */
+    _createShaderEditorSection(effectInfo, effectDef) {
+        const section = document.createElement('div');
+        section.className = 'shader-editor-section';
+        section.style.cssText = 'margin-top: 0.75rem; border-top: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); padding-top: 0.75rem;';
+        
+        // Header with toggle button
+        const header = document.createElement('div');
+        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;';
+        
+        const label = document.createElement('span');
+        label.className = 'control-label';
+        label.textContent = 'shader source';
+        header.appendChild(label);
+        
+        const toggleBtn = document.createElement('button');
+        toggleBtn.textContent = 'edit';
+        toggleBtn.style.cssText = 'padding: 0.25rem 0.5rem; background: color-mix(in srgb, var(--accent3) 20%, transparent 80%); border: 1px solid color-mix(in srgb, var(--accent3) 40%, transparent 60%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.625rem; font-weight: 600; cursor: pointer;';
+        header.appendChild(toggleBtn);
+        
+        section.appendChild(header);
+        
+        // Editor container (hidden by default)
+        const editorContainer = document.createElement('div');
+        editorContainer.style.cssText = 'display: none;';
+        
+        // Program selector
+        const programNames = Object.keys(effectDef.shaders);
+        if (programNames.length > 1) {
+            const programSelect = document.createElement('select');
+            programSelect.className = 'control-select';
+            programSelect.style.cssText = 'margin-bottom: 0.5rem;';
+            programNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                programSelect.appendChild(option);
+            });
+            editorContainer.appendChild(programSelect);
+            
+            programSelect.addEventListener('change', () => {
+                this._updateShaderEditorContent(effectInfo, effectDef, programSelect.value, editorContainer);
+            });
+        }
+        
+        // Shader textarea
+        const textarea = document.createElement('textarea');
+        textarea.className = 'shader-source-editor';
+        textarea.spellcheck = false;
+        textarea.style.cssText = 'width: 100%; min-height: 200px; resize: vertical; background: color-mix(in srgb, var(--color1) 60%, transparent 40%); border: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%); border-radius: var(--ui-corner-radius-small); font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace; font-size: 0.625rem; line-height: 1.4; color: var(--color5); padding: 0.5rem; box-sizing: border-box;';
+        editorContainer.appendChild(textarea);
+        
+        // Apply button
+        const applyBtn = document.createElement('button');
+        applyBtn.textContent = 'apply shader';
+        applyBtn.style.cssText = 'margin-top: 0.5rem; width: 100%; padding: 0.375rem 0.75rem; background: color-mix(in srgb, var(--accent3) 30%, transparent 70%); border: 1px solid color-mix(in srgb, var(--accent3) 50%, transparent 50%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;';
+        editorContainer.appendChild(applyBtn);
+        
+        // Reset button
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'reset to original';
+        resetBtn.style.cssText = 'margin-top: 0.25rem; width: 100%; padding: 0.375rem 0.75rem; background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 30%, transparent 70%); border-radius: var(--ui-corner-radius-small); color: var(--color5); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;';
+        editorContainer.appendChild(resetBtn);
+        
+        section.appendChild(editorContainer);
+        
+        // Toggle visibility
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = editorContainer.style.display !== 'none';
+            editorContainer.style.display = isVisible ? 'none' : 'block';
+            toggleBtn.textContent = isVisible ? 'edit' : 'hide';
+            
+            if (!isVisible) {
+                // Load current shader source
+                const programName = programNames.length > 1 
+                    ? editorContainer.querySelector('select').value 
+                    : programNames[0];
+                this._updateShaderEditorContent(effectInfo, effectDef, programName, editorContainer);
+            }
+        });
+        
+        // Apply button handler
+        applyBtn.addEventListener('click', () => {
+            const programName = programNames.length > 1 
+                ? editorContainer.querySelector('select')?.value 
+                : programNames[0];
+            const backend = this._renderer.backend;
+            const source = textarea.value;
+            
+            this._applyShaderOverride(effectInfo.stepIndex, programName, backend, source, effectDef);
+        });
+        
+        // Reset button handler
+        resetBtn.addEventListener('click', () => {
+            const programName = programNames.length > 1 
+                ? editorContainer.querySelector('select')?.value 
+                : programNames[0];
+            
+            this._resetShaderOverride(effectInfo.stepIndex, programName);
+            this._updateShaderEditorContent(effectInfo, effectDef, programName, editorContainer);
+        });
+        
+        return section;
+    }
+    
+    /**
+     * Update the shader editor content for a specific program and backend
+     * @private
+     */
+    _updateShaderEditorContent(effectInfo, effectDef, programName, container) {
+        const textarea = container.querySelector('textarea');
+        const backend = this._renderer.backend;
+        
+        // Check if we have an override first
+        const override = this._shaderOverrides[effectInfo.stepIndex]?.[programName];
+        let source = '';
+        
+        if (override) {
+            // Use override source
+            if (backend === 'wgsl' && override.wgsl) {
+                source = override.wgsl;
+            } else if (override.glsl) {
+                source = override.glsl;
+            } else if (override.fragment) {
+                source = override.fragment;
+            }
+        }
+        
+        if (!source) {
+            // Use original source from effect definition
+            const shaders = effectDef.shaders[programName];
+            if (shaders) {
+                if (backend === 'wgsl' && shaders.wgsl) {
+                    source = shaders.wgsl;
+                } else if (shaders.glsl) {
+                    source = shaders.glsl;
+                } else if (shaders.fragment) {
+                    source = shaders.fragment;
+                }
+            }
+        }
+        
+        textarea.value = source || '// No shader source available';
+    }
+    
+    /**
+     * Apply a shader override for a step
+     * @private
+     */
+    _applyShaderOverride(stepIndex, programName, backend, source, effectDef) {
+        if (!this._shaderOverrides[stepIndex]) {
+            this._shaderOverrides[stepIndex] = {};
+        }
+        
+        // Copy original shader structure and apply override
+        const originalShaders = effectDef.shaders[programName] || {};
+        const override = { ...originalShaders };
+        
+        if (backend === 'wgsl') {
+            override.wgsl = source;
+        } else {
+            // For GLSL, determine if it's combined or separate
+            if (originalShaders.glsl) {
+                override.glsl = source;
+            } else if (originalShaders.fragment) {
+                override.fragment = source;
+            } else {
+                // Default to glsl
+                override.glsl = source;
+            }
+        }
+        
+        this._shaderOverrides[stepIndex][programName] = override;
+        
+        // Trigger recompilation with shader overrides
+        this._recompileWithShaderOverrides();
+    }
+    
+    /**
+     * Reset a shader override to original
+     * @private
+     */
+    _resetShaderOverride(stepIndex, programName) {
+        if (this._shaderOverrides[stepIndex]) {
+            delete this._shaderOverrides[stepIndex][programName];
+            if (Object.keys(this._shaderOverrides[stepIndex]).length === 0) {
+                delete this._shaderOverrides[stepIndex];
+            }
+        }
+        
+        // Trigger recompilation
+        this._recompileWithShaderOverrides();
+    }
+    
+    /**
+     * Recompile the pipeline with current shader overrides
+     * @private
+     */
+    async _recompileWithShaderOverrides() {
+        const dsl = this.getDsl();
+        if (!dsl) return;
+        
+        try {
+            await this._renderer.compile(dsl, {
+                shaderOverrides: this._shaderOverrides
+            });
+            this.showStatus('shader applied', 'success');
+        } catch (err) {
+            console.error('Shader compilation failed:', err);
+            this.showStatus('shader error: ' + this.formatCompilationError(err), 'error');
         }
     }
     
@@ -1107,6 +1337,7 @@ export class DemoUI {
      */
     initParameterValues(effect) {
         this._parameterValues = {};
+        this._shaderOverrides = {}; // Clear shader overrides when switching effects
         if (effect.instance && effect.instance.globals) {
             for (const [key, spec] of Object.entries(effect.instance.globals)) {
                 if (spec.default !== undefined) {
@@ -1114,6 +1345,13 @@ export class DemoUI {
                 }
             }
         }
+    }
+    
+    /**
+     * Clear all shader overrides
+     */
+    clearShaderOverrides() {
+        this._shaderOverrides = {};
     }
     
     /**

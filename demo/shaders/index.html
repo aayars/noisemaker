@@ -956,6 +956,9 @@
                 return;
             }
 
+            // Clear shader overrides when explicitly rebuilding from DSL
+            ui.clearShaderOverrides();
+
             renderer.currentDsl = dsl;
             window.__noisemakerCurrentDsl = dsl;
 

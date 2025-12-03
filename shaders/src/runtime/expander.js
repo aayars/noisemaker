@@ -47,9 +47,13 @@ console.log('[EXPANDER MODULE LOADED]');
  * For compute-style writes to 3D textures, use WebGPU backend.
  * 
  * @param {object} compilationResult { plans, diagnostics, render }
+ * @param {object} [options] - Expansion options
+ * @param {object} [options.shaderOverrides] - Per-step shader overrides, keyed by step index
+ *   Example: { 0: { main: { glsl: '...', wgsl: '...' } } }
  * @returns {object} { passes, errors, programs, textureSpecs, renderSurface }
  */
-export function expand(compilationResult) {
+export function expand(compilationResult, options = {}) {
+    const shaderOverrides = options.shaderOverrides || {};
     console.log('[expand] called with', compilationResult?.plans?.length, 'plans');
     const passes = [];
     const errors = [];
@@ -117,14 +121,21 @@ export function expand(compilationResult) {
                 continue;
             }
 
-            // Collect programs
-            if (effectDef.shaders) {
-                for (const [progName, shaders] of Object.entries(effectDef.shaders)) {
-                    if (!programs[progName]) {
+            // Collect programs - check for per-step shader overrides first
+            // Overrides are keyed by step.temp (the unique step index)
+            const stepOverrides = shaderOverrides[step.temp];
+            const shadersSource = stepOverrides || effectDef.shaders;
+            
+            if (shadersSource) {
+                for (const [progName, shaders] of Object.entries(shadersSource)) {
+                    // For overrides, we need a unique program name per step to avoid conflicts
+                    const uniqueProgName = stepOverrides ? `${progName}_step${step.temp}` : progName;
+                    
+                    if (!programs[uniqueProgName]) {
                         // Support both per-program layouts (uniformLayouts) and legacy single layout (uniformLayout)
                         // Per-program layouts take precedence
                         const programLayout = effectDef.uniformLayouts?.[progName] || effectDef.uniformLayout;
-                        programs[progName] = {
+                        programs[uniqueProgName] = {
                             ...shaders,
                             uniformLayout: programLayout
                         };
@@ -234,9 +245,14 @@ export function expand(compilationResult) {
                 const passDef = effectPasses[i];
                 const passId = `${nodeId}_pass_${i}`;
                 
+                // Use unique program name if this step has shader overrides
+                const programName = stepOverrides 
+                    ? `${passDef.program}_step${step.temp}` 
+                    : passDef.program;
+                
                 const pass = {
                     id: passId,
-                    program: passDef.program,
+                    program: programName,
                     entryPoint: passDef.entryPoint,  // For multi-entry-point compute shaders
                     drawMode: passDef.drawMode,
                     count: passDef.count,
