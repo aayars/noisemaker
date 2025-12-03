@@ -385,8 +385,9 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         delete window.__noisemakerTestBaselineFrame;
     });
     
-    // Single round-trip: read pixels, compute metrics in browser
-    const result = await page.evaluate(async () => {
+    // Single round-trip: read pixels, compute metrics in browser, and optionally capture image
+    const captureImage = options.captureImage ?? false;
+    const result = await page.evaluate(async (captureImage) => {
         const pipeline = window.__noisemakerRenderingPipeline;
         if (!pipeline) {
             return { error: 'Pipeline not available' };
@@ -534,8 +535,38 @@ export async function renderEffectFrame(page, effectId, options = {}) {
             is_monochrome: sampledColors.size <= 1
         };
         
-        return { width, height, metrics, backendName };
-    });
+        // Generate data URL from texture data if requested
+        let imageUri = null;
+        if (captureImage) {
+            try {
+                // Create a temporary canvas to render the pixel data
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = width;
+                tempCanvas.height = height;
+                const ctx = tempCanvas.getContext('2d');
+                
+                // Create ImageData from pixel data
+                // Note: WebGL/WebGPU textures are flipped vertically, so we need to flip when drawing
+                const imageData = ctx.createImageData(width, height);
+                
+                // Copy data, flipping vertically (WebGL has origin at bottom-left)
+                for (let y = 0; y < height; y++) {
+                    const srcRow = (height - 1 - y) * width * 4;
+                    const dstRow = y * width * 4;
+                    for (let x = 0; x < width * 4; x++) {
+                        imageData.data[dstRow + x] = data[srcRow + x];
+                    }
+                }
+                
+                ctx.putImageData(imageData, 0, 0);
+                imageUri = tempCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.warn('[renderEffectFrame] Image capture from texture failed:', e.message);
+            }
+        }
+        
+        return { width, height, metrics, backendName, imageUri };
+    }, captureImage);
     
     if (result.error) {
         return {
@@ -546,25 +577,11 @@ export async function renderEffectFrame(page, effectId, options = {}) {
         };
     }
     
-    // Capture image if requested (for vision API)
-    let imageUri = null;
-    if (options.captureImage) {
-        try {
-            const canvas = await page.$('canvas');
-            if (canvas) {
-                const screenshot = await canvas.screenshot({ type: 'png' });
-                imageUri = `data:image/png;base64,${screenshot.toString('base64')}`;
-            }
-        } catch (err) {
-            // Image capture failed, but metrics are still valid
-        }
-    }
-    
     return {
         status: 'ok',
         backend: result.backendName,
         frame: {
-            image_uri: imageUri,
+            image_uri: result.imageUri,
             width: result.width,
             height: result.height
         },

@@ -227,6 +227,77 @@ export class WebGPUBackend extends Backend {
     }
 
     /**
+     * Update a texture from an external source (video, image, canvas).
+     * This is used for media input effects that need to display camera/video content.
+     * @param {string} id - Texture ID
+     * @param {HTMLVideoElement|HTMLImageElement|HTMLCanvasElement|ImageBitmap} source - Media source
+     * @param {object} [options] - Update options
+     * @param {boolean} [options.flipY=true] - Whether to flip the Y axis
+     */
+    async updateTextureFromSource(id, source, options = {}) {
+        let tex = this.textures.get(id)
+        
+        // Get source dimensions
+        let width, height
+        if (source instanceof HTMLVideoElement) {
+            width = source.videoWidth
+            height = source.videoHeight
+        } else if (source instanceof HTMLImageElement) {
+            width = source.naturalWidth || source.width
+            height = source.naturalHeight || source.height
+        } else if (source instanceof HTMLCanvasElement || source instanceof ImageBitmap) {
+            width = source.width
+            height = source.height
+        } else {
+            console.warn(`[updateTextureFromSource] Unknown source type for ${id}`)
+            return { width: 0, height: 0 }
+        }
+        
+        if (width === 0 || height === 0) {
+            return { width: 0, height: 0 }
+        }
+        
+        const flipY = options.flipY !== false
+        
+        // Create texture if it doesn't exist or if dimensions changed
+        if (!tex || tex.width !== width || tex.height !== height) {
+            if (tex) {
+                tex.handle.destroy()
+            }
+            
+            const texture = this.device.createTexture({
+                size: { width, height, depthOrArrayLayers: 1 },
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING | 
+                       GPUTextureUsage.COPY_DST | 
+                       GPUTextureUsage.RENDER_ATTACHMENT
+            })
+            
+            const view = texture.createView()
+            
+            tex = {
+                handle: texture,
+                view,
+                width,
+                height,
+                format: 'rgba8',
+                gpuFormat: 'rgba8unorm',
+                isExternal: true
+            }
+            this.textures.set(id, tex)
+        }
+        
+        // Use copyExternalImageToTexture for efficient video/image upload
+        this.device.queue.copyExternalImageToTexture(
+            { source, flipY },
+            { texture: tex.handle },
+            { width, height }
+        )
+        
+        return { width, height }
+    }
+
+    /**
      * Copy one texture to another (blit operation).
      * Used for feedback surface ping-pong updates.
      * @param {string} srcId - Source texture ID

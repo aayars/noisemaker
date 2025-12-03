@@ -94,7 +94,7 @@ const BLANK_EXEMPT_EFFECTS = new Set([
  * Effects exempt from transparent output check.
  */
 const TRANSPARENT_EXEMPT_EFFECTS = new Set([
-    'classicNoisedeck/mediaInput',      // Media input effect - outputs transparent when no media file loaded
+    // Media input effects now load a default test image, so they produce visible output
 ]);
 
 /**

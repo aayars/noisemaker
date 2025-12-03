@@ -29,7 +29,7 @@ export function compileGraph(source, options = {}) {
     }
     
     // Stage 2: Expand logical graph into render passes
-    const { passes, errors: expandErrors, programs, textureSpecs } = expand(compilationResult)
+    const { passes, errors: expandErrors, programs, textureSpecs, renderSurface } = expand(compilationResult)
     
     if (expandErrors && expandErrors.length > 0) {
         throw {
@@ -49,6 +49,7 @@ export function compileGraph(source, options = {}) {
         programs,
         allocations,
         textures: extractTextureSpecs(passes, options, textureSpecs),
+        renderSurface, // Which surface to present to screen (e.g., 'o0', 'o2')
         compiledAt: Date.now()
     }
     

@@ -513,6 +513,138 @@
                 </div>
             </div>
 
+            <!-- Media Input Module -->
+            <div class="shader-module" id="media-input-module" style="display: none;">
+                <div class="module-title">Media Input</div>
+                <div class="module-content">
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">source</label>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                                <input type="radio" name="media-source" value="file" checked>
+                                <span>file</span>
+                            </label>
+                            <label class="radio-option" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--color6);">
+                                <input type="radio" name="media-source" value="camera">
+                                <span>camera</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group" id="media-file-group">
+                        <div class="control-header">
+                            <label class="control-label">media file</label>
+                        </div>
+                        <input type="file" id="media-file-input" accept="image/*,video/*" style="font-size: 0.6875rem; color: var(--color6);">
+                    </div>
+                    
+                    <div class="control-group" id="media-camera-group" style="display: none;">
+                        <div class="control-header">
+                            <label class="control-label">camera</label>
+                        </div>
+                        <select id="camera-select" class="control-select">
+                            <option value="">select camera...</option>
+                        </select>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button id="camera-start-btn" style="flex: 1; padding: 0.375rem 0.75rem; background: color-mix(in srgb, var(--accent3) 30%, transparent 70%); border: 1px solid color-mix(in srgb, var(--accent3) 50%, transparent 50%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;">start</button>
+                            <button id="camera-stop-btn" style="flex: 1; padding: 0.375rem 0.75rem; background: color-mix(in srgb, var(--accent3) 30%, transparent 70%); border: 1px solid color-mix(in srgb, var(--accent3) 50%, transparent 50%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;" disabled>stop</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <span id="media-status" style="font-size: 0.6875rem; color: var(--color5);">no media loaded</span>
+                    </div>
+                    
+                    <!-- Hidden elements for media playback -->
+                    <video id="media-video" style="display: none;" loop muted playsinline></video>
+                    <img id="media-image" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Text Input Module -->
+            <div class="shader-module" id="text-input-module" style="display: none;">
+                <div class="module-title">Text Input</div>
+                <div class="module-content">
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">text</label>
+                        </div>
+                        <input type="text" id="text-content-input" value="Hello World" style="width: 100%; padding: 0.375rem 0.5rem; background: var(--color1); border: 1px solid var(--color3); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.75rem;">
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">font</label>
+                        </div>
+                        <select id="text-font-select" class="control-select">
+                            <option value="Nunito">Nunito</option>
+                            <option value="sans-serif">Sans Serif</option>
+                            <option value="serif">Serif</option>
+                            <option value="monospace">Monospace</option>
+                            <option value="cursive">Cursive</option>
+                            <option value="fantasy">Fantasy</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">size</label>
+                        </div>
+                        <input type="range" id="text-size-slider" min="0.01" max="0.5" step="0.01" value="0.1" style="width: 100%;">
+                        <span id="text-size-value" style="font-size: 0.6875rem; color: var(--color5);">0.1</span>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">position</label>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.625rem; color: var(--color5);">X</label>
+                                <input type="range" id="text-pos-x-slider" min="0" max="1" step="0.01" value="0.5" style="width: 100%;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.625rem; color: var(--color5);">Y</label>
+                                <input type="range" id="text-pos-y-slider" min="0" max="1" step="0.01" value="0.5" style="width: 100%;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">color</label>
+                        </div>
+                        <input type="color" id="text-color-input" value="#ffffff" style="width: 100%; height: 2rem; padding: 0; border: 1px solid var(--color3); border-radius: var(--ui-corner-radius-small); cursor: pointer;">
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">rotation (deg)</label>
+                        </div>
+                        <input type="range" id="text-rotation-slider" min="-180" max="180" step="1" value="0" style="width: 100%;">
+                        <span id="text-rotation-value" style="font-size: 0.6875rem; color: var(--color5);">0°</span>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label class="control-label">background</label>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="color" id="text-bg-color-input" value="#000000" style="flex: 1; height: 2rem; padding: 0; border: 1px solid var(--color3); border-radius: var(--ui-corner-radius-small); cursor: pointer;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.625rem; color: var(--color5);">opacity</label>
+                                <input type="range" id="text-bg-opacity-slider" min="0" max="1" step="0.01" value="0" style="width: 100%;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden canvas for text rendering -->
+            <canvas id="text-render-canvas" style="display: none;"></canvas>
+
             <div id="effect-controls-container">
                 <!-- Dynamic effect controls will be inserted here -->
             </div>
@@ -636,14 +768,14 @@
          */
         async function loadEffects() {
             const effectDirs = [
-                { namespace: 'classicBasics' },
-                { namespace: 'classicNoisedeck' },
-                { namespace: 'classicNoisemaker' },
                 { namespace: 'filter' },
                 { namespace: 'mixer' },
                 { namespace: 'synth' },
                 { namespace: 'stateful' },
-                { namespace: 'vol' }
+                { namespace: 'vol' },
+                { namespace: 'classicBasics' },
+                { namespace: 'classicNoisedeck' },
+                { namespace: 'classicNoisemaker' }
             ];
 
             await renderer.loadManifest();
@@ -926,6 +1058,356 @@
         effectSelect.addEventListener('change', async (e) => {
             await selectEffect(e.target.value, allLoadedEffects);
         });
+
+        // =====================================================================
+        // Media Input Handling
+        // =====================================================================
+        
+        const mediaInputModule = document.getElementById('media-input-module');
+        const mediaFileGroup = document.getElementById('media-file-group');
+        const mediaCameraGroup = document.getElementById('media-camera-group');
+        const mediaFileInput = document.getElementById('media-file-input');
+        const cameraSelect = document.getElementById('camera-select');
+        const cameraStartBtn = document.getElementById('camera-start-btn');
+        const cameraStopBtn = document.getElementById('camera-stop-btn');
+        const mediaStatus = document.getElementById('media-status');
+        const mediaVideo = document.getElementById('media-video');
+        const mediaImage = document.getElementById('media-image');
+        
+        let mediaStream = null;
+        let mediaSource = null; // Current media source (video/image element)
+        let mediaUpdateFrame = null;
+        let isMediaInputEffect = false;
+        
+        // Media source radio buttons
+        document.querySelectorAll('input[name="media-source"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const source = e.target.value;
+                if (source === 'camera') {
+                    mediaFileGroup.style.display = 'none';
+                    mediaCameraGroup.style.display = 'block';
+                    populateCameraList();
+                } else {
+                    mediaFileGroup.style.display = 'block';
+                    mediaCameraGroup.style.display = 'none';
+                    stopCamera();
+                }
+            });
+        });
+        
+        // Populate camera list
+        async function populateCameraList() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '<option value="">select camera...</option>';
+                videoDevices.forEach((device, idx) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Camera ${idx + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Failed to enumerate devices:', err);
+                mediaStatus.textContent = 'camera access denied';
+            }
+        }
+        
+        // Start camera
+        cameraStartBtn.addEventListener('click', async () => {
+            const deviceId = cameraSelect.value;
+            if (!deviceId) {
+                mediaStatus.textContent = 'please select a camera';
+                return;
+            }
+            
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: deviceId } }
+                });
+                
+                mediaVideo.srcObject = mediaStream;
+                await mediaVideo.play();
+                
+                mediaSource = mediaVideo;
+                mediaStatus.textContent = `camera: ${mediaVideo.videoWidth}x${mediaVideo.videoHeight}`;
+                
+                cameraStartBtn.disabled = true;
+                cameraStopBtn.disabled = false;
+                
+                startMediaUpdate();
+            } catch (err) {
+                console.error('Failed to start camera:', err);
+                mediaStatus.textContent = `camera error: ${err.message}`;
+            }
+        });
+        
+        // Stop camera
+        cameraStopBtn.addEventListener('click', () => {
+            stopCamera();
+        });
+        
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            mediaVideo.srcObject = null;
+            mediaSource = null;
+            mediaStatus.textContent = 'camera stopped';
+            
+            cameraStartBtn.disabled = false;
+            cameraStopBtn.disabled = true;
+            
+            stopMediaUpdate();
+        }
+        
+        // File input handler
+        mediaFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const url = URL.createObjectURL(file);
+            
+            if (file.type.startsWith('video/')) {
+                mediaVideo.src = url;
+                mediaVideo.load();
+                
+                mediaVideo.onloadedmetadata = () => {
+                    mediaSource = mediaVideo;
+                    mediaStatus.textContent = `video: ${mediaVideo.videoWidth}x${mediaVideo.videoHeight}`;
+                    mediaVideo.play();
+                    startMediaUpdate();
+                };
+            } else if (file.type.startsWith('image/')) {
+                stopMediaUpdate();
+                
+                mediaImage.src = url;
+                mediaImage.onload = () => {
+                    mediaSource = mediaImage;
+                    mediaStatus.textContent = `image: ${mediaImage.naturalWidth}x${mediaImage.naturalHeight}`;
+                    
+                    // For images, just update once (no continuous update needed)
+                    updateMediaTexture();
+                };
+            }
+        });
+        
+        // Update media texture to the shader
+        function updateMediaTexture() {
+            if (!mediaSource || !renderer._pipeline) return;
+            
+            const result = renderer.updateTextureFromSource('imageTex', mediaSource, { flipY: true });
+            
+            // Update the effect's imageSize uniform
+            if (result.width > 0 && result.height > 0) {
+                // Update state on the effect instance if it has this method
+                if (renderer.currentEffect?.instance?.setMediaDimensions) {
+                    renderer.currentEffect.instance.setMediaDimensions(result.width, result.height);
+                }
+                
+                // Update imageSize uniform through the pipeline's proper interface
+                renderer.setUniform('imageSize', [result.width, result.height]);
+            }
+        }
+        
+        // Start continuous media texture updates
+        function startMediaUpdate() {
+            if (mediaUpdateFrame) return;
+            
+            function update() {
+                if (mediaSource) {
+                    // For video, check if it's playing and has valid dimensions
+                    if (mediaSource instanceof HTMLVideoElement) {
+                        if (!mediaSource.paused && mediaSource.videoWidth > 0) {
+                            updateMediaTexture();
+                        }
+                    }
+                }
+                mediaUpdateFrame = requestAnimationFrame(update);
+            }
+            
+            update();
+        }
+        
+        // Stop continuous media texture updates
+        function stopMediaUpdate() {
+            if (mediaUpdateFrame) {
+                cancelAnimationFrame(mediaUpdateFrame);
+                mediaUpdateFrame = null;
+            }
+        }
+        
+        // Load default test image for media input effects
+        async function loadDefaultMediaImage() {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    mediaSource = img;
+                    mediaStatus.textContent = `default: ${img.naturalWidth}x${img.naturalHeight}`;
+                    updateMediaTexture();
+                    resolve(img);
+                };
+                img.onerror = (err) => {
+                    console.warn('Failed to load default media image:', err);
+                    mediaStatus.textContent = 'no media loaded';
+                    reject(err);
+                };
+                img.src = 'img/testcard.png';
+            });
+        }
+        
+        // Check if selected effect is a media input effect and show/hide module
+        function checkMediaInputEffect(effect) {
+            isMediaInputEffect = effect?.instance?.externalTexture === 'imageTex' ||
+                                 effect?.instance?.func === 'mediaInput';
+            
+            if (isMediaInputEffect) {
+                mediaInputModule.style.display = 'block';
+                // Load default test image if no media is currently loaded
+                if (!mediaSource) {
+                    loadDefaultMediaImage().catch(() => {});
+                }
+            } else {
+                mediaInputModule.style.display = 'none';
+                stopCamera();
+                stopMediaUpdate();
+            }
+        }
+        
+        // Wrap selectEffect to check for media input
+        const originalSelectEffect = selectEffect;
+        selectEffect = async function(effectPath, allEffects) {
+            await originalSelectEffect(effectPath, allEffects);
+            checkMediaInputEffect(renderer.currentEffect);
+            checkTextInputEffect(renderer.currentEffect);
+        };
+
+        // =====================================================================
+        // Text Input Handling
+        // =====================================================================
+        
+        const textInputModule = document.getElementById('text-input-module');
+        const textContentInput = document.getElementById('text-content-input');
+        const textFontSelect = document.getElementById('text-font-select');
+        const textSizeSlider = document.getElementById('text-size-slider');
+        const textSizeValue = document.getElementById('text-size-value');
+        const textPosXSlider = document.getElementById('text-pos-x-slider');
+        const textPosYSlider = document.getElementById('text-pos-y-slider');
+        const textColorInput = document.getElementById('text-color-input');
+        const textRotationSlider = document.getElementById('text-rotation-slider');
+        const textRotationValue = document.getElementById('text-rotation-value');
+        const textBgColorInput = document.getElementById('text-bg-color-input');
+        const textBgOpacitySlider = document.getElementById('text-bg-opacity-slider');
+        const textRenderCanvas = document.getElementById('text-render-canvas');
+        
+        let isTextInputEffect = false;
+        
+        // Parse hex color to RGB array (0-1)
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? [
+                parseInt(result[1], 16) / 255,
+                parseInt(result[2], 16) / 255,
+                parseInt(result[3], 16) / 255
+            ] : [1, 1, 1];
+        }
+        
+        // Render text to canvas
+        function renderTextToCanvas() {
+            if (!renderer?._pipeline) return;
+            
+            const canvas = textRenderCanvas;
+            const resolution = renderer.resolution || 1024;
+            canvas.width = resolution;
+            canvas.height = resolution;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Clear with background color
+            const bgColor = hexToRgb(textBgColorInput.value);
+            const bgOpacity = parseFloat(textBgOpacitySlider.value);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (bgOpacity > 0) {
+                ctx.fillStyle = `rgba(${Math.round(bgColor[0]*255)}, ${Math.round(bgColor[1]*255)}, ${Math.round(bgColor[2]*255)}, ${bgOpacity})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Get text parameters
+            const text = textContentInput.value || 'Hello World';
+            const font = textFontSelect.value;
+            const size = parseFloat(textSizeSlider.value);
+            const posX = parseFloat(textPosXSlider.value);
+            const posY = parseFloat(textPosYSlider.value);
+            const textColor = hexToRgb(textColorInput.value);
+            const rotation = parseFloat(textRotationSlider.value) * Math.PI / 180;
+            
+            // Calculate font size in pixels
+            const fontSize = Math.round(size * canvas.height);
+            
+            // Set up text rendering
+            ctx.font = `${fontSize}px ${font}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = `rgba(${Math.round(textColor[0]*255)}, ${Math.round(textColor[1]*255)}, ${Math.round(textColor[2]*255)}, 1)`;
+            
+            // Position and rotation
+            const x = posX * canvas.width;
+            const y = posY * canvas.height;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+            
+            // Upload to texture
+            updateTextTexture();
+        }
+        
+        // Update text texture to the shader
+        function updateTextTexture() {
+            if (!textRenderCanvas || !renderer._pipeline) return;
+            
+            renderer.updateTextureFromSource('textTex', textRenderCanvas, { flipY: false });
+        }
+        
+        // Event listeners for text controls
+        textContentInput.addEventListener('input', renderTextToCanvas);
+        textFontSelect.addEventListener('change', renderTextToCanvas);
+        
+        textSizeSlider.addEventListener('input', () => {
+            textSizeValue.textContent = textSizeSlider.value;
+            renderTextToCanvas();
+        });
+        
+        textPosXSlider.addEventListener('input', renderTextToCanvas);
+        textPosYSlider.addEventListener('input', renderTextToCanvas);
+        textColorInput.addEventListener('input', renderTextToCanvas);
+        
+        textRotationSlider.addEventListener('input', () => {
+            textRotationValue.textContent = `${textRotationSlider.value}°`;
+            renderTextToCanvas();
+        });
+        
+        textBgColorInput.addEventListener('input', renderTextToCanvas);
+        textBgOpacitySlider.addEventListener('input', renderTextToCanvas);
+        
+        // Check if selected effect is a text input effect and show/hide module
+        function checkTextInputEffect(effect) {
+            isTextInputEffect = effect?.instance?.externalTexture === 'textTex' ||
+                                effect?.instance?.func === 'text' ||
+                                effect?.path?.includes('synth/text');
+            
+            if (isTextInputEffect) {
+                textInputModule.style.display = 'block';
+                // Render initial text immediately
+                renderTextToCanvas();
+            } else {
+                textInputModule.style.display = 'none';
+            }
+        }
 
         // =====================================================================
         // Initialization

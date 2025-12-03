@@ -466,8 +466,10 @@ export class DemoUI {
         });
 
         const sortedNamespaces = Object.keys(grouped).sort((a, b) => {
-            if (a === 'classicBasics') return -1;
-            if (b === 'classicBasics') return 1;
+            const aIsClassic = a.startsWith('classic');
+            const bIsClassic = b.startsWith('classic');
+            if (aIsClassic && !bIsClassic) return 1;
+            if (!aIsClassic && bIsClassic) return -1;
             return a.localeCompare(b);
         });
 

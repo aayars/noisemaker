@@ -46,8 +46,8 @@ console.log('[EXPANDER MODULE LOADED]');
  * Note: WebGL2 can sample 3D textures but cannot render directly to them.
  * For compute-style writes to 3D textures, use WebGPU backend.
  * 
- * @param {object} compilationResult { plans, diagnostics }
- * @returns {object} { passes, errors, programs, textureSpecs }
+ * @param {object} compilationResult { plans, diagnostics, render }
+ * @returns {object} { passes, errors, programs, textureSpecs, renderSurface }
  */
 export function expand(compilationResult) {
     console.log('[expand] called with', compilationResult?.plans?.length, 'plans');
@@ -56,6 +56,7 @@ export function expand(compilationResult) {
     const programs = {};
     const textureSpecs = {}; // nodeId_texName -> { width, height, format, is3D?, depth? }
     const textureMap = new Map(); // logical_id -> virtual_texture_id
+    let lastWrittenSurface = null; // Track the last surface written to
 
     // Helper to resolve enum paths
     const resolveEnum = (path) => {
@@ -342,13 +343,24 @@ export function expand(compilationResult) {
                             pass.inputs[uniformName] = 'global_noise';
                         } else if (texRef === 'feedback' || texRef === 'selfTex') {
                             // Handle feedback texture (selfTex is an alias for feedback)
-                            // If we are writing to a global surface, read from it
-                            // For now, assume we are writing to o0 if not specified
-                            // TODO: This should be smarter and look at the plan.write
-                            pass.inputs[uniformName] = 'global_o0';
+                            // Read from the surface we're writing to for this chain
+                            if (plan.write) {
+                                const outName = typeof plan.write === 'object' ? plan.write.name : plan.write;
+                                const outKind = plan.write.kind || 'output';
+                                const prefix = outKind === 'feedback' ? 'feedback' : 'global';
+                                pass.inputs[uniformName] = `${prefix}_${outName}`;
+                            } else {
+                                // No explicit write target, default to o0
+                                pass.inputs[uniformName] = 'global_o0';
+                            }
                         } else if (texRef === 'imageTex') {
-                            // External media input - fall back to pipeline input when not provided
-                            pass.inputs[uniformName] = currentInput || 'global_o0';
+                            // External media input - preserve as-is for dynamic texture binding
+                            // The texture will be created/updated via updateTextureFromSource()
+                            pass.inputs[uniformName] = 'imageTex';
+                        } else if (texRef === 'textTex') {
+                            // External text input - preserve as-is for dynamic texture binding
+                            // The texture will be created/updated via updateTextureFromSource()
+                            pass.inputs[uniformName] = 'textTex';
                         } else if (step.args && Object.prototype.hasOwnProperty.call(step.args, texRef)) {
                             // Reference to an argument (e.g. blend(tex: ...))
                             const arg = step.args[texRef];
@@ -403,6 +415,9 @@ export function expand(compilationResult) {
                         } else if (isGlobalTexture(texRef)) {
                             // Effect texture starting with 'global' - use global_ prefix for double-buffering
                             pass.inputs[uniformName] = `global_${nodeId}_${texRef}`;
+                        } else if (texRef === 'outputTex') {
+                            // Reference to this node's main output (e.g., in feedback passes)
+                            pass.inputs[uniformName] = `${nodeId}_out`;
                         } else {
                             // Internal texture or explicit reference
                             pass.inputs[uniformName] = `${nodeId}_${texRef}`;
@@ -425,10 +440,16 @@ export function expand(compilationResult) {
                                 const outKind = plan.write.kind || 'output';
                                 const prefix = outKind === 'feedback' ? 'feedback' : 'global';
                                 virtualTex = `${prefix}_${outName}`;
+                                
+                                // Track this as the last written surface (for render surface determination)
+                                if (outKind === 'output') {
+                                    lastWrittenSurface = outName;
+                                }
                             } else {
                                 virtualTex = `${nodeId}_out`;
                             }
                             textureMap.set(virtualTex, virtualTex); // Register
+                            textureMap.set(`${nodeId}_out`, virtualTex); // Also register as node output
                         } else if (texRef === 'outputTex3d') {
                             // This is the main 3D output of this node (for volumetric effects)
                             virtualTex = `${nodeId}_out3d`;
@@ -512,6 +533,11 @@ export function expand(compilationResult) {
         if (plan.write && currentInput) {
             const outName = typeof plan.write === 'object' ? plan.write.name : plan.write;
             const outKind = plan.write.kind || 'output';
+            
+            // Track the last written surface (only for output surfaces, not feedback)
+            if (outKind === 'output') {
+                lastWrittenSurface = outName; // e.g., 'o0', 'o2'
+            }
             const prefix = outKind === 'feedback' ? 'feedback' : 'global';
             const targetSurface = `${prefix}_${outName}`;
 
@@ -558,5 +584,19 @@ export function expand(compilationResult) {
         }
     }
 
-    return { passes, errors, programs, textureSpecs };
+    // Determine the render surface:
+    // 1. Explicit render() directive takes precedence
+    // 2. Fall back to the last surface written to in the program
+    // 3. Default to 'o0' if nothing was written
+    let renderSurface;
+    if (compilationResult.render !== null && compilationResult.render !== undefined) {
+        // render is an integer 0-7 from validator
+        renderSurface = `o${compilationResult.render}`;
+    } else if (lastWrittenSurface) {
+        renderSurface = lastWrittenSurface;
+    } else {
+        renderSurface = 'o0';
+    }
+
+    return { passes, errors, programs, textureSpecs, renderSurface };
 }

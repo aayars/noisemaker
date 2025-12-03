@@ -5,6 +5,9 @@ export default class MediaMixer extends Effect {
   namespace = "classicNoisedeck";
   func = "mediaMixer";
 
+  // Mark this as requiring external texture updates
+  externalTexture = "imageTex";
+
   globals = {
     tex: {
       type: "surface",

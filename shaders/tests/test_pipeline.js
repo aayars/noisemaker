@@ -339,4 +339,82 @@ test('Pipeline - Feedback Surfaces', async () => {
     }
 })
 
+test('Pipeline - Render Surface Selection', async () => {
+    // Test that graph.renderSurface determines which surface is presented
+    
+    // Track which surface was presented
+    let presentedTextureId = null
+    
+    class RenderSurfaceBackend extends MockBackend {
+        present(textureId) {
+            presentedTextureId = textureId
+        }
+    }
+    
+    const backend = new RenderSurfaceBackend()
+    
+    // Create a graph that specifies o2 as the render surface
+    const graph = {
+        passes: [],
+        textures: new Map(),
+        renderSurface: 'o2'  // Explicitly render o2 instead of default o0
+    }
+    
+    const pipeline = new Pipeline(graph, backend)
+    await pipeline.init(400, 300)
+    
+    // Verify o2 surface exists
+    const o2 = pipeline.surfaces.get('o2')
+    if (!o2) {
+        throw new Error('o2 surface should exist')
+    }
+    
+    // Capture the expected texture ID before render (render swaps buffers after presenting)
+    const expectedTextureId = o2.read
+    
+    // Render a frame
+    pipeline.render(0)
+    
+    // Verify o2 was presented (from the read texture before the swap)
+    if (presentedTextureId !== expectedTextureId) {
+        throw new Error(`Expected o2's read texture (${expectedTextureId}) to be presented, got ${presentedTextureId}`)
+    }
+})
+
+test('Pipeline - Default Render Surface', async () => {
+    // Test that without explicit renderSurface, o0 is used
+    
+    let presentedTextureId = null
+    
+    class DefaultRenderBackend extends MockBackend {
+        present(textureId) {
+            presentedTextureId = textureId
+        }
+    }
+    
+    const backend = new DefaultRenderBackend()
+    
+    // Create a graph without renderSurface specified
+    const graph = {
+        passes: [],
+        textures: new Map()
+        // No renderSurface - should default to o0
+    }
+    
+    const pipeline = new Pipeline(graph, backend)
+    await pipeline.init(400, 300)
+    
+    const o0 = pipeline.surfaces.get('o0')
+    
+    // Capture expected texture ID before render
+    const expectedTextureId = o0.read
+    
+    pipeline.render(0)
+    
+    // Should present o0 by default
+    if (presentedTextureId !== expectedTextureId) {
+        throw new Error(`Expected o0's read texture (${expectedTextureId}) to be presented, got ${presentedTextureId}`)
+    }
+})
+
 runTests();

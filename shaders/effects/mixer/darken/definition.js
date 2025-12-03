@@ -2,7 +2,7 @@ import { Effect } from '../../../src/runtime/effect.js';
 
 export default class Darken extends Effect {
   name = "Darken";
-  namespace = "filter";
+  namespace = "mixer";
   func = "darken";
 
   globals = {

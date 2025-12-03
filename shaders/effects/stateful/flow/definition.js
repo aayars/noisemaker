@@ -17,6 +17,16 @@ export default class Flow extends Effect {
   namespace = "stateful";
   func = "flow";
 
+  // State textures with `global` prefix for automatic ping-pong
+  // Agent state: 512x512 = 262144 agents
+  // Trail: single texture with ping-pong for accumulation
+  textures = {
+    globalFlowState1: { width: 512, height: 512, format: "rgba16f" },
+    globalFlowState2: { width: 512, height: 512, format: "rgba16f" },
+    globalFlowState3: { width: 512, height: 512, format: "rgba16f" },
+    globalFlowTrail: { width: "100%", height: "100%", format: "rgba16f" }
+  };
+
   globals = {
     behavior: {
       type: "int",
@@ -132,6 +142,23 @@ export default class Flow extends Effect {
   };
 
   passes = [
+    // Pass 0: Copy previous trail with decay to preserve accumulation
+    // globalFlowTrail ping-pong: read previous, write current with fade
+    {
+      name: "diffuse",
+      program: "diffuse",
+      inputs: {
+        sourceTex: "globalFlowTrail"
+      },
+      uniforms: {
+        intensity: "intensity"
+      },
+      outputs: {
+        fragColor: "globalFlowTrail"
+      }
+    },
+    // Pass 1: Update agent state (position, direction, color, age)
+    // MRT outputs to 3 state textures simultaneously
     {
       name: "agent",
       program: "agent",
@@ -157,24 +184,12 @@ export default class Flow extends Effect {
         outState3: "globalFlowState3"
       }
     },
-    {
-      name: "diffuse",
-      program: "diffuse",
-      inputs: {
-        sourceTex: "globalFlowTrail"
-      },
-      uniforms: {
-        intensity: "intensity"
-      },
-      outputs: {
-        fragColor: "globalFlowTrail"
-      }
-    },
+    // Pass 2: Deposit agent trails as point sprites (additive onto faded trail)
     {
       name: "deposit",
       program: "deposit",
       drawMode: "points",
-      count: 262144,
+      count: 262144,  // 512x512 agents
       blend: true,
       inputs: {
         stateTex1: "globalFlowState1",
@@ -184,6 +199,7 @@ export default class Flow extends Effect {
         fragColor: "globalFlowTrail"
       }
     },
+    // Pass 3: Final composite with input
     {
       name: "blend",
       program: "blend",

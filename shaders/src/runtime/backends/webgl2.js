@@ -292,6 +292,85 @@ export class WebGL2Backend extends Backend {
         return texture
     }
 
+    /**
+     * Update a texture from an external source (video, image, canvas).
+     * This is used for media input effects that need to display camera/video content.
+     * @param {string} id - Texture ID
+     * @param {HTMLVideoElement|HTMLImageElement|HTMLCanvasElement|ImageBitmap} source - Media source
+     * @param {object} [options] - Update options
+     * @param {boolean} [options.flipY=true] - Whether to flip the Y axis
+     */
+    updateTextureFromSource(id, source, options = {}) {
+        const gl = this.gl
+        let tex = this.textures.get(id)
+        
+        const flipY = options.flipY !== false
+        
+        // Get source dimensions
+        let width, height
+        if (source instanceof HTMLVideoElement) {
+            width = source.videoWidth
+            height = source.videoHeight
+        } else if (source instanceof HTMLImageElement) {
+            width = source.naturalWidth || source.width
+            height = source.naturalHeight || source.height
+        } else if (source instanceof HTMLCanvasElement || source instanceof ImageBitmap) {
+            width = source.width
+            height = source.height
+        } else {
+            console.warn(`[updateTextureFromSource] Unknown source type for ${id}`)
+            return { width: 0, height: 0 }
+        }
+        
+        if (width === 0 || height === 0) {
+            return { width: 0, height: 0 }
+        }
+        
+        // Create texture if it doesn't exist or if dimensions changed
+        if (!tex || tex.width !== width || tex.height !== height) {
+            if (tex) {
+                gl.deleteTexture(tex.handle)
+            }
+            
+            const texture = gl.createTexture()
+            gl.bindTexture(gl.TEXTURE_2D, texture)
+            
+            // Set texture parameters for video/image sampling
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+            
+            tex = {
+                handle: texture,
+                width,
+                height,
+                format: 'rgba8',
+                glFormat: this.resolveFormat('rgba8'),
+                isExternal: true
+            }
+            this.textures.set(id, tex)
+        }
+        
+        gl.bindTexture(gl.TEXTURE_2D, tex.handle)
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flipY)
+        
+        // Upload the source to the texture
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            source
+        )
+        
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+        gl.bindTexture(gl.TEXTURE_2D, null)
+        
+        return { width, height }
+    }
+
     destroyTexture(id) {
         const gl = this.gl
         const tex = this.textures.get(id)

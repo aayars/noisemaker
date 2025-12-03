@@ -8,7 +8,7 @@ export default class Noise extends Effect {
   globals = {
     "scale": {
         "type": "float",
-        "default": 3,
+        "default": 25,
         "min": 0,
         "max": 100,
         "uniform": "scale"
@@ -22,7 +22,7 @@ export default class Noise extends Effect {
     },
     "colorMode": {
         "type": "int",
-        "default": 0,
+        "default": 1,
         "uniform": "colorMode",
         "choices": {
             "mono": 0,

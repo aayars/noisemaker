@@ -5,6 +5,8 @@ export default class MediaInput extends Effect {
   namespace = "classicNoisedeck";
   func = "mediaInput";
 
+  // Mark this as requiring external texture updates
+  externalTexture = "imageTex";
 
   // WGSL uniform packing layout - maps uniform names to vec4 slots/components
   uniformLayout = {

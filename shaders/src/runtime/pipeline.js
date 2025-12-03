@@ -686,8 +686,10 @@ export class Pipeline {
         
         // Initialize per-frame surface bindings so within-frame reads see fresh writes
         this.frameReadTextures = new Map()
+        this.frameWriteTextures = new Map()  // Track write targets for the frame
         for (const [name, surface] of this.surfaces.entries()) {
             this.frameReadTextures.set(name, surface.read)
+            this.frameWriteTextures.set(name, surface.write)  // Start by writing to write buffer
         }
         
         // Note: feedback surfaces always read from previous frame (no frameReadTextures update)
@@ -743,12 +745,12 @@ export class Pipeline {
         // This preserves the written content for next frame's reads
         this.blitFeedbackSurfaces()
         
-        // Present o0 to screen
-        // The final result is in the buffer that was written to last
-        // frameReadTextures tracks what was written, so use that for present
-        const o0 = this.surfaces.get('o0')
-        if (o0 && this.backend.present) {
-            const presentId = this.frameReadTextures?.get('o0') ?? o0.read
+        // Present the render surface to screen
+        // Use explicit render() directive, or the last surface written to, or default to o0
+        const renderSurfaceName = this.graph?.renderSurface || 'o0'
+        const renderSurface = this.surfaces.get(renderSurfaceName)
+        if (renderSurface && this.backend.present) {
+            const presentId = this.frameReadTextures?.get(renderSurfaceName) ?? renderSurface.read
             this.backend.present(presentId)
         }
         
@@ -757,6 +759,7 @@ export class Pipeline {
         
         // Clear per-frame bindings
         this.frameReadTextures = null
+        this.frameWriteTextures = null
 
         this.frameIndex++
     }
@@ -941,9 +944,9 @@ export class Pipeline {
             if (tex) {
                 surfaceMap[name] = tex
             }
-            // Write to the buffer that's NOT being read from
-            // This ensures no feedback loop when reading and writing the same logical surface
-            writeSurfaceMap[name] = (readTextureId === surface.read) ? surface.write : surface.read
+            // Use the frame's write target (set at frame start, doesn't change during frame)
+            // This ensures multiple passes writing to the same surface all write to the same buffer
+            writeSurfaceMap[name] = this.frameWriteTextures?.get(name) ?? surface.write
         }
         
         // Build feedback surfaces map
@@ -978,9 +981,11 @@ export class Pipeline {
 
     /**
      * Get the output texture for a surface
+     * @param {string} surfaceName - Surface name (defaults to graph.renderSurface or 'o0')
      */
-    getOutput(surfaceName = 'o0') {
-        const surface = this.surfaces.get(surfaceName)
+    getOutput(surfaceName) {
+        const name = surfaceName || this.graph?.renderSurface || 'o0'
+        const surface = this.surfaces.get(name)
         if (!surface) return null
         
         return this.backend.textures.get(surface.read)

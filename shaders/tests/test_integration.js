@@ -208,4 +208,34 @@ test('Integration - Hash Consistency', () => {
     }
 })
 
+test('Integration - Render Surface from last write', () => {
+    // When no render() directive, renderSurface should be the last surface written
+    const source = 'search basics\nsolid(1, 0, 0).write(o2)'
+    const graph = compileGraph(source)
+    
+    if (graph.renderSurface !== 'o2') {
+        throw new Error(`Expected renderSurface='o2', got '${graph.renderSurface}'`)
+    }
+})
+
+test('Integration - Render Surface with multiple writes', () => {
+    // With multiple writes, renderSurface should be the last one
+    const source = 'search basics\nsolid(1, 0, 0).write(o1)\nsolid(0, 1, 0).write(o5)'
+    const graph = compileGraph(source)
+    
+    if (graph.renderSurface !== 'o5') {
+        throw new Error(`Expected renderSurface='o5', got '${graph.renderSurface}'`)
+    }
+})
+
+test('Integration - Render Surface default to o0', () => {
+    // Default case: write to o0
+    const source = 'search basics\nsolid(1, 0, 0).write(o0)'
+    const graph = compileGraph(source)
+    
+    if (graph.renderSurface !== 'o0') {
+        throw new Error(`Expected renderSurface='o0', got '${graph.renderSurface}'`)
+    }
+})
+
 console.log('\n=== Running Integration Tests ===\n')
