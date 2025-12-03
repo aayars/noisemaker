@@ -159,6 +159,8 @@ void main() {
     st -= 0.5;
     st.x *= aspect;
     st *= scale;
+    // Offset to keep noise coords positive (avoids hash artifacts at boundaries)
+    st += 1000.0;
     
     // time is 0-1 representing position around circle for seamless looping
     float timeAngle = time * TAU;

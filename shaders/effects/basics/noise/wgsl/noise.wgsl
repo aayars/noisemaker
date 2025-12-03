@@ -153,6 +153,8 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     st = st - 0.5;
     st.x = st.x * aspect;
     st = st * scale;
+    // Offset to keep noise coords positive (avoids hash artifacts at boundaries)
+    st = st + 1000.0;
     
     // time is 0-1 representing position around circle for seamless looping
     let timeAngle = time * TAU;

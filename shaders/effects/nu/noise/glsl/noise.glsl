@@ -152,6 +152,8 @@ void main() {
     // Invert scale to match vnoise convention: higher scale = fewer cells (zoomed in)
     float freq = max(0.1, 100.0 / max(scale, 0.01));
     st *= freq;
+    // Offset to keep noise coords positive (avoids hash artifacts at boundaries)
+    st += 1000.0;
     
     // time is 0-1 representing position around circle for seamless looping
     float timeAngle = time * TAU;
