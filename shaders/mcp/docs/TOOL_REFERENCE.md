@@ -48,7 +48,7 @@ Compile a shader effect and verify it compiles cleanly. Returns detailed pass-le
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `effect_id` | string | Yes | Effect identifier (e.g., `"basics/noise"`, `"nm/worms"`) |
+| `effect_id` | string | Yes | Effect identifier (e.g., `"classicBasics/noise"`, `"classicNoisemaker/worms"`) |
 | `backend` | string | Yes | Rendering backend: `"webgl2"` or `"webgpu"` |
 
 ### Output Schema
@@ -74,7 +74,7 @@ Compile a shader effect and verify it compiles cleanly. Returns detailed pass-le
 **Request:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2"
 }
 ```
@@ -82,7 +82,7 @@ Compile a shader effect and verify it compiles cleanly. Returns detailed pass-le
 **Response:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "passes": [
@@ -163,7 +163,7 @@ Render a single frame of a shader effect and analyze if the output is monochrome
 **Request:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "test_case": {
     "time": 1.0,
@@ -175,7 +175,7 @@ Render a single frame of a shader effect and analyze if the output is monochrome
 **Response:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "metrics": {
@@ -240,7 +240,7 @@ Render a frame and get an AI vision description. Uses OpenAI GPT-4 Vision to ana
 **Request:**
 ```json
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "backend": "webgl2",
   "prompt": "Describe the visual pattern and any motion artifacts"
 }
@@ -249,7 +249,7 @@ Render a frame and get an AI vision description. Uses OpenAI GPT-4 Vision to ana
 **Response:**
 ```json
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "backend": "webgl2",
   "success": true,
   "description": "The image shows organic worm-like trails meandering across a dark background. The trails have a gradient coloration from warm yellows to cool blues, creating a bioluminescent effect.",
@@ -318,7 +318,7 @@ Benchmark a shader effect to verify it can sustain a target framerate. Runs the 
 **Request:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "target_fps": 60,
   "duration_seconds": 3
@@ -328,7 +328,7 @@ Benchmark a shader effect to verify it can sustain a target framerate. Runs the 
 **Response:**
 ```json
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "target_fps": 60,
@@ -387,7 +387,7 @@ Verify that uniform controls affect the visual output. Tests each uniform by ren
 **Response:**
 ```json
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "backend": "webgl2",
   "success": true,
   "uniforms_tested": 5,
@@ -443,7 +443,7 @@ Test that a filter effect does NOT pass through its input unchanged. Passthrough
 **Response (Passing):**
 ```json
 {
-  "effect_id": "nm/sobel",
+  "effect_id": "classicNoisemaker/sobel",
   "backend": "webgl2",
   "success": true,
   "is_passthrough": false,
@@ -455,7 +455,7 @@ Test that a filter effect does NOT pass through its input unchanged. Passthrough
 **Response (Failing):**
 ```json
 {
-  "effect_id": "nm/broken_filter",
+  "effect_id": "classicNoisemaker/broken_filter",
   "backend": "webgl2",
   "success": false,
   "is_passthrough": true,
@@ -523,7 +523,7 @@ This is an **on-disk tool** - no browser session is required.
 **Response:**
 ```json
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "success": true,
   "issues": [
     {
@@ -593,7 +593,7 @@ This is an **on-disk tool** - no browser session is required.
 **Response:**
 ```json
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "success": true,
   "pairs_checked": 4,
   "equivalent_pairs": 4,
@@ -709,22 +709,22 @@ The test harness provides a command-line interface for running tests.
 
 ```bash
 # Basic compile + render + vision check
-node test-harness.js --effects basics/noise --backend webgl2
+node test-harness.js --effects classicBasics/noise --backend webgl2
 
 # Multiple effects with glob pattern
-node test-harness.js --effects "basics/*" --webgl2 --benchmark
+node test-harness.js --effects "classicBasics/*" --webgl2 --benchmark
 
 # All tests on WebGPU
-node test-harness.js --effects "nm/*" --webgpu --all
+node test-harness.js --effects "classicNoisemaker/*" --webgpu --all
 
 # Multiple specific effects
-node test-harness.js --effects "basics/noise,nm/worms" --glsl --uniforms
+node test-harness.js --effects "classicBasics/noise,nm/worms" --glsl --uniforms
 
 # Structure check (on-disk, no browser)
-node test-harness.js --effects "nm/worms" --structure
+node test-harness.js --effects "classicNoisemaker/worms" --structure
 
 # Algorithm equivalence check
-node test-harness.js --effects "nm/*" --alg-equiv
+node test-harness.js --effects "classicNoisemaker/*" --alg-equiv
 ```
 
 ---

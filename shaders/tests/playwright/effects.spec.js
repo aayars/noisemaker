@@ -205,12 +205,12 @@ test('demo renders all available effects without console errors', async ({ page,
     .filter(Boolean);
 
   if (effectOnlyEnv.length > 0) {
-    // Support both exact matches and namespace prefixes (e.g., "basics" matches "basics/noise")
+    // Support both exact matches and namespace prefixes (e.g., "basics" matches "classicBasics/noise")
     effectValues = effectValues.filter(effect => {
       for (const filter of effectOnlyEnv) {
         // Exact match
         if (effect === filter) return true;
-        // Namespace prefix match (e.g., "basics" matches "basics/noise")
+        // Namespace prefix match (e.g., "basics" matches "classicBasics/noise")
         if (effect.startsWith(filter + '/')) return true;
       }
       return false;
@@ -220,7 +220,7 @@ test('demo renders all available effects without console errors', async ({ page,
 
   for (const effect of effectValues) {
     if (!effect) continue;
-    if (effect === 'nd/media-input') continue;
+    if (effect === 'classicNoisedeck/media-input') continue;
     await test.step(`effect: ${effect}`, async () => {
       const baselineState = await page.evaluate(() => {
         const pipeline = window.__noisemakerRenderingPipeline;
@@ -254,11 +254,11 @@ test('demo renders all available effects without console errors', async ({ page,
       }, { timeout: STATUS_TIMEOUT }, baselineState);
 
       // Verify that the rendered output has more than one color
-      // nd/physarum and basics/prev rely on warm-up/feedback before diverging from black.
+      // nd/physarum and classicBasics/prev rely on warm-up/feedback before diverging from black.
 
       // ***STOP***: Do *NOT* add effects to this list without explicit permission
       // nd/shape-mixer: Uses palette cycling with time - test readback sees uniform color at snapshot
-      const skipColorCheck = ['basics/alpha', 'basics/solid', 'basics/prev', 'nd/shape-mixer'].includes(effect)
+      const skipColorCheck = ['classicBasics/alpha', 'classicBasics/solid', 'classicBasics/prev', 'classicNoisedeck/shape-mixer'].includes(effect)
         || effect.includes('feedback');
       if (!skipColorCheck) {
         const hasMultipleColors = await page.evaluate(async (effectName) => {

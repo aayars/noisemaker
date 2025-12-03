@@ -65,7 +65,7 @@ export async function waitForCompileStatus(page) {
  * Compile a shader effect and return structured diagnostics
  * 
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
- * @param {string} effectId - Effect identifier (e.g., "basics/noise")
+ * @param {string} effectId - Effect identifier (e.g., "classicBasics/noise")
  * @param {object} options
  * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @returns {Promise<{status: 'ok'|'error', backend: string, passes: Array<{id: string, status: 'ok'|'error', errors?: Array}>}>}
@@ -786,7 +786,7 @@ User prompt: ${prompt}`;
  * Check if an effect is a filter-type effect (takes texture input).
  * Filter effects have an 'inputTex' texture binding in at least one pass.
  * 
- * @param {string} effectId - Effect identifier (e.g., "nm/sobel")
+ * @param {string} effectId - Effect identifier (e.g., "classicNoisemaker/sobel")
  * @returns {Promise<boolean>}
  */
 export async function isFilterEffect(effectId) {
@@ -822,7 +822,7 @@ export async function isFilterEffect(effectId) {
  * 4. FAILS if the textures are too similar (indicating passthrough)
  * 
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
- * @param {string} effectId - Effect identifier (e.g., "nm/sobel")
+ * @param {string} effectId - Effect identifier (e.g., "classicNoisemaker/sobel")
  * @param {object} options
  * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
  * @param {boolean} [options.skipCompile=false] - Skip compilation if effect already loaded
@@ -1336,10 +1336,10 @@ export async function testNoPassthrough(page, effectId, options = {}) {
  */
 const COMPUTE_PASS_EXEMPT_EFFECTS = new Set([
     // Simple filter chains
-    'basics/blend', 'basics/layer', 'basics/mask', 'basics/modulate',
+    'classicBasics/blend', 'classicBasics/layer', 'classicBasics/mask', 'classicBasics/modulate',
     // Effects with legitimate multi-pass render pipelines (blur, bloom, etc.)
-    'nm/blur',  // Multi-pass gaussian blur is fine as render passes
-    'nm/bloom', // Blur + composite is fine
+    'classicNoisemaker/blur',  // Multi-pass gaussian blur is fine as render passes
+    'classicNoisemaker/bloom', // Blur + composite is fine
     // Add more as needed with justification
 ]);
 
@@ -1505,7 +1505,7 @@ function checkTextureName(name) {
 /**
  * Check effect structure for unused files and compute pass requirements
  * 
- * @param {string} effectId - Effect identifier (e.g., "nm/worms")
+ * @param {string} effectId - Effect identifier (e.g., "classicNoisemaker/worms")
  * @param {object} options
  * @param {'webgl2'|'webgpu'} options.backend - Backend to check (REQUIRED - affects which shader dir to scan)
  * @returns {Promise<{unusedFiles: string[], multiPass: boolean, hasComputePass: boolean, passCount: number, passTypes: string[], computePassExempt: boolean, computePassExemptReason?: string, leakedInternalUniforms: string[], namingIssues: Array<{type: string, name: string, reason: string}>}>}
@@ -2103,7 +2103,7 @@ export async function checkEffectStructure(effectId, options = {}) {
  * Uses OpenAI API to compare shader pairs and determine if they implement
  * equivalent algorithms, accounting for language differences between GLSL and WGSL.
  * 
- * @param {string} effectId - Effect identifier (e.g., "basics/noise")
+ * @param {string} effectId - Effect identifier (e.g., "classicBasics/noise")
  * @param {object} options
  * @param {string} [options.apiKey] - OpenAI API key (falls back to .openai file)
  * @param {string} [options.model='gpt-4o'] - Model to use for comparison

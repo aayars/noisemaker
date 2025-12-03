@@ -535,14 +535,22 @@
     <div id="status" class="status" style="display: none;"></div>
 
     <script type="module">
-        import { registerOp } from '../../shaders/src/lang/ops.js';
-        import { registerStarterOps } from '../../shaders/src/lang/validator.js';
-        import { createRuntime, recompile } from '../../shaders/src/runtime/compiler.js';
-        import { registerEffect, getEffect } from '../../shaders/src/runtime/registry.js';
-        import { mergeIntoEnums } from '../../shaders/src/lang/enums.js';
-        import { stdEnums } from '../../shaders/src/lang/std_enums.js';
-        import { compile, unparse, formatValue as dslFormatValue } from '../../shaders/src/lang/index.js';
+        // =====================================================================
+        // Noisemaker Shader Demo - Wired with CanvasRenderer + DemoUI
+        // =====================================================================
+        
+        import { CanvasRenderer, getEffect } from '../../shaders/src/renderer/canvas.js';
+        import { 
+            DemoUI, 
+            extractEffectNamesFromDsl,
+            getBackendFromURL,
+            getEffectFromURL
+        } from './lib/demo-ui.js';
 
+        // =====================================================================
+        // DOM Elements
+        // =====================================================================
+        
         const loadingEl = document.getElementById('loading');
         const appEl = document.getElementById('app-container');
         const statusEl = document.getElementById('status');
@@ -556,1598 +564,98 @@
         const loadingDialogStatus = document.getElementById('loading-dialog-status');
         const loadingDialogQueue = document.getElementById('loading-dialog-queue');
         const loadingDialogProgress = document.getElementById('loading-dialog-progress');
+        const fpsCounterEl = document.getElementById('fps-counter');
         let canvas = document.getElementById('canvas');
 
-        let currentEffect = null;
-        let currentBackend = 'glsl';
-        let parameterValues = {};
-        let effectParameterValues = {}; // Map: effectKey -> {param: value}
-        let pipeline = null;
+        // =====================================================================
+        // Create Renderer and UI instances
+        // =====================================================================
         
-        // Lazy loading infrastructure
-        let globalManifest = {}; // Loaded once at startup
-        const loadedEffects = new Map(); // effectId -> effect object (cached after loading)
-        const effectLoadingPromises = new Map(); // effectId -> Promise (for deduplication)
+        // Compute absolute basePath for shader assets
+        // The CanvasRenderer imports are resolved from the canvas.js module location,
+        // so we need an absolute path to avoid double-pathing issues
+        const shaderBasePath = new URL('../../shaders', import.meta.url).href;
+        
+        const renderer = new CanvasRenderer({
+            canvas: canvas,
+            canvasContainer: canvasContainer,
+            width: 1024,
+            height: 1024,
+            basePath: shaderBasePath,
+            preferWebGPU: false,
+            onFPS: (fps) => {
+                if (fpsCounterEl) {
+                    fpsCounterEl.textContent = `${fps} fps`;
+                }
+            },
+            onError: (err) => {
+                console.error('Renderer error:', err);
+            }
+        });
 
-        // Expose backend and registry for testing
-        window.__noisemakerCurrentBackend = () => currentBackend;
-        window.__noisemakerRegistry = { getEffect };
+        const ui = new DemoUI(renderer, {
+            effectSelect,
+            dslEditor,
+            controlsContainer: effectControlsContainer,
+            statusEl,
+            fpsCounterEl,
+            loadingDialog,
+            loadingDialogTitle,
+            loadingDialogStatus,
+            loadingDialogProgress
+        });
+
+        // =====================================================================
+        // Test Harness Globals (MUST MAINTAIN for MCP compatibility)
+        // =====================================================================
+        
+        window.__noisemakerCurrentBackend = () => renderer.backend;
+        window.__noisemakerRenderingPipeline = null; // Updated when pipeline changes
+        window.__noisemakerCurrentEffect = null; // Updated when effect changes
         window.__noisemakerFrameCount = 0;
-        window.__noisemakerGetLoopDuration = () => loopDuration;
-        window.__noisemakerGetFPS = () => TARGET_FPS;
-        // Expose effect parameter values and DSL regeneration for testing
-        window.__noisemakerGetEffectParams = () => effectParameterValues;
-        let animationFrameId = null;
-        let animationTimerId = null;
-        let TARGET_FPS = 60;
-        let TARGET_FRAME_TIME = 1000 / TARGET_FPS;
-        let loopDuration = 10; // Duration in seconds for one complete loop (time goes from 0 to 1)
-        let lastFrameTime = performance.now();
-        let loopStartTime = performance.now();
-        
-        // FPS counter tracking
-        let fpsFrameCount = 0;
-        let fpsLastUpdateTime = performance.now();
-        const fpsCounterEl = document.getElementById('fps-counter');
-        let enums = {};
-        let uniformBindings = new Map();
-        let currentDsl = '';
-        let parsedDslStructure = []; // Stores parsed effect info for DSL regeneration
+        window.__noisemakerGetEffectParams = () => ui.effectParameterValues;
+        window.__noisemakerRegenerateDsl = () => ui.regenerateDslFromEffectParams();
+        window.__noisemakerCurrentDsl = '';
+        window.__noisemakerGetLoopDuration = () => renderer.loopDuration;
+        window.__noisemakerGetFPS = () => renderer.targetFPS;
+        window.__noisemakerRegistry = { getEffect };
 
-        function resetCanvasElement() {
-            if (!canvasContainer || !canvas) {
-                return;
-            }
-
-            const newCanvas = canvas.cloneNode(false);
-            newCanvas.id = canvas.id;
-            newCanvas.width = canvas.width;
-            newCanvas.height = canvas.height;
-
-            canvasContainer.replaceChild(newCanvas, canvas);
-            canvas = newCanvas;
-        }
-
-        async function disposePipeline({ loseContext = false, resetCanvas = false } = {}) {
-            if (!pipeline) {
-                if (resetCanvas) {
-                    resetCanvasElement();
-                }
-                return;
-            }
-
-            const oldPipeline = pipeline;
-            pipeline = null;
-            window.__noisemakerRenderingPipeline = null;
-            uniformBindings = new Map();
-
-            try {
-                oldPipeline.backend?.destroy?.({ loseContext });
-            } catch (err) {
-                console.warn('Failed to destroy pipeline backend', err);
-            }
-
-            if (resetCanvas) {
-                resetCanvasElement();
-            }
-        }
-
-        // Render loop
-        function scheduleNextFrame(targetTime) {
-            if (animationTimerId !== null) {
-                clearTimeout(animationTimerId);
-            }
-
-            const now = performance.now();
-            const delay = Math.max(0, targetTime - now);
-
-            animationTimerId = setTimeout(() => {
-                animationFrameId = requestAnimationFrame(renderLoop);
-            }, delay);
-        }
-
-        function renderLoop(time) {
-            const delta = time - lastFrameTime;
-
-            if (delta < TARGET_FRAME_TIME - 0.5) {
-                scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
-                return;
-            }
-
-            if (pipeline) {
-                try {
-                    // Calculate normalized time (0 to 1) based on loop duration
-                    const elapsedSeconds = (time - loopStartTime) / 1000;
-                    const normalizedTime = (elapsedSeconds % loopDuration) / loopDuration;
-                    pipeline.render(normalizedTime);
-                } catch (err) {
-                    console.error('Render loop error:', err);
-                }
-                window.__noisemakerFrameCount++;
-            }
-
-            // Update FPS counter every 1 second
-            fpsFrameCount++;
-            const fpsElapsed = time - fpsLastUpdateTime;
-            if (fpsElapsed >= 1000) {
-                const currentFps = Math.round((fpsFrameCount * 1000) / fpsElapsed);
-                fpsCounterEl.textContent = `${currentFps} fps`;
-                fpsFrameCount = 0;
-                fpsLastUpdateTime = time;
-            }
-
-            lastFrameTime = time - (delta % TARGET_FRAME_TIME);
-            scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
-        }
-
-        scheduleNextFrame(lastFrameTime + TARGET_FRAME_TIME);
-
-        // Show status message
-        function showStatus(message, type = 'info') {
-            statusEl.textContent = message;
-            statusEl.className = `status ${type}`;
-            statusEl.style.display = 'block';
-            setTimeout(() => {
-                statusEl.style.display = 'none';
-            }, 3000);
-        }
-
-        // Loading dialog management
-        const loadingState = {
-            queue: [],
-            completed: 0,
-            total: 0
+        // Sync frame count from renderer
+        const originalOnFrame = renderer._onFrame;
+        renderer._onFrame = (frameCount) => {
+            window.__noisemakerFrameCount = frameCount;
+            if (originalOnFrame) originalOnFrame(frameCount);
         };
 
-        function showLoadingDialog(title = 'loading effect...') {
-            loadingDialogTitle.textContent = title;
-            loadingDialogStatus.textContent = 'preparing...';
-            loadingDialogQueue.innerHTML = '';
-            loadingDialogProgress.style.width = '0%';
-            loadingState.queue = [];
-            loadingState.completed = 0;
-            loadingState.total = 0;
-            loadingDialog.showModal();
-        }
-
-        function hideLoadingDialog() {
-            loadingDialog.close();
-        }
-
-        function updateLoadingStatus(status) {
-            loadingDialogStatus.textContent = status;
-        }
-
-        function addToLoadingQueue(id, label) {
-            loadingState.queue.push({ id, label, status: 'pending' });
-            loadingState.total++;
-            renderLoadingQueue();
-        }
-
-        function updateLoadingQueueItem(id, status) {
-            const item = loadingState.queue.find(i => i.id === id);
-            if (item) {
-                item.status = status;
-                if (status === 'done' || status === 'error') {
-                    loadingState.completed++;
-                }
-                renderLoadingQueue();
-                updateLoadingProgress();
-            }
-        }
-
-        function renderLoadingQueue() {
-            // Queue rendering disabled for cleaner UI
-            /*
-            loadingDialogQueue.innerHTML = loadingState.queue.map(item => {
-                const icon = item.status === 'done' ? '✓' : 
-                             item.status === 'error' ? '✗' :
-                             item.status === 'loading' ? '⋯' : '○';
-                return `<div class="loading-queue-item ${item.status}"><span>${icon}</span><span>${item.label}</span></div>`;
-            }).join('');
-            */
-        }
-
-        function updateLoadingProgress() {
-            const progress = loadingState.total > 0 ? (loadingState.completed / loadingState.total) * 100 : 0;
-            loadingDialogProgress.style.width = `${progress}%`;
-        }
-
-        // Lazy loading functions
-        async function loadEffectDefinition(namespace, effectName) {
-            const effectId = `${namespace}/${effectName}`;
-            const basePath = `../../shaders/effects/${namespace}/${effectName}`;
-            
-            try {
-                const module = await import(`${basePath}/definition.js`);
-                const EffectClass = module.default;
-                
-                if (!EffectClass) {
-                    throw new Error(`No default export in ${effectId}/definition.js`);
-                }
-                
-                const instance = new EffectClass();
-                return { namespace, name: effectName, instance };
-            } catch (err) {
-                console.error(`Failed to load definition for ${effectId}:`, err);
-                throw err;
-            }
-        }
-
-        async function loadEffectShaders(effect, manifest) {
-            const { namespace, name: effectName, instance } = effect;
-            const effectId = `${namespace}/${effectName}`;
-            const basePath = `../../shaders/effects/${namespace}/${effectName}`;
-            const effectManifest = manifest[effectId];
-            
-            if (!instance.passes || !effectManifest) return;
-            
-            if (!instance.shaders) instance.shaders = {};
-            
-            const shaderPromises = [];
-            
-            for (const pass of instance.passes) {
-                if (!pass.program) continue;
-                
-                const prog = pass.program;
-                const shaderBucket = instance.shaders[prog] ?? (instance.shaders[prog] = {});
-                
-                // GLSL loading
-                const glslInfo = effectManifest.glsl?.[prog];
-                if (glslInfo === 'combined') {
-                    shaderPromises.push(
-                        fetch(`${basePath}/glsl/${prog}.glsl`)
-                            .then(res => res.ok ? res.text() : null)
-                            .then(text => { if (text) shaderBucket.glsl = text; })
-                    );
-                } else if (glslInfo) {
-                    if (glslInfo.v) {
-                        shaderPromises.push(
-                            fetch(`${basePath}/glsl/${prog}.vert`)
-                                .then(res => res.ok ? res.text() : null)
-                                .then(text => { if (text) shaderBucket.vertex = text; })
-                        );
-                    }
-                    if (glslInfo.f) {
-                        shaderPromises.push(
-                            fetch(`${basePath}/glsl/${prog}.frag`)
-                                .then(res => res.ok ? res.text() : null)
-                                .then(text => { if (text) shaderBucket.fragment = text; })
-                        );
-                    }
-                }
-                
-                // WGSL loading
-                if (effectManifest.wgsl?.[prog]) {
-                    shaderPromises.push(
-                        fetch(`${basePath}/wgsl/${prog}.wgsl`)
-                            .then(res => res.ok ? res.text() : null)
-                            .then(text => { if (text) shaderBucket.wgsl = text; })
-                    );
-                }
-            }
-            
-            await Promise.all(shaderPromises);
-        }
-
-        function registerEffectWithRuntime(effect) {
-            const { namespace, name: effectName, instance } = effect;
-            const effectId = `${namespace}/${effectName}`;
-            
-            // Register effect with multiple names for lookup flexibility
-            registerEffect(instance.func, instance);
-            registerEffect(`${namespace}.${instance.func}`, instance);
-            registerEffect(`${namespace}/${effectName}`, instance);
-            registerEffect(`${namespace}.${effectName}`, instance);
-
-            // Register as operator
-            if (instance.func) {
-                const choicesToRegister = {};
-                
-                const args = Object.entries(instance.globals || {}).map(([key, spec]) => {
-                    let enumPath = spec.enum || spec.enumPath;
-                    if (spec.choices && !enumPath) {
-                        enumPath = `${namespace}.${instance.func}.${key}`;
-                        
-                        if (!choicesToRegister[namespace]) {
-                            choicesToRegister[namespace] = {};
-                        }
-                        if (!choicesToRegister[namespace][instance.func]) {
-                            choicesToRegister[namespace][instance.func] = {};
-                        }
-                        choicesToRegister[namespace][instance.func][key] = {};
-                        
-                        for (const [name, val] of Object.entries(spec.choices)) {
-                            if (name.endsWith(':')) continue;
-                            // Always register original name (for quoted string lookups like "5g")
-                            choicesToRegister[namespace][instance.func][key][name] = { type: 'Number', value: val };
-                            // Also register sanitized name if different (for bare identifier lookups like Constant)
-                            const sanitized = sanitizeEnumName(name);
-                            if (sanitized && sanitized !== name) {
-                                choicesToRegister[namespace][instance.func][key][sanitized] = { type: 'Number', value: val };
-                            }
-                        }
-                    }
-                    return {
-                        name: key,
-                        type: spec.type === 'vec4' ? 'color' : spec.type,
-                        default: spec.default,
-                        enum: enumPath,
-                        enumPath: enumPath,
-                        min: spec.min,
-                        max: spec.max,
-                        uniform: spec.uniform
-                    };
-                });
-                
-                // Return choices to register (will be merged into enums)
-                const opSpec = {
-                    name: instance.func,
-                    args: args
-                };
-                registerOp(`${namespace}.${instance.func}`, opSpec);
-                
-                return choicesToRegister;
-            }
-            return null;
-        }
+        // =====================================================================
+        // Effect Loading and Selection
+        // =====================================================================
 
         /**
-         * Load a single effect on demand (with caching)
-         * Returns the fully loaded effect object
+         * Load effect placeholders from manifest (lazy loading)
          */
-        async function loadEffectOnDemand(effectId, { updateDialog = true } = {}) {
-            // Check cache first
-            if (loadedEffects.has(effectId)) {
-                return loadedEffects.get(effectId);
-            }
-            
-            // Check if already loading (deduplication)
-            if (effectLoadingPromises.has(effectId)) {
-                return effectLoadingPromises.get(effectId);
-            }
-            
-            const [namespace, effectName] = effectId.split('/');
-            if (!namespace || !effectName) {
-                throw new Error(`Invalid effect ID: ${effectId}`);
-            }
-            
-            const loadPromise = (async () => {
-                try {
-                    if (updateDialog) {
-                        addToLoadingQueue(`def-${effectId}`, `${effectId}/definition.js`);
-                        updateLoadingQueueItem(`def-${effectId}`, 'loading');
-                    }
-                    
-                    // Load definition
-                    const effect = await loadEffectDefinition(namespace, effectName);
-                    
-                    if (updateDialog) {
-                        updateLoadingQueueItem(`def-${effectId}`, 'done');
-                        addToLoadingQueue(`shaders-${effectId}`, `${effectId}/shaders`);
-                        updateLoadingQueueItem(`shaders-${effectId}`, 'loading');
-                    }
-                    
-                    // Load shaders
-                    await loadEffectShaders(effect, globalManifest);
-                    
-                    if (updateDialog) {
-                        updateLoadingQueueItem(`shaders-${effectId}`, 'done');
-                    }
-                    
-                    // Register with runtime
-                    const choicesToRegister = registerEffectWithRuntime(effect);
-                    if (choicesToRegister && Object.keys(choicesToRegister).length > 0) {
-                        enums = await mergeIntoEnums(choicesToRegister);
-                    }
-                    
-                    // Register as starter op if applicable
-                    registerStarterOpForEffect(effect);
-                    
-                    // Cache the loaded effect
-                    loadedEffects.set(effectId, effect);
-                    
-                    return effect;
-                } catch (err) {
-                    if (updateDialog) {
-                        const queueItem = loadingState.queue.find(i => i.id.includes(effectId) && i.status === 'loading');
-                        if (queueItem) {
-                            updateLoadingQueueItem(queueItem.id, 'error');
-                        }
-                    }
-                    throw err;
-                } finally {
-                    effectLoadingPromises.delete(effectId);
-                }
-            })();
-            
-            effectLoadingPromises.set(effectId, loadPromise);
-            return loadPromise;
-        }
-
-        /**
-         * Load multiple effects in parallel, showing progress in the dialog
-         * Returns array of loaded effects
-         */
-        async function loadEffectsOnDemand(effectIds) {
-            if (effectIds.length === 0) return [];
-            
-            // Filter out already loaded effects
-            const needsLoading = effectIds.filter(id => !loadedEffects.has(id));
-            
-            if (needsLoading.length === 0) {
-                return effectIds.map(id => loadedEffects.get(id));
-            }
-            
-            showLoadingDialog(needsLoading.length === 1 ? `loading ${needsLoading[0]}...` : `loading ${needsLoading.length} effects...`);
-            // updateLoadingStatus('downloading effect definitions and shaders...');
-            
-            try {
-                // Load all effects in parallel
-                const loadPromises = needsLoading.map(effectId => 
-                    loadEffectOnDemand(effectId, { updateDialog: true })
-                        .catch(err => {
-                            console.error(`Failed to load ${effectId}:`, err);
-                            return null; // Don't fail the whole batch
-                        })
-                );
-                
-                await Promise.all(loadPromises);
-                
-                updateLoadingStatus('compiling shaders...');
-                
-                // Return all effects (including previously cached ones)
-                return effectIds.map(id => loadedEffects.get(id)).filter(Boolean);
-            } finally {
-                hideLoadingDialog();
-            }
-        }
-
-        function cloneParamValue(value) {
-            if (Array.isArray(value)) {
-                return value.map((item) => item);
-            }
-            if (value && typeof value === 'object') {
-                try {
-                    return JSON.parse(JSON.stringify(value));
-                } catch (_err) {
-                    return value;
-                }
-            }
-            return value;
-        }
-
-        function resolveEnumValue(path) {
-            if (path === undefined || path === null) return null;
-            if (typeof path === 'number' || typeof path === 'boolean') return path;
-            if (typeof path !== 'string') return null;
-
-            const segments = path.split('.').filter(Boolean);
-            let node = enums;
-
-            for (const segment of segments) {
-                if (!node || node[segment] === undefined) {
-                    return null;
-                }
-                node = node[segment];
-            }
-
-            if (typeof node === 'number' || typeof node === 'boolean') {
-                return node;
-            }
-            if (node && typeof node === 'object' && node.value !== undefined) {
-                return node.value;
-            }
-
-            return null;
-        }
-
-        function convertParameterForUniform(value, spec) {
-            if (!spec) {
-                return value;
-            }
-
-            if ((spec.enum || spec.enumPath || spec.type === 'member') && typeof value === 'string') {
-                let enumValue = resolveEnumValue(value);
-                if ((enumValue === null || enumValue === undefined) && (spec.enum || spec.enumPath)) {
-                    const base = spec.enum || spec.enumPath;
-                    enumValue = resolveEnumValue(`${base}.${value}`);
-                }
-                if (enumValue !== null && enumValue !== undefined) {
-                    return enumValue;
-                }
-            }
-
-            switch (spec.type) {
-                case 'boolean':
-                case 'button':
-                    return !!value;
-                case 'int':
-                    return typeof value === 'number' ? Math.round(value) : parseInt(value, 10);
-                case 'float':
-                    return typeof value === 'number' ? value : parseFloat(value);
-                case 'vec3':
-                case 'vec4':
-                    if (Array.isArray(value)) {
-                        return value.map((component) => (typeof component === 'number' ? component : parseFloat(component)));
-                    }
-                    break;
-                default:
-                    break;
-            }
-
-            return value;
-        }
-
-        function buildUniformBindings() {
-            uniformBindings = new Map();
-
-            if (!pipeline || !pipeline.graph || !Array.isArray(pipeline.graph.passes)) {
-                return;
-            }
-
-            if (!currentEffect || !currentEffect.instance || !currentEffect.instance.globals) {
-                return;
-            }
-
-            const targetFunc = currentEffect.instance.func;
-            const targetNamespace = currentEffect.instance.namespace || currentEffect.namespace || null;
-
-            pipeline.graph.passes.forEach((pass, index) => {
-                if (!pass) return;
-
-                const passFunc = pass.effectFunc || pass.effectKey || null;
-                const passNamespace = pass.effectNamespace || null;
-
-                if (!passFunc || passFunc !== targetFunc) return;
-                if (targetNamespace && passNamespace && passNamespace !== targetNamespace) return;
-
-                for (const [paramName, spec] of Object.entries(currentEffect.instance.globals)) {
-                    if (spec.type === 'surface') continue;
-                    const uniformName = spec.uniform || paramName;
-                    if (!pass.uniforms || !(uniformName in pass.uniforms)) continue;
-
-                    if (!uniformBindings.has(paramName)) {
-                        uniformBindings.set(paramName, []);
-                    }
-
-                    uniformBindings.get(paramName).push({
-                        passIndex: index,
-                        uniformName
-                    });
-                }
-            });
-        }
-
-        function applyParameterValues({ silent = false } = {}) {
-            if (!pipeline || !currentEffect || !currentEffect.instance) {
-                return;
-            }
-
-            if (!uniformBindings.size) {
-                buildUniformBindings();
-            }
-
-            const globals = currentEffect.instance.globals || {};
-
-            for (const [paramName, spec] of Object.entries(globals)) {
-                if (spec.type === 'surface') {
-                    continue;
-                }
-                const bindings = uniformBindings.get(paramName);
-                if (!bindings || bindings.length === 0) {
-                    continue;
-                }
-
-                const currentValue = parameterValues[paramName];
-                if (currentValue === undefined) {
-                    continue;
-                }
-                const converted = convertParameterForUniform(currentValue, spec);
-
-                for (const binding of bindings) {
-                    const pass = pipeline.graph.passes[binding.passIndex];
-                    if (!pass || !pass.uniforms) {
-                        continue;
-                    }
-                    pass.uniforms[binding.uniformName] = Array.isArray(converted) ? converted.slice() : converted;
-                }
-            }
-
-            if (!silent) {
-                // Avoid spamming the status overlay during rapid parameter changes
-                // Future hook could go here if we want lightweight feedback
-            }
-        }
-
-        // Check if effect has a 'tex' surface parameter (for mixer-type effects)
-        function hasTexSurfaceParam(effect) {
-            if (!effect || !effect.instance || !effect.instance.globals) {
-                return false;
-            }
-            const texSpec = effect.instance.globals.tex;
-            return texSpec && texSpec.type === 'surface';
-        }
-
-        // Check if effect needs inputTex3d (3D consumer effects like flow3d)
-        function needsInputTex3d(effect) {
-            if (!effect || !effect.instance) return false;
-            const passes = effect.instance.passes || [];
-            for (const pass of passes) {
-                if (!pass.inputs) continue;
-                const inputs = Object.values(pass.inputs);
-                if (inputs.includes('inputTex3d')) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // Check if effect is a 3D generator (fills a volume - like noise3d, cell3d, shape3d, fractal3d)
-        // These effects self-initialize their volumes with volumeSize parameter
-        const KNOWN_3D_GENERATORS = ['noise3d', 'cell3d', 'shape3d', 'fractal3d'];
-        function is3dGenerator(effect) {
-            if (!effect || !effect.instance) return false;
-            const func = effect.instance.func;
-            return effect.instance.outputTex3d && KNOWN_3D_GENERATORS.includes(func);
-        }
-        
-        // Check if effect is a 3D processor (modifies a volume - like flow3d, rd3d, ca3d)
-        // These effects need a 3D generator upstream to provide volume content
-        // If inputTex3d is provided, its dimensions take precedence over local volumeSize
-        const KNOWN_3D_PROCESSORS = ['flow3d', 'rd3d', 'ca3d'];
-        function is3dProcessor(effect) {
-            if (!effect || !effect.instance) return false;
-            const func = effect.instance.func;
-            return effect.instance.outputTex3d && KNOWN_3D_PROCESSORS.includes(func);
-        }
-
-        function buildDslSource(effect) {
-            if (!effect || !effect.instance) {
-                return '';
-            }
-
-            // Build search directive if effect has a namespace
-            // nm effects need basics too for generators like noise
-            let searchNs = effect.namespace;
-            if (effect.namespace === 'nm') {
-                searchNs = 'nm, basics';
-            }
-            const searchDirective = searchNs ? `search ${searchNs}\n` : '';
-            const funcName = effect.instance.func;
-
-            // Determine effect category
-            const starter = isStarterEffect(effect);
-            const hasTex = hasTexSurfaceParam(effect);
-
-            // 3D volume generators self-initialize their volumes and need render3d() to visualize
-            // noise3d(volumeSize: x64, scale: 3).render3d().write(o0)
-            // Check this FIRST before starter/transform categorization
-            if (is3dGenerator(effect)) {
-                const params = [];
-                if (effect.instance.globals) {
-                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                        const value = parameterValues[key];
-                        if (value === undefined || value === null) {
-                            continue;
-                        }
-                        params.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                }
-                const paramString = params.join(', ');
-                // 3D generators self-initialize, just chain with render3d()
-                return `search nu, vol\n${funcName}(${paramString}).render3d().write(o0)`;
-            }
-
-            if (starter) {
-                // Starter effect: effectName(...).write(o0)
-                const params = [];
-                if (effect.instance.globals) {
-                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                        const value = parameterValues[key];
-                        if (value === undefined || value === null) {
-                            continue;
-                        }
-                        params.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                }
-                const paramString = params.join(', ');
-                // Special case: pass-through effects with surface param need source content
-                // e.g., src(tex: src(o1)) needs o1 to have content first
-                // The pipeline always presents o0 to screen, so we use o1 as intermediate
-                // and output to o0.
-                if (hasTex) {
-                    // Always use o1 as intermediate surface and o0 as output
-                    const sourceSurface = 'o1';
-                    const outputSurface = 'o0';
-                    // Ensure tex parameter is passed to the effect
-                    const paramsWithTex = paramString ? `tex: src(${sourceSurface}), ${paramString}` : `tex: src(${sourceSurface})`;
-                    return `${searchDirective}noise(seed: 1, ridges: true).write(${sourceSurface})\n${funcName}(${paramsWithTex}).write(${outputSurface})`;
-                }
-                return `${searchDirective}${funcName}(${paramString}).write(o0)`;
-            } else if (hasTex) {
-                // Mixer effect (has inputTex and tex): two noise sources
-                // The pipeline always presents o0 to screen, so output to o0
-                // noise(seed: 1, ridged: true).write(o1)
-                // noise(seed: 2, ridged: true).effectName(tex: src(o1), ...).write(o0)
-                const params = [];
-                // Always include tex: src(o1) for mixer effects
-                params.push(`tex: src(o1)`);
-                if (effect.instance.globals) {
-                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                        // Skip tex - we already added it above
-                        if (key === 'tex' && spec.type === 'surface') {
-                            continue;
-                        }
-                        const value = parameterValues[key];
-                        if (value === undefined || value === null) {
-                            continue;
-                        }
-                        params.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                }
-                const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1, ridges: true).write(o1)
-noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
-            } else if (is3dProcessor(effect)) {
-                // 3D processor effect (needs inputTex3d): chain with a 3D generator and render3d
-                // noise3d(volumeSize: x32).flow3d().render3d().write(o0)
-                const params = [];
-                let consumerVolumeSize = 32;  // default
-                if (effect.instance.globals) {
-                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                        const value = parameterValues[key];
-                        if (value === undefined || value === null) {
-                            continue;
-                        }
-                        if (key === 'volumeSize') {
-                            consumerVolumeSize = value;
-                        }
-                        params.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                }
-                const paramString = params.join(', ');
-                // noise3d() generates volume content, effect processes, render3d() visualizes
-                const generatorDsl = `noise3d(volumeSize: x${consumerVolumeSize})`;
-                if (paramString) {
-                    return `search nu, vol\n${generatorDsl}.${funcName}(${paramString}).render3d().write(o0)`;
-                }
-                return `search nu, vol\n${generatorDsl}.${funcName}().render3d().write(o0)`;
-            } else {
-                // Simple transform effect (has inputTex only): noise().effectName(...).write(o0)
-                const params = [];
-                if (effect.instance.globals) {
-                    for (const [key, spec] of Object.entries(effect.instance.globals)) {
-                        const value = parameterValues[key];
-                        if (value === undefined || value === null) {
-                            continue;
-                        }
-                        params.push(`${key}: ${formatValue(value, spec)}`);
-                    }
-                }
-                const paramString = params.join(', ');
-                return `${searchDirective}noise(seed: 1, ridges: true).${funcName}(${paramString}).write(o0)`;
-            }
-        }
-
-        /**
-         * Extract effect calls from DSL source by parsing it
-         * Returns array of { effectKey, namespace, name, args, stepIndex }
-         */
-        /**
-         * Extract effect names from DSL text without compiling (for lazy loading)
-         * This is a lightweight parser that finds effect names from the DSL syntax.
-         * Returns array of { effectId, namespace, name }
-         */
-        function extractEffectNamesFromDsl(dsl) {
-            const effects = [];
-            if (!dsl || typeof dsl !== 'string') return effects;
-
-            const lines = dsl.split('\n');
-            let searchNamespaces = [];
-            
-            // Process each line
-            for (const line of lines) {
-                const trimmed = line.trim();
-                
-                // Handle search directive
-                if (trimmed.startsWith('search ')) {
-                    searchNamespaces = trimmed.slice(7).split(',').map(s => s.trim());
-                    continue;
-                }
-                
-                // Skip comments and empty lines
-                if (!trimmed || trimmed.startsWith('//')) continue;
-                
-                // Find all function calls: name(args) or namespace.name(args)
-                // Pattern matches: word( or word.word( 
-                const callPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*\(/g;
-                let match;
-                
-                while ((match = callPattern.exec(trimmed)) !== null) {
-                    const fullName = match[1];
-                    let namespace = null;
-                    let name = fullName;
-                    
-                    // Check if it's namespace.name
-                    if (fullName.includes('.')) {
-                        const parts = fullName.split('.');
-                        namespace = parts[0];
-                        name = parts[1];
-                    }
-                    
-                    // Skip built-in ops that aren't effects
-                    const builtins = ['src', 'out', 'vec2', 'vec3', 'vec4'];
-                    if (builtins.includes(name)) continue;
-                    
-                    // If no explicit namespace, try to find in manifest using search namespaces
-                    if (!namespace && searchNamespaces.length > 0) {
-                        for (const ns of searchNamespaces) {
-                            const testId = `${ns}/${name}`;
-                            if (globalManifest[testId]) {
-                                namespace = ns;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // If still no namespace, try common namespaces
-                    if (!namespace) {
-                        for (const ns of ['basics', 'nm', 'nd', 'nu']) {
-                            const testId = `${ns}/${name}`;
-                            if (globalManifest[testId]) {
-                                namespace = ns;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (namespace) {
-                        const effectId = `${namespace}/${name}`;
-                        // Avoid duplicates
-                        if (!effects.find(e => e.effectId === effectId)) {
-                            effects.push({ effectId, namespace, name });
-                        }
-                    }
-                }
-            }
-
-            return effects;
-        }
-
-        function extractEffectsFromDsl(dsl) {
-            const effects = [];
-            if (!dsl || typeof dsl !== 'string') return effects;
-
-            try {
-                const result = compile(dsl);
-                if (!result || !result.plans) return effects;
-
-                let globalStepIndex = 0;
-                for (const plan of result.plans) {
-                    if (!plan.chain) continue;
-                    for (const step of plan.chain) {
-                        const fullOpName = step.op;
-                        const namespace = step.namespace?.namespace || step.namespace?.resolved || null;
-                        
-                        // Extract short name from full op name (basics.noise -> noise)
-                        let shortName = fullOpName;
-                        if (fullOpName.includes('.')) {
-                            shortName = fullOpName.split('.').pop();
-                        }
-                        
-                        effects.push({
-                            effectKey: fullOpName,  // Use full name as effect key
-                            namespace,
-                            name: shortName,
-                            fullName: fullOpName,
-                            args: step.args || {},
-                            stepIndex: globalStepIndex,
-                            temp: step.temp
-                        });
-                        globalStepIndex++;
-                    }
-                }
-            } catch (err) {
-                console.warn('Failed to parse DSL for effect extraction:', err);
-            }
-
-            return effects;
-        }
-
-        /**
-         * Create effect controls from parsed DSL
-         * Each effect gets its own visual container
-         */
-        function createEffectControlsFromDsl(dsl) {
-            effectControlsContainer.innerHTML = '';
-            effectParameterValues = {};
-
-            const effects = extractEffectsFromDsl(dsl);
-            parsedDslStructure = effects; // Store for DSL regeneration
-            if (effects.length === 0) return;
-
-            for (const effectInfo of effects) {
-                // Try to get the effect definition
-                let effectDef = getEffect(effectInfo.effectKey);
-                if (!effectDef && effectInfo.namespace) {
-                    effectDef = getEffect(`${effectInfo.namespace}.${effectInfo.name}`);
-                }
-                if (!effectDef) {
-                    effectDef = getEffect(effectInfo.name);
-                }
-
-                if (!effectDef || !effectDef.globals) continue;
-
-                // Create container for this effect
-                const moduleDiv = document.createElement('div');
-                moduleDiv.className = 'shader-module';
-                moduleDiv.dataset.stepIndex = effectInfo.stepIndex;
-                moduleDiv.dataset.effectName = effectInfo.name;
-
-                const titleDiv = document.createElement('div');
-                titleDiv.className = 'module-title';
-                titleDiv.textContent = effectInfo.namespace ? `${effectInfo.namespace}.${effectInfo.name}` : effectInfo.name;
-                titleDiv.addEventListener('click', () => {
-                    moduleDiv.classList.toggle('collapsed');
-                });
-                moduleDiv.appendChild(titleDiv);
-
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'module-content';
-
-                const controlsDiv = document.createElement('div');
-                controlsDiv.id = `controls-${effectInfo.stepIndex}`;
-                controlsDiv.style.cssText = 'background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); border-radius: var(--ui-corner-radius); padding: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;';
-
-                // Initialize parameter values for this effect from the DSL args
-                const effectKey = `step_${effectInfo.stepIndex}`;
-                effectParameterValues[effectKey] = {};
-
-                // Create controls for each parameter
-                for (const [key, spec] of Object.entries(effectDef.globals)) {
-                    if (spec.ui && spec.ui.control === false) continue;
-                    if (spec.type === 'surface') continue; // Skip surfaces for now
-
-                    const controlGroup = document.createElement('div');
-                    controlGroup.className = 'control-group';
-
-                    const header = document.createElement('div');
-                    header.className = 'control-header';
-                    
-                    const label = document.createElement('label');
-                    label.className = 'control-label';
-                    label.textContent = spec.ui?.label || key;
-                    header.appendChild(label);
-                    
-                    controlGroup.appendChild(header);
-
-                    // Get value from DSL args or use default
-                    let value = effectInfo.args[key];
-                    if (value === undefined) {
-                        value = cloneParamValue(spec.default);
-                    }
-                    effectParameterValues[effectKey][key] = value;
-
-                    // Create the appropriate control based on type
-                    if (spec.type === 'boolean') {
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.checked = !!value;
-                        checkbox.addEventListener('change', (e) => {
-                            effectParameterValues[effectKey][key] = e.target.checked;
-                            updateDslFromEffectParams();
-                        });
-                        controlGroup.appendChild(checkbox);
-                    } else if (spec.choices) {
-                        const select = document.createElement('select');
-                        select.className = 'control-select';
-
-                        let selectedValue = null;
-                        let optionIndex = 0;
-
-                        Object.entries(spec.choices).forEach(([name, val]) => {
-                            if (name.endsWith(':')) return;
-
-                            const option = document.createElement('option');
-                            option.value = String(optionIndex);
-                            option.textContent = name;
-                            option.dataset.paramValue = JSON.stringify(val);
-                            if ((value === null && val === null) || value === val) {
-                                option.selected = true;
-                                selectedValue = option.value;
-                            }
-                            select.appendChild(option);
-                            optionIndex += 1;
-                        });
-
-                        if (selectedValue !== null) {
-                            select.value = selectedValue;
-                        }
-
-                        select.addEventListener('change', (e) => {
-                            const target = e.target;
-                            const option = target.options[target.selectedIndex];
-                            const raw = option?.dataset?.paramValue;
-
-                            let parsedValue = null;
-                            if (raw !== undefined) {
-                                try {
-                                    parsedValue = JSON.parse(raw);
-                                } catch (_err) {
-                                    parsedValue = raw;
-                                }
-                            }
-
-                            effectParameterValues[effectKey][key] = parsedValue;
-                            updateDslFromEffectParams();
-                        });
-
-                        controlGroup.appendChild(select);
-                    } else if (spec.enum && spec.type === 'int') {
-                        // Integer enum - lookup from global enums
-                        const enumPath = spec.enum;
-                        const parts = enumPath.split('.');
-                        let node = enums;
-                        for (const part of parts) {
-                            if (node && node[part]) {
-                                node = node[part];
-                            } else {
-                                node = null;
-                                break;
-                            }
-                        }
-
-                        if (node && typeof node === 'object') {
-                            const select = document.createElement('select');
-                            select.className = 'control-select';
-                            
-                            Object.entries(node).forEach(([name, val]) => {
-                                const option = document.createElement('option');
-                                // Extract numeric value from enum entry
-                                const numVal = (val && typeof val === 'object' && 'value' in val) ? val.value : val;
-                                option.value = numVal;
-                                option.textContent = name;
-                                option.selected = value === numVal;
-                                select.appendChild(option);
-                            });
-                            
-                            select.addEventListener('change', (e) => {
-                                effectParameterValues[effectKey][key] = parseInt(e.target.value, 10);
-                                updateDslFromEffectParams();
-                            });
-                            controlGroup.appendChild(select);
-                        } else {
-                            // Fallback to slider if enum not found
-                            const slider = document.createElement('input');
-                            slider.type = 'range';
-                            slider.min = spec.min || 0;
-                            slider.max = spec.max || 10;
-                            slider.value = value;
-                            slider.addEventListener('change', (e) => {
-                                effectParameterValues[effectKey][key] = parseInt(e.target.value, 10);
-                                updateDslFromEffectParams();
-                            });
-                            controlGroup.appendChild(slider);
-                        }
-                    } else if (spec.type === 'member') {
-                        let enumPath = spec.enum || spec.enumPath;
-                        if (!enumPath && typeof spec.default === 'string') {
-                            const parts = spec.default.split('.');
-                            if (parts.length > 1) {
-                                enumPath = parts.slice(0, -1).join('.');
-                            }
-                        }
-
-                        if (enumPath) {
-                            const parts = enumPath.split('.');
-                            let node = enums;
-                            for (const part of parts) {
-                                if (node && node[part]) {
-                                    node = node[part];
-                                } else {
-                                    node = null;
-                                    break;
-                                }
-                            }
-
-                            if (node) {
-                                const select = document.createElement('select');
-                                select.className = 'control-select';
-                                Object.keys(node).forEach(k => {
-                                    const option = document.createElement('option');
-                                    const fullPath = `${enumPath}.${k}`;
-                                    option.value = fullPath;
-                                    option.textContent = k;
-                                    option.selected = fullPath === value;
-                                    select.appendChild(option);
-                                });
-                                
-                                select.addEventListener('change', (e) => {
-                                    effectParameterValues[effectKey][key] = e.target.value;
-                                    updateDslFromEffectParams();
-                                });
-                                controlGroup.appendChild(select);
-                            }
-                        }
-                    } else if (spec.type === 'float' || spec.type === 'int') {
-                        const valueDisplay = document.createElement('span');
-                        valueDisplay.className = 'control-value';
-                        const formatValue = (v, isInt) => isInt ? v : Number(v).toFixed(2);
-                        valueDisplay.textContent = value !== null ? formatValue(value, spec.type === 'int') : '';
-                        header.appendChild(valueDisplay);
-
-                        const slider = document.createElement('input');
-                        slider.className = 'control-slider';
-                        slider.type = 'range';
-                        slider.min = spec.min !== undefined ? spec.min : 0;
-                        slider.max = spec.max !== undefined ? spec.max : 100;
-                        slider.step = spec.step !== undefined ? spec.step : (spec.type === 'int' ? 1 : 0.01);
-                        slider.value = value !== null ? value : slider.min;
-
-                        slider.addEventListener('input', (e) => {
-                            const numVal = spec.type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
-                            valueDisplay.textContent = formatValue(numVal, spec.type === 'int');
-                            effectParameterValues[effectKey][key] = numVal;
-                            applyEffectParameterValues();
-                        });
-                        
-                        slider.addEventListener('change', () => {
-                            updateDslFromEffectParams();
-                        });
-
-                        controlGroup.appendChild(slider);
-                    } else if (spec.type === 'vec4') {
-                        const colorInput = document.createElement('input');
-                        colorInput.type = 'color';
-                        
-                        if (Array.isArray(value)) {
-                            const toHex = (n) => Math.round(n * 255).toString(16).padStart(2, '0');
-                            colorInput.value = `#${toHex(value[0])}${toHex(value[1])}${toHex(value[2])}`;
-                        }
-
-                        colorInput.addEventListener('input', (e) => {
-                            const hex = e.target.value;
-                            const r = parseInt(hex.slice(1, 3), 16) / 255;
-                            const g = parseInt(hex.slice(3, 5), 16) / 255;
-                            const b = parseInt(hex.slice(5, 7), 16) / 255;
-                            const a = Array.isArray(effectParameterValues[effectKey][key]) ? effectParameterValues[effectKey][key][3] : 1;
-                            effectParameterValues[effectKey][key] = [r, g, b, a];
-                            updateDslFromEffectParams();
-                        });
-                        controlGroup.appendChild(colorInput);
-                    }
-
-                    controlsDiv.appendChild(controlGroup);
-                }
-
-                contentDiv.appendChild(controlsDiv);
-                moduleDiv.appendChild(contentDiv);
-                effectControlsContainer.appendChild(moduleDiv);
-            }
-        }
-
-        /**
-         * Apply effect parameter values to the running pipeline
-         * This is for real-time updates without recompiling
-         */
-        function applyEffectParameterValues() {
-            if (!pipeline || !pipeline.graph || !pipeline.graph.passes) return;
-
-            let zoomChanged = false;
-
-            // Apply parameters only to the passes that belong to each effect step
-            // Each step has its own parameter values keyed by step index
-            for (const [effectKey, params] of Object.entries(effectParameterValues)) {
-                // effectKey is "step_N" format - extract the step index
-                const match = effectKey.match(/^step_(\d+)$/);
-                if (!match) continue;
-                const stepIndex = parseInt(match[1], 10);
-                
-                // Find passes that belong to this step
-                // Pass IDs are in format "node_N_pass_M" where N is the step index
-                const stepPasses = pipeline.graph.passes.filter(pass => {
-                    if (!pass.id) return false;
-                    const passMatch = pass.id.match(/^node_(\d+)_pass_/);
-                    return passMatch && parseInt(passMatch[1], 10) === stepIndex;
-                });
-                
-                if (stepPasses.length === 0) continue;
-                
-                // Get effect definition for type conversion from the first pass
-                const firstPass = stepPasses[0];
-                const passFunc = firstPass.effectFunc || firstPass.effectKey;
-                const passNamespace = firstPass.effectNamespace;
-                let effectDef = null;
-                if (passFunc) {
-                    if (passNamespace) {
-                        effectDef = getEffect(`${passNamespace}.${passFunc}`) || getEffect(`${passNamespace}/${passFunc}`);
-                    }
-                    if (!effectDef) {
-                        effectDef = getEffect(passFunc);
-                    }
-                }
-                
-                // Apply this step's parameters only to this step's passes
-                for (const pass of stepPasses) {
-                    if (!pass.uniforms) continue;
-                    
-                    for (const [paramName, value] of Object.entries(params)) {
-                        if (value === undefined || value === null) continue;
-                        
-                        if (paramName === 'zoom') {
-                            zoomChanged = true;
-                        }
-                        
-                        // Get the spec for type conversion
-                        let spec = null;
-                        if (effectDef && effectDef.globals) {
-                            spec = effectDef.globals[paramName];
-                        }
-                        
-                        // Try the uniform name from spec, or fall back to param name
-                        const uniformName = spec?.uniform || paramName;
-                        
-                        // Update if this pass has this uniform
-                        if (uniformName in pass.uniforms) {
-                            const converted = convertParameterForUniform(value, spec);
-                            pass.uniforms[uniformName] = Array.isArray(converted) ? converted.slice() : converted;
-                        }
-                    }
-                }
-            }
-
-            // Zoom affects texture sizes, not uniforms - need to recreate surfaces
-            if (zoomChanged && pipeline.resize) {
-                // Find zoom value from any step that has it
-                let zoomValue = 1;
-                for (const params of Object.values(effectParameterValues)) {
-                    if (params.zoom !== undefined) {
-                        zoomValue = params.zoom;
-                        break;
-                    }
-                }
-                pipeline.resize(pipeline.width, pipeline.height, zoomValue);
-            }
-            
-            // volumeSize affects internal effect textures AND is a pipeline-inherited uniform
-            // Use setUniform to update ALL passes (not just the owning step) and resize textures
-            for (const params of Object.values(effectParameterValues)) {
-                if ('volumeSize' in params && pipeline.setUniform) {
-                    pipeline.setUniform('volumeSize', params.volumeSize);
-                    break;
-                }
-            }
-        }
-
-        /**
-         * Regenerate DSL source text from the current effectParameterValues
-         * Uses the DSL unparser to properly serialize the AST with updated parameters
-         */
-        function regenerateDslFromEffectParams() {
-            const currentDslText = dslEditor.value.trim();
-            if (!currentDslText) return null;
-            
-            try {
-                // Parse the current DSL
-                const compiled = compile(currentDslText);
-                if (!compiled || !compiled.plans) {
-                    return null;
-                }
-                
-                // Build parameter overrides map indexed by global step index
-                const overrides = {};
-                for (const [key, params] of Object.entries(effectParameterValues)) {
-                    // key is "step_N" format
-                    const match = key.match(/^step_(\d+)$/);
-                    if (match) {
-                        const stepIndex = parseInt(match[1], 10);
-                        overrides[stepIndex] = params;
-                    }
-                }
-                
-                // Extract search namespaces from original source
-                const searchMatch = currentDslText.match(/^search\s+(\S.*?)$/m);
-                if (searchMatch) {
-                    compiled.searchNamespaces = searchMatch[1].split(/\s*,\s*/);
-                }
-                
-                // Callback to get effect definition for proper enum formatting
-                // effectName can be full qualified name like "basics.noise" or short like "noise"
-                const getEffectDefCallback = (effectName, namespace) => {
-                    // Try the effectName as-is first (handles full qualified names like basics.noise)
-                    let def = getEffect(effectName);
-                    if (def) return def;
-                    
-                    // Try namespace-qualified lookups for short names
-                    if (namespace) {
-                        def = getEffect(`${namespace}/${effectName}`) || 
-                              getEffect(`${namespace}.${effectName}`);
-                        if (def) return def;
-                    }
-                    
-                    return null;
-                };
-                
-                // Use the unparser to regenerate DSL with updated parameters
-                // Pass formatValue as custom formatter to handle enums properly
-                return unparse(compiled, overrides, {
-                    customFormatter: formatValue,
-                    getEffectDef: getEffectDefCallback
-                });
-            } catch (err) {
-                console.warn('Failed to regenerate DSL:', err);
-                return null;
-            }
-        }
-        // Expose for testing
-        window.__noisemakerRegenerateDsl = regenerateDslFromEffectParams;
-
-        /**
-         * Update DSL text from effect parameter values
-         * Syncs the DSL editor with UI control changes
-         */
-        function updateDslFromEffectParams() {
-            // Apply the parameter values to the running pipeline
-            applyEffectParameterValues();
-            
-            // Regenerate DSL text to keep editor in sync
-            const newDsl = regenerateDslFromEffectParams();
-            if (newDsl !== null && newDsl !== dslEditor.value) {
-                dslEditor.value = newDsl;
-                currentDsl = newDsl;
-                window.__noisemakerCurrentDsl = newDsl;
-            }
-        }
-
-        /**
-         * Rebuild pipeline from DSL editor content
-         * @param {object} options
-         * @param {boolean} [options.rebuildControls=true] - Whether to rebuild effect controls
-         */
-        async function rebuildPipelineFromDsl({ rebuildControls = true } = {}) {
-            const dsl = dslEditor.value.trim();
-            if (!dsl) {
-                showStatus('DSL is empty', 'error');
-                return;
-            }
-
-            currentDsl = dsl;
-            window.__noisemakerCurrentDsl = dsl;
-
-            // Extract effects from DSL (lightweight parsing) and lazy load any that aren't loaded yet
-            const effectsInDsl = extractEffectNamesFromDsl(dsl);
-            const effectIdsToLoad = [];
-            
-            for (const effectInfo of effectsInDsl) {
-                const effectId = effectInfo.effectId;
-                
-                // Check if this effect needs to be loaded
-                if (!loadedEffects.has(effectId) && globalManifest[effectId]) {
-                    effectIdsToLoad.push(effectId);
-                }
-            }
-            
-            // Lazy load all required effects
-            if (effectIdsToLoad.length > 0) {
-                try {
-                    await loadEffectsOnDemand(effectIdsToLoad);
-                } catch (err) {
-                    console.error('Failed to load effects for DSL:', err);
-                    showStatus(`failed to load effects: ${err.message}`, 'error');
-                    return;
-                }
-            }
-
-            // Get zoom value from current effect parameters
-            const zoomValue = parameterValues.zoom || 
-                (currentEffect?.instance?.globals?.zoom?.default) || 1;
-
-            try {
-                if (!pipeline) {
-                    pipeline = await createRuntime(dsl, {
-                        canvas: canvas,
-                        width: 1024,
-                        height: 1024,
-                        preferWebGPU: currentBackend === 'wgsl',
-                        zoom: zoomValue
-                    });
-                } else {
-                    const newGraph = recompile(pipeline, dsl);
-                    if (!newGraph) {
-                        const previousPipeline = pipeline;
-                        pipeline = await createRuntime(dsl, {
-                            canvas: canvas,
-                            width: 1024,
-                            height: 1024,
-                            preferWebGPU: currentBackend === 'wgsl',
-                            zoom: zoomValue
-                        });
-                        try {
-                            previousPipeline?.backend?.destroy?.();
-                        } catch (err) {
-                            console.warn('Failed to release previous pipeline backend', err);
-                        }
-                    } else {
-                        await pipeline.compilePrograms();
-                    }
-                }
-
-                window.__noisemakerRenderingPipeline = pipeline;
-                
-                // Rebuild effect controls based on new DSL (only if requested)
-                if (rebuildControls) {
-                    createEffectControlsFromDsl(dsl);
-                }
-                
-                showStatus('compiled successfully', 'success');
-            } catch (err) {
-                console.error('DSL compilation error:', err);
-                let errMsg;
-                if (err.code === 'ERR_COMPILATION_FAILED' && Array.isArray(err.diagnostics)) {
-                    errMsg = err.diagnostics
-                        .filter(d => d.severity === 'error')
-                        .map(d => {
-                            let msg = d.message || 'Unknown error';
-                            if (d.location) {
-                                msg += ` (line ${d.location.line}, col ${d.location.column})`;
-                            }
-                            return msg;
-                        })
-                        .join('; ') || 'Unknown compilation error';
-                } else {
-                    errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-                }
-                showStatus(`compilation failed: ${errMsg}`, 'error');
-            }
-        }
-
-        async function rebuildPipeline({ silent = false } = {}) {
-            if (!currentEffect) {
-                return;
-            }
-
-            const verboseParams = Object.fromEntries(Object.entries(parameterValues).map(([k, v]) => [k, v]));
-            console.log('Effect parameters', currentEffect.namespace + '/' + currentEffect.name, verboseParams);
-
-            const dsl = buildDslSource(currentEffect);
-            currentDsl = dsl;
-            window.__noisemakerCurrentDsl = dsl;
-            console.log('DSL', currentEffect.namespace + '/' + currentEffect.name, '\n' + dsl);
-
-            // Update DSL editor
-            dslEditor.value = dsl || '';
-
-            // Extract effects from DSL (lightweight parsing) and lazy load any that aren't loaded yet
-            const effectsInDsl = extractEffectNamesFromDsl(dsl);
-            const effectIdsToLoad = [];
-            
-            for (const effectInfo of effectsInDsl) {
-                const effectId = effectInfo.effectId;
-                
-                // Check if this effect needs to be loaded
-                if (!loadedEffects.has(effectId) && globalManifest[effectId]) {
-                    effectIdsToLoad.push(effectId);
-                }
-            }
-            
-            // Lazy load all required effects (includes dependencies like basics/noise)
-            if (effectIdsToLoad.length > 0) {
-                try {
-                    await loadEffectsOnDemand(effectIdsToLoad);
-                } catch (err) {
-                    console.error('Failed to load effects for pipeline:', err);
-                    showStatus(`failed to load effects: ${err.message}`, 'error');
-                    return;
-                }
-            }
-
-            // Get zoom value from current effect parameters
-            const zoomValue = parameterValues.zoom || 
-                (currentEffect?.instance?.globals?.zoom?.default) || 1;
-
-            try {
-                if (!pipeline) {
-                    pipeline = await createRuntime(dsl, {
-                        canvas: canvas,
-                        width: 1024,
-                        height: 1024,
-                        preferWebGPU: currentBackend === 'wgsl',
-                        zoom: zoomValue
-                    });
-                } else {
-                    const newGraph = recompile(pipeline, dsl);
-                    if (!newGraph) {
-                        const previousPipeline = pipeline;
-                        const rebuiltPipeline = await createRuntime(dsl, {
-                            canvas: canvas,
-                            width: 1024,
-                            height: 1024,
-                            preferWebGPU: currentBackend === 'wgsl',
-                            zoom: zoomValue
-                        });
-                        pipeline = rebuiltPipeline;
-
-                        try {
-                            previousPipeline?.backend?.destroy?.();
-                        } catch (err) {
-                            console.warn('Failed to release previous pipeline backend', err);
-                        }
-                    } else {
-                        await pipeline.compilePrograms();
-                    }
-                }
-
-                    window.__noisemakerRenderingPipeline = pipeline;
-                    window.__noisemakerCurrentEffect = currentEffect;
-
-                uniformBindings = new Map();
-                buildUniformBindings();
-                applyParameterValues({ silent: true });
-                
-                // Create effect controls from the generated DSL
-                createEffectControlsFromDsl(dsl);
-
-                if (!silent) {
-                    showStatus(`compiled ${currentEffect.name}`, 'success');
-                }
-            } catch (err) {
-                console.error(err);
-                let errMsg;
-                if (err.code === 'ERR_COMPILATION_FAILED' && Array.isArray(err.diagnostics)) {
-                    // Format diagnostics with identifier context
-                    errMsg = err.diagnostics
-                        .filter(d => d.severity === 'error')
-                        .map(d => {
-                            let msg = d.message || 'Unknown error';
-                            if (d.location) {
-                                msg += ` (line ${d.location.line}, col ${d.location.column})`;
-                            }
-                            return msg;
-                        })
-                        .join('; ') || 'Unknown compilation error';
-                } else {
-                    errMsg = err.message || err.detail || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-                }
-                showStatus(`compilation failed: ${errMsg}`, 'error');
-            }
-        }
-
-        // Load all effect definitions dynamically
-        // Now uses lazy loading - only loads the manifest, not the actual effects
         async function loadEffects() {
             const effectDirs = [
-                { namespace: 'basics', path: '../../shaders/effects/basics' },
-                { namespace: 'nd', path: '../../shaders/effects/nd' },
-                { namespace: 'nm', path: '../../shaders/effects/nm' },
-                { namespace: 'nu', path: '../../shaders/effects/nu' },
-                { namespace: 'vol', path: '../../shaders/effects/vol' }
+                { namespace: 'classicBasics' },
+                { namespace: 'classicNoisedeck' },
+                { namespace: 'classicNoisemaker' },
+                { namespace: 'filter' },
+                { namespace: 'mixer' },
+                { namespace: 'synth' },
+                { namespace: 'stateful' },
+                { namespace: 'vol' }
             ];
 
-            const effects = [];
+            await renderer.loadManifest();
             
-            // Load the single top-level manifest
-            try {
-                const manifestRes = await fetch('../../shaders/effects/manifest.json');
-                if (manifestRes.ok) {
-                    globalManifest = await manifestRes.json();
-                }
-            } catch (e) {
-                console.warn('Failed to load shader manifest');
-                throw new Error('Could not load shader manifest - lazy loading requires manifest.json');
-            }
-
-            // Create placeholder entries for all effects in the manifest
-            // These will be lazy-loaded when selected
+            const effects = [];
             for (const dir of effectDirs) {
-                const effectNames = getEffectsFromManifest(globalManifest, dir.namespace);
-                
+                const effectNames = renderer.getEffectsFromManifest(dir.namespace);
                 for (const effectName of effectNames) {
-                    // Create a placeholder entry (no instance yet)
                     effects.push({
                         namespace: dir.namespace,
                         name: effectName,
-                        instance: null, // Will be loaded on demand
+                        instance: null,
                         loaded: false
                     });
                 }
@@ -2156,243 +664,66 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
             return effects;
         }
 
-        // Extract effect names for a namespace from manifest keys
-        function getEffectsFromManifest(manifest, namespace) {
-            const prefix = `${namespace}/`;
-            return Object.keys(manifest)
-                .filter(key => key.startsWith(prefix))
-                .map(key => key.slice(prefix.length))
-                .sort();
-        }
-
-        // Initialize starter ops
-        // With lazy loading, we can't determine starter ops until effects are loaded
-        // This now only processes already-loaded effects
-        function initStarterOps(effects) {
-            const starterNames = [];
-            effects
-                .filter(e => e.instance && isStarterEffect(e))
-                .forEach(e => {
-                    const func = e.instance.func || e.name;
-                    const namespace = e.namespace;
-                    if (func) {
-                        // Register both bare name and namespaced name
-                        starterNames.push(func);
-                        if (namespace) {
-                            starterNames.push(`${namespace}.${func}`);
+        /**
+         * Load effects on demand with UI feedback
+         */
+        async function loadEffectsOnDemand(effectIds) {
+            if (effectIds.length === 0) return [];
+            
+            const needsLoading = effectIds.filter(id => !renderer.loadedEffects.has(id));
+            
+            if (needsLoading.length === 0) {
+                return effectIds.map(id => renderer.loadedEffects.get(id));
+            }
+            
+            ui.showLoadingDialog(
+                needsLoading.length === 1 
+                    ? `loading ${needsLoading[0]}...` 
+                    : `loading ${needsLoading.length} effects...`
+            );
+            
+            try {
+                const results = await renderer.loadEffects(effectIds, {
+                    onProgress: ({ effectId, stage, status }) => {
+                        if (stage === 'definition' && status === 'loading') {
+                            ui.addToLoadingQueue(`def-${effectId}`, `${effectId}/definition.js`);
+                            ui.updateLoadingQueueItem(`def-${effectId}`, 'loading');
+                        } else if (stage === 'definition' && status === 'done') {
+                            ui.updateLoadingQueueItem(`def-${effectId}`, 'done');
+                            ui.addToLoadingQueue(`shaders-${effectId}`, `${effectId}/shaders`);
+                            ui.updateLoadingQueueItem(`shaders-${effectId}`, 'loading');
+                        } else if (stage === 'shaders' && status === 'done') {
+                            ui.updateLoadingQueueItem(`shaders-${effectId}`, 'done');
+                        } else if (status === 'error') {
+                            const queueItem = [`def-${effectId}`, `shaders-${effectId}`]
+                                .find(id => ui._loadingState.queue.find(i => i.id === id && i.status === 'loading'));
+                            if (queueItem) {
+                                ui.updateLoadingQueueItem(queueItem, 'error');
+                            }
                         }
                     }
                 });
-
-            if (starterNames.length > 0) {
-                registerStarterOps(starterNames);
-            }
-        }
-
-        // Register a single loaded effect as a starter op if applicable
-        function registerStarterOpForEffect(effect) {
-            if (!effect.instance || !isStarterEffect(effect)) return;
-            
-            const func = effect.instance.func || effect.name;
-            const namespace = effect.namespace;
-            const starterNames = [];
-            
-            if (func) {
-                starterNames.push(func);
-                if (namespace) {
-                    starterNames.push(`${namespace}.${func}`);
-                }
-            }
-            
-            if (starterNames.length > 0) {
-                registerStarterOps(starterNames);
-            }
-        }
-
-        // Populate effect selector
-        function populateEffectSelector(effects) {
-            effectSelect.innerHTML = '';
-            
-            const grouped = {};
-            effects.forEach(effect => {
-                if (!grouped[effect.namespace]) {
-                    grouped[effect.namespace] = [];
-                }
-                grouped[effect.namespace].push(effect);
-            });
-
-            const sortedNamespaces = Object.keys(grouped).sort((a, b) => {
-                if (a === 'basics') return -1;
-                if (b === 'basics') return 1;
-                return a.localeCompare(b);
-            });
-
-            sortedNamespaces.forEach(namespace => {
-                const effectList = grouped[namespace];
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = namespace;
                 
-                effectList.sort((a, b) => a.name.localeCompare(b.name)).forEach(effect => {
-                    const option = document.createElement('option');
-                    option.value = `${namespace}/${effect.name}`;
-                    option.textContent = effect.name;
-                    optgroup.appendChild(option);
-                });
-                
-                effectSelect.appendChild(optgroup);
-            });
-
-            // NO DEFAULT SELECTION - effect must be explicitly specified
-            // This prevents test harness from silently testing the wrong effect
+                ui.updateLoadingStatus('compiling shaders...');
+                return results;
+            } finally {
+                ui.hideLoadingDialog();
+            }
         }
 
-        // Check if a name is a valid DSL identifier (can be used unquoted)
-        function isValidIdentifier(name) {
-            // Must start with letter or underscore, contain only alphanumerics/underscores
-            return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
-        }
-
-        // Sanitize a name to be a valid identifier (no spaces, valid chars)
-        // Returns the sanitized name, or null if it can't be made valid
-        function sanitizeEnumName(name) {
-            // Convert spaces to camelCase: "Cell Scale" -> "CellScale"
-            let result = name.replace(/\s+(.)/g, (_, c) => c.toUpperCase()).replace(/\s+/g, '');
-            // Remove any invalid characters
-            result = result.replace(/[^a-zA-Z0-9_]/g, '');
-            // Check if result is a valid identifier (must start with letter or _)
-            if (!isValidIdentifier(result)) {
-                return null;
-            }
-            return result;
-        }
-
-        // Format enum name for DSL output - quote if not a valid identifier
-        function formatEnumName(name) {
-            const sanitized = sanitizeEnumName(name);
-            if (sanitized !== null) {
-                return sanitized;
-            }
-            // Can't be an identifier - quote it as a string
-            return `"${name.replace(/"/g, '\\"')}"`;
-        }
-
-        // Helper to format values for DSL
-        // Uses the global enum registry to look up names for enum values
-        function formatValue(value, spec) {
-            const type = spec?.type || (typeof spec === 'string' ? spec : 'float');
-            
-            // If spec has inline choices, look up the enum name
-            // Use just the short name - the validator resolves it via the param's enum path
-            // Quote names that aren't valid identifiers (e.g., "5g", "1970s shirt")
-            if (spec?.choices && typeof value === 'number') {
-                for (const [name, val] of Object.entries(spec.choices)) {
-                    if (name.endsWith(':')) continue; // skip group labels
-                    if (val === value) {
-                        return formatEnumName(name);
-                    }
-                }
-            }
-            
-            // If spec has enum (global enum reference), look up the name from the global enums registry
-            if (spec?.enum && typeof value === 'number') {
-                const enumPath = spec.enum;
-                const parts = enumPath.split('.');
-                let node = enums;
-                for (const part of parts) {
-                    if (node && node[part]) {
-                        node = node[part];
-                    } else {
-                        node = null;
-                        break;
-                    }
-                }
-                if (node && typeof node === 'object') {
-                    for (const [name, val] of Object.entries(node)) {
-                        const numVal = (val && typeof val === 'object' && 'value' in val) ? val.value : val;
-                        if (numVal === value) {
-                            // Return as qualified path: color.mono
-                            return `${enumPath}.${name}`;
-                        }
-                    }
-                }
-            }
-            
-            if (type === 'boolean' || type === 'button') {
-                return value ? 'true' : 'false';
-            }
-            if (type === 'surface') {
-                if (typeof value !== 'string' || value.length === 0) {
-                    return 'src(o0)';
-                }
-                if (value.includes('(')) {
-                    return value;
-                }
-                return `src(${value})`;
-            }
-            if (type === 'member') {
-                return value; // e.g. "noise.color.rgb"
-            }
-            if (type === 'vec4' && Array.isArray(value)) {
-                const toHex = (n) => {
-                    const hex = Math.round(n * 255).toString(16).padStart(2, '0');
-                    return hex;
-                };
-                return `#${toHex(value[0])}${toHex(value[1])}${toHex(value[2])}${toHex(value[3])}`;
-            }
-            if (type === 'vec3' && Array.isArray(value)) {
-                return `vec3(${value.join(', ')})`;
-            }
-            if (type === 'vec2' && Array.isArray(value)) {
-                return `vec2(${value.join(', ')})`;
-            }
-            if (type === 'palette' || type === 'string' || type === 'text') {
-                return `"${value}"`;
-            }
-            // float, int
-            return value;
-        }
-
-        // Helper to check if effect is starter
-        function isStarterEffect(effect) {
-            // Can't determine if effect is not loaded
-            if (!effect.instance) return false;
-            
-            const passes = effect.instance.passes || [];
-            if (passes.length === 0) return true;
-            
-            // Check if ANY pass uses a pipeline input (not just the first pass)
-            // This handles effects like clouds which generate noise internally in early passes
-            // but need inputTex in later passes for blending
-            const pipelineInputs = [
-                'inputTex', 'inputTex3d', 'src',
-                'o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7'
-            ];
-            
-            for (const pass of passes) {
-                if (!pass.inputs) continue;
-                const inputs = Object.values(pass.inputs);
-                const hasPipelineInput = inputs.some(val => pipelineInputs.includes(val));
-                if (hasPipelineInput) {
-                    return false; // Not a starter - needs external input
-                }
-            }
-            
-            return true; // No pass needs pipeline input - it's a starter
-        }
-
-        // Select and load an effect
+        /**
+         * Select and load an effect
+         */
         async function selectEffect(effectPath, allEffects) {
             const [namespace, name] = effectPath.split('/');
             
-            // Find the placeholder entry
             const placeholderEntry = allEffects.find(e => e.namespace === namespace && e.name === name);
             
             if (!placeholderEntry) {
-                showStatus(`effect ${namespace}/${name} not found`, 'error');
+                ui.showStatus(`effect ${namespace}/${name} not found`, 'error');
                 return;
             }
 
-            // Lazy load the effect if not already loaded
             const effectId = `${namespace}/${name}`;
             let effect;
             
@@ -2401,65 +732,161 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
                 effect = loadedEffectsList[0];
                 
                 if (!effect) {
-                    showStatus(`failed to load effect ${effectId}`, 'error');
+                    ui.showStatus(`failed to load effect ${effectId}`, 'error');
                     return;
                 }
                 
-                // Update the placeholder with loaded data
                 placeholderEntry.instance = effect.instance;
                 placeholderEntry.loaded = true;
             } catch (err) {
                 console.error(`Failed to load effect ${effectId}:`, err);
-                showStatus(`failed to load effect ${effectId}: ${err.message}`, 'error');
+                ui.showStatus(`failed to load effect ${effectId}: ${err.message}`, 'error');
                 return;
             }
 
-            currentEffect = placeholderEntry;
+            renderer.currentEffect = placeholderEntry;
+            window.__noisemakerCurrentEffect = placeholderEntry;
             
-            // Initialize parameterValues from effect defaults BEFORE building DSL
-            // This ensures zoom and other params are correctly set when pipeline is created
-            parameterValues = {};
-            if (placeholderEntry.instance && placeholderEntry.instance.globals) {
-                for (const [key, spec] of Object.entries(placeholderEntry.instance.globals)) {
-                    if (spec.default !== undefined) {
-                        parameterValues[key] = cloneParamValue(spec.default);
-                    }
-                }
-            }
+            ui.initParameterValues(placeholderEntry);
             
-            showStatus(`selected ${namespace}/${name}`, 'success');
+            ui.showStatus(`selected ${namespace}/${name}`, 'success');
             
-            // Properly dispose of the old pipeline before creating a new one
-            await disposePipeline({ loseContext: false, resetCanvas: false });
+            await renderer.dispose({ loseContext: false, resetCanvas: false });
             
             await rebuildPipeline();
         }
+
+        // =====================================================================
+        // Pipeline Building
+        // =====================================================================
+
+        /**
+         * Rebuild pipeline from current effect
+         */
+        async function rebuildPipeline({ silent = false } = {}) {
+            const currentEffect = renderer.currentEffect;
+            if (!currentEffect) {
+                return;
+            }
+
+            const dsl = ui.buildDslSource(currentEffect);
+            renderer.currentDsl = dsl;
+            window.__noisemakerCurrentDsl = dsl;
+            
+            console.log('DSL', currentEffect.namespace + '/' + currentEffect.name, '\n' + dsl);
+
+            ui.setDsl(dsl);
+
+            // Load any dependencies in the DSL
+            const effectsInDsl = extractEffectNamesFromDsl(dsl, renderer.manifest);
+            const effectIdsToLoad = effectsInDsl
+                .map(e => e.effectId)
+                .filter(id => !renderer.loadedEffects.has(id) && renderer.manifest[id]);
+            
+            if (effectIdsToLoad.length > 0) {
+                try {
+                    await loadEffectsOnDemand(effectIdsToLoad);
+                } catch (err) {
+                    console.error('Failed to load effects for pipeline:', err);
+                    ui.showStatus(`failed to load effects: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            const zoomValue = ui.getZoomValue(currentEffect);
+
+            try {
+                await renderer.compile(dsl, { zoom: zoomValue });
+                
+                window.__noisemakerRenderingPipeline = renderer.pipeline;
+
+                renderer.buildUniformBindings(currentEffect, ui.parameterValues);
+                renderer.applyParameterValues(currentEffect, ui.parameterValues, { silent: true });
+                
+                ui.createEffectControlsFromDsl(dsl);
+
+                if (!silent) {
+                    ui.showStatus(`compiled ${currentEffect.name}`, 'success');
+                }
+            } catch (err) {
+                console.error(err);
+                ui.showStatus(`compilation failed: ${ui.formatCompilationError(err)}`, 'error');
+            }
+        }
+
+        /**
+         * Rebuild pipeline from DSL editor content
+         */
+        async function rebuildPipelineFromDsl({ rebuildControls = true } = {}) {
+            const dsl = ui.getDsl();
+            if (!dsl) {
+                ui.showStatus('DSL is empty', 'error');
+                return;
+            }
+
+            renderer.currentDsl = dsl;
+            window.__noisemakerCurrentDsl = dsl;
+
+            // Load any dependencies in the DSL
+            const effectsInDsl = extractEffectNamesFromDsl(dsl, renderer.manifest);
+            const effectIdsToLoad = effectsInDsl
+                .map(e => e.effectId)
+                .filter(id => !renderer.loadedEffects.has(id) && renderer.manifest[id]);
+            
+            if (effectIdsToLoad.length > 0) {
+                try {
+                    await loadEffectsOnDemand(effectIdsToLoad);
+                } catch (err) {
+                    console.error('Failed to load effects for DSL:', err);
+                    ui.showStatus(`failed to load effects: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            const zoomValue = ui.getZoomValue(renderer.currentEffect);
+
+            try {
+                await renderer.compile(dsl, { zoom: zoomValue });
+                
+                window.__noisemakerRenderingPipeline = renderer.pipeline;
+                
+                if (rebuildControls) {
+                    ui.createEffectControlsFromDsl(dsl);
+                }
+                
+                ui.showStatus('compiled successfully', 'success');
+            } catch (err) {
+                console.error('DSL compilation error:', err);
+                ui.showStatus(`compilation failed: ${ui.formatCompilationError(err)}`, 'error');
+            }
+        }
+
+        // =====================================================================
+        // Event Handlers
+        // =====================================================================
 
         // Backend selector
         document.querySelectorAll('input[name="backend"]').forEach(radio => {
             radio.addEventListener('change', async (e) => {
                 const nextBackend = e.target.value;
+                const currentBackend = renderer.backend;
+                
                 if (nextBackend === currentBackend) {
                     return;
                 }
 
-                const previousBackend = currentBackend;
-                currentBackend = nextBackend;
-
-                await disposePipeline({
-                    loseContext: previousBackend === 'glsl',
-                    resetCanvas: true
-                });
-
-                showStatus(`switched to ${currentBackend}`, 'success');
+                await renderer.switchBackend(nextBackend);
                 
-                // Use rebuildPipelineFromDsl to preserve the current DSL content
-                // (rebuildPipeline would regenerate DSL from currentEffect, wiping custom DSL)
-                // Fall back to rebuildPipeline if DSL editor is empty
-                const dsl = dslEditor.value.trim();
+                // Update canvas reference after reset
+                canvas = document.getElementById('canvas');
+                renderer._canvas = canvas;
+
+                ui.showStatus(`switched to ${renderer.backend}`, 'success');
+                
+                const dsl = ui.getDsl();
                 if (dsl) {
                     await rebuildPipelineFromDsl({ rebuildControls: false });
-                } else if (currentEffect) {
+                } else if (renderer.currentEffect) {
                     await rebuildPipeline({ silent: true });
                 }
             });
@@ -2467,18 +894,17 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
 
         // FPS selector
         document.getElementById('fps-select').addEventListener('change', (e) => {
-            TARGET_FPS = parseInt(e.target.value, 10);
-            TARGET_FRAME_TIME = 1000 / TARGET_FPS;
-            showStatus(`fps set to ${TARGET_FPS}`, 'success');
+            const fps = parseInt(e.target.value, 10);
+            renderer.setTargetFPS(fps);
+            ui.showStatus(`fps set to ${fps}`, 'success');
         });
 
         // Duration input
         document.getElementById('duration-input').addEventListener('change', (e) => {
             const newDuration = parseFloat(e.target.value);
             if (newDuration >= 1 && newDuration <= 300) {
-                loopDuration = newDuration;
-                loopStartTime = performance.now(); // Reset loop to start
-                showStatus(`duration set to ${loopDuration}s`, 'success');
+                renderer.setLoopDuration(newDuration);
+                ui.showStatus(`duration set to ${newDuration}s`, 'success');
             }
         });
 
@@ -2495,140 +921,53 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
             }
         });
 
-        // Check for backend in URL query parameter
-        function getBackendFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            return params.get('backend');
-        }
-
         // Effect selector
         let allLoadedEffects = [];
         effectSelect.addEventListener('change', async (e) => {
             await selectEffect(e.target.value, allLoadedEffects);
         });
 
-        // Get effect from URL query parameter
-        function getEffectFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            const effectParam = params.get('effect');
-            
-            if (!effectParam) return null;
-            
-            // Convert from "namespace.effectName" to "namespace/effectName"
-            const parts = effectParam.split('.');
-            if (parts.length === 2) {
-                return `${parts[0]}/${parts[1]}`;
-            }
-            
-            return null;
-        }
+        // =====================================================================
+        // Initialization
+        // =====================================================================
 
-        // Register inline choices from effect definitions as enums
-        // This unifies choices with the enum system so DSL can reference them
-        // Uses class-specific paths: {namespace}.{effectFunc}.{paramName}.{valueName}
-        // With lazy loading, this only processes already-loaded effects
-        async function registerEffectChoicesAsEnums(effects) {
-            const choicesAsEnums = {};
-            
-            for (const effect of effects) {
-                // Skip unloaded effects
-                if (!effect.instance) continue;
-                
-                const effectFunc = effect.instance?.func;
-                const namespace = effect.namespace;
-                if (!effectFunc || !namespace) continue;
-                
-                // Use namespace.func as the top-level key to avoid conflicts
-                const effectKey = `${namespace}.${effectFunc}`;
-                
-                const globals = effect.instance?.globals || {};
-                for (const [paramName, spec] of Object.entries(globals)) {
-                    if (spec.choices && !spec.enum) {
-                        // Convert inline choices to enum format
-                        // Use namespace.effectFunc.paramName as the enum path
-                        if (!choicesAsEnums[namespace]) {
-                            choicesAsEnums[namespace] = {};
-                        }
-                        if (!choicesAsEnums[namespace][effectFunc]) {
-                            choicesAsEnums[namespace][effectFunc] = {};
-                        }
-                        if (!choicesAsEnums[namespace][effectFunc][paramName]) {
-                            choicesAsEnums[namespace][effectFunc][paramName] = {};
-                        }
-                        
-                        // Build a mapping from sanitized name to original name
-                        const sanitizedToOriginal = {};
-                        for (const [name, val] of Object.entries(spec.choices)) {
-                            if (name.endsWith(':')) continue; // skip group labels
-                            const sanitized = sanitizeEnumName(name);
-                            // Only add if not already defined (first definition wins)
-                            if (!(sanitized in choicesAsEnums[namespace][effectFunc][paramName])) {
-                                choicesAsEnums[namespace][effectFunc][paramName][sanitized] = { type: 'Number', value: val };
-                                sanitizedToOriginal[sanitized] = name;
-                            }
-                        }
-                        // Store the mapping for reverse lookup (display names)
-                        spec._sanitizedNames = sanitizedToOriginal;
-                        // Update the spec to reference the namespace-qualified enum path
-                        spec.enum = `${namespace}.${effectFunc}.${paramName}`;
-                    }
-                }
-            }
-            
-            if (Object.keys(choicesAsEnums).length > 0) {
-                enums = await mergeIntoEnums(choicesAsEnums);
-            }
-        }
-
-        // Initialize the demo
         async function init() {
             try {
-                enums = await mergeIntoEnums(stdEnums);
                 const effects = await loadEffects();
                 
-                // With lazy loading, we don't register effect choices or starter ops at startup
-                // These are registered when effects are loaded on demand
-                // registerEffectChoicesAsEnums and initStarterOps are called during loadEffectOnDemand
-                
                 allLoadedEffects = effects;
-                populateEffectSelector(effects);
+                ui.populateEffectSelector(effects);
                 
                 loadingEl.style.display = 'none';
                 appEl.style.display = 'block';
 
-                // Check for backend in URL query parameter
+                // Check for backend in URL
                 const urlBackend = getBackendFromURL();
                 if (urlBackend === 'wgsl' || urlBackend === 'glsl') {
-                    currentBackend = urlBackend;
-                    // Update radio button to match
+                    if (urlBackend === 'wgsl') {
+                        await renderer.switchBackend('wgsl');
+                    }
                     const radio = document.querySelector(`input[name="backend"][value="${urlBackend}"]`);
                     if (radio) radio.checked = true;
                 }
 
-                // Check for effect in URL query parameter
+                // Check for effect in URL
                 const urlEffect = getEffectFromURL();
                 let selectedEffect = null;
 
                 if (urlEffect) {
-                    // Verify the effect exists
                     const [namespace, name] = urlEffect.split('/');
                     const effect = effects.find(e => e.namespace === namespace && e.name === name);
                     
                     if (effect) {
                         selectedEffect = urlEffect;
-                        // Update the select element to match
-                        for (let i = 0; i < effectSelect.options.length; i++) {
-                            if (effectSelect.options[i].value === urlEffect) {
-                                effectSelect.selectedIndex = i;
-                                break;
-                            }
-                        }
+                        ui.setSelectedEffect(urlEffect);
                     } else {
                         console.warn(`Effect "${urlEffect}" from URL not found`);
                     }
                 }
 
-                // Select effect (from URL or default)
+                // Select effect (from URL or first available)
                 if (!selectedEffect && effectSelect.options.length > 0) {
                     selectedEffect = effectSelect.value;
                 }
@@ -2637,7 +976,10 @@ noise(seed: 2, ridges: true).${funcName}(${paramString}).write(o0)`;
                     await selectEffect(selectedEffect, effects);
                 }
                 
-                showStatus('demo loaded successfully', 'success');
+                // Start the render loop
+                renderer.start();
+                
+                ui.showStatus('demo loaded successfully', 'success');
             } catch (err) {
                 console.error('Initialization failed:', err);
                 loadingEl.textContent = `error: ${err.message}`;

@@ -7,14 +7,14 @@ This guide shows how a coding agent should use the MCP shader tools during devel
 ### 1. After Modifying a Shader
 
 ```
-Agent: [edits shaders/effects/basics/noise/definition.js]
+Agent: [edits shaders/effects/classicBasics/noise/definition.js]
 
 Agent: Let me verify the shader compiles...
-→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
+→ compileEffect({ effect_id: "classicBasics/noise", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "passes": [{ "pass_id": "main", "compiled": true, "errors": [] }],
@@ -22,11 +22,11 @@ Response:
 }
 
 Agent: Compilation successful. Let me check the visual output...
-→ renderEffectFrame({ effect_id: "basics/noise", backend: "webgl2" })
+→ renderEffectFrame({ effect_id: "classicBasics/noise", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "metrics": {
@@ -44,11 +44,11 @@ Agent: The shader produces varied visual output. Done.
 
 ```
 Agent: [edits shader, introduces syntax error]
-→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
+→ compileEffect({ effect_id: "classicBasics/noise", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": false,
   "passes": [{
@@ -61,7 +61,7 @@ Response:
 
 Agent: Syntax error on line 42. Let me fix that...
 [fixes the error]
-→ compileEffect({ effect_id: "basics/noise", backend: "webgl2" })
+→ compileEffect({ effect_id: "classicBasics/noise", backend: "webgl2" })
 
 Response:
 {
@@ -74,14 +74,14 @@ Response:
 ```
 Agent: The shader compiles but something looks wrong...
 → describeEffectFrame({
-    effect_id: "basics/noise",
+    effect_id: "classicBasics/noise",
     backend: "webgl2",
     prompt: "Does this look like smooth gradient noise? Are there any artifacts?"
   })
 
 Response:
 {
-  "effect_id": "basics/noise",
+  "effect_id": "classicBasics/noise",
   "backend": "webgl2",
   "success": true,
   "description": "The image shows blocky, pixelated noise rather than smooth gradients. There appear to be banding artifacts in the color transitions.",
@@ -98,7 +98,7 @@ Agent: Ah, I need to fix the texture sampling mode...
 ```
 Agent: Let me verify performance on this complex effect...
 → benchmarkEffectFPS({
-    effect_id: "nd/physarum",
+    effect_id: "classicNoisedeck/physarum",
     backend: "webgl2",
     target_fps: 60,
     duration_seconds: 3
@@ -106,7 +106,7 @@ Agent: Let me verify performance on this complex effect...
 
 Response:
 {
-  "effect_id": "nd/physarum",
+  "effect_id": "classicNoisedeck/physarum",
   "backend": "webgl2",
   "success": true,
   "target_fps": 60,
@@ -131,11 +131,11 @@ Agent: Slightly below 60fps. The p95 shows some frame spikes.
 
 ```
 Agent: The controls don't seem to be affecting the output...
-→ testUniformResponsiveness({ effect_id: "nm/worms", backend: "webgl2" })
+→ testUniformResponsiveness({ effect_id: "classicNoisemaker/worms", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "backend": "webgl2",
   "success": false,
   "uniforms_tested": 3,
@@ -150,11 +150,11 @@ Agent: None of the uniforms are working. Let me check if the
 
 Agent: I need to add uniform: "uniformName" to each global...
 [fixes definition.js]
-→ testUniformResponsiveness({ effect_id: "nm/worms", backend: "webgl2" })
+→ testUniformResponsiveness({ effect_id: "classicNoisemaker/worms", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "backend": "webgl2",
   "success": true,
   "uniforms_tested": 3,
@@ -170,11 +170,11 @@ Agent: All uniforms now affect the output correctly.
 
 ```
 Agent: Let me verify the effect structure follows conventions...
-→ checkEffectStructure({ effect_id: "nm/worms" })
+→ checkEffectStructure({ effect_id: "classicNoisemaker/worms" })
 
 Response:
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "success": true,
   "issues": [],
   "summary": {
@@ -192,11 +192,11 @@ Agent: Structure looks good - no inline shaders, proper naming,
 
 ```
 Agent: Let me verify GLSL and WGSL produce equivalent results...
-→ checkAlgEquiv({ effect_id: "nm/worms" })
+→ checkAlgEquiv({ effect_id: "classicNoisemaker/worms" })
 
 Response:
 {
-  "effect_id": "nm/worms",
+  "effect_id": "classicNoisemaker/worms",
   "success": true,
   "pairs_checked": 2,
   "equivalent_pairs": 2,
@@ -211,11 +211,11 @@ Agent: Both GLSL and WGSL implementations are algorithmically equivalent.
 
 ```
 Agent: Let me verify this filter actually modifies its input...
-→ testNoPassthrough({ effect_id: "nm/sobel", backend: "webgl2" })
+→ testNoPassthrough({ effect_id: "classicNoisemaker/sobel", backend: "webgl2" })
 
 Response:
 {
-  "effect_id": "nm/sobel",
+  "effect_id": "classicNoisemaker/sobel",
   "backend": "webgl2",
   "success": true,
   "is_passthrough": false,
@@ -305,8 +305,8 @@ The `describeEffectFrame` tool calls OpenAI's GPT-4o vision model. Use it when:
 Effect IDs match the directory structure under `shaders/effects/`:
 
 ```
-basics/noise      → shaders/effects/basics/noise/
-basics/solid      → shaders/effects/basics/solid/
+classicBasics/noise      → shaders/effects/classicBasics/noise/
+classicBasics/solid      → shaders/effects/classicBasics/solid/
 nd/physarum       → shaders/effects/nd/physarum/
 nm/worms          → shaders/effects/nm/worms/
 ```
@@ -315,14 +315,14 @@ nm/worms          → shaders/effects/nm/worms/
 
 ```bash
 # Basic compile + render + vision check
-node test-harness.js --effects basics/noise --backend webgl2
+node test-harness.js --effects classicBasics/noise --backend webgl2
 
 # Multiple effects with glob pattern
-node test-harness.js --effects "basics/*" --webgl2 --benchmark
+node test-harness.js --effects "classicBasics/*" --webgl2 --benchmark
 
 # All tests on WebGPU
-node test-harness.js --effects "nm/*" --webgpu --all
+node test-harness.js --effects "classicNoisemaker/*" --webgpu --all
 
 # Structure check (on-disk, no browser)
-node test-harness.js --effects "nm/worms" --structure
+node test-harness.js --effects "classicNoisemaker/worms" --structure
 ```

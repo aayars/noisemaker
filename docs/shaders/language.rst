@@ -142,12 +142,25 @@ Namespaces
 
 Polymorphic supports a namespace system to organize effects and ensure compatibility.
 
-Core Namespaces
-^^^^^^^^^^^^^^^
+New Namespaces
+^^^^^^^^^^^^^^
 
-* ``nd``: Effects used in Noisedeck.app
-* ``nm``: Effects derived from Noisemaker's Python effects
-* ``basics``: Simple shader collection
+These namespaces are actively developed and maintained:
+
+* ``synth``: Generator effects that create patterns from scratch (noise, shapes, fractals)
+* ``filter``: Single-input effects that transform images (blur, color adjustment, distortion)
+* ``mixer``: Two-input effects that combine images (blend modes, compositing)
+* ``stateful``: Effects with temporal state or feedback (cellular automata, simulations)
+* ``vol``: 3D volumetric generators and processors
+
+Classic Namespaces
+^^^^^^^^^^^^^^^^^^
+
+In addition to the actively developed and maintained namespaces above, the following namespaces were ported from older versions of our products. Each namespace offers a different take on how runtime composition can work.
+
+* ``classicBasics``: During early iterations of our new pipeline, we needed a few shaders to quickly test with. This minimal subset of Hydra-like shaders offers a familiar entry point for live coders.
+* ``classicNoisedeck``: These are complex and often slower shaders brought over from the "Classic" Noisedeck.app shader graph.
+* ``classicNoisemaker``: This effect collection is an attempt at a faithful reproduction of Noisemaker's Python effects in shader language.
 
 Search Order
 ^^^^^^^^^^^^
@@ -156,18 +169,18 @@ Every program **must** begin with a ``search`` directive that defines the namesp
 
 .. code-block:: none
 
-  search nd, basics
+  search classicNoisedeck, classicBasics
   noise3d(seed: 1).translate(x: 0, y: 0).write(o0)
 
-When a function like ``noise3d()`` is called, the runtime walks the search order (``nd``, then ``basics``) until a matching effect is found.
+When a function like ``noise3d()`` is called, the runtime walks the search order (``classicNoisedeck``, then ``classicBasics``) until a matching effect is found.
 
 **Resolution Rules:**
 
 #. **Mandatory Search Directive:** Every program must start with ``search <namespace>, ...`` to specify which namespaces to search and in what order.
 #. **Unqualified Identifiers:** Calls like ``noise()`` walk the search order until a matching effect is found.
-#. **Overrides:** The ``from("ns", fn())`` helper allows sourcing an operation from a specific namespace temporarily (e.g., ``from("basics", noise())``).
+#. **Overrides:** The ``from("ns", fn())`` helper allows sourcing an operation from a specific namespace temporarily (e.g., ``from("classicBasics", noise())``).
 
-**Note:** Inline namespace prefixes (e.g., ``nd.noise()``) are **forbidden** in program chains. Use the ``search`` directive or ``from()`` helper instead.
+**Note:** Inline namespace prefixes (e.g., ``classicNoisedeck.noise()``) are **forbidden** in program chains. Use the ``search`` directive or ``from()`` helper instead.
 
 Enums
 -----
@@ -247,14 +260,14 @@ Usage Examples
 
 .. code-block:: none
 
-   search basics
+   search classicBasics
    noise(scale: osc(type: oscKind.sine, min: 2, max: 8)).write(o0)
 
 **Using variables for reusable oscillators:**
 
 .. code-block:: none
 
-   search basics
+   search classicBasics
    let scaleOsc = osc(type: oscKind.sine, min: 2, max: 8)
    let rotOsc = osc(type: oscKind.saw, min: 0, max: 360)
    noise(scale: scaleOsc, rotation: rotOsc).write(o0)
@@ -263,7 +276,7 @@ Usage Examples
 
 .. code-block:: none
 
-   search basics
+   search classicBasics
    // speed: 2 means the oscillator completes 2 cycles per animation loop
    noise(scale: osc(type: oscKind.tri, min: 1, max: 10, speed: 2)).write(o0)
 
@@ -271,7 +284,7 @@ Usage Examples
 
 .. code-block:: none
 
-   search basics
+   search classicBasics
    let osc1 = osc(type: oscKind.sine, offset: 0)
    let osc2 = osc(type: oscKind.sine, offset: 0.25)
    let osc3 = osc(type: oscKind.sine, offset: 0.5)
@@ -281,7 +294,7 @@ Usage Examples
 
 .. code-block:: none
 
-   search basics
+   search classicBasics
    noise(scale: osc(type: oscKind.noise, min: 2, max: 8, seed: 42)).write(o0)
 
 Runtime Behavior

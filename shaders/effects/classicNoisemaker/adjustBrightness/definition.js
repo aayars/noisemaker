@@ -1,0 +1,39 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * Adjust Brightness
+ * /shaders/effects/adjust_brightness/adjust_brightness.wgsl
+ */
+export default class AdjustBrightness extends Effect {
+  name = "AdjustBrightness";
+  namespace = "classicNoisemaker";
+  func = "adjustBrightness";
+
+  globals = {
+    amount: {
+        type: "float",
+        default: 0.125,
+        uniform: "amount",
+        min: -1,
+        max: 1,
+        step: 0.01,
+        ui: {
+            label: "Amount",
+            control: "slider"
+        }
+    }
+};
+
+  passes = [
+    {
+      name: "main",
+      program: "adjustBrightness",
+      inputs: {
+        inputTex: "inputTex"
+      },
+      outputs: {
+        color: "outputTex"
+      }
+    }
+  ];
+}

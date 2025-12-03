@@ -71,7 +71,7 @@ The Effect Definition is a JavaScript class (or a JSON object that resolves to o
 ---------------
 
 
-* ``namespace``: Logical grouping for the effect (e.g., ``"nd"``, ``"basics"``). Combined with ``name``, it forms the unique identity.
+* ``namespace``: Logical grouping for the effect (e.g., ``"classicNoisedeck"``, ``"classicBasics"``). Combined with ``name``, it forms the unique identity.
 * ``textures``: Defines the internal render targets. Dimensions can be absolute, relative to screen (``"screen"``, ``"50%"``), or fixed.
 * ``passes``:
 
@@ -267,7 +267,7 @@ The following normative shape defines an ``EffectDefinition``. Validation MUST a
      "required": ["name", "passes"],
      "properties": {
        "name": { "type": "string", "pattern": "^[A-Za-z0-9_\-]{1,64}$" },
-       "namespace": { "type": "string", "pattern": "^[a-z0-9]+$", "default": "basics" },
+       "namespace": { "type": "string", "pattern": "^[a-zA-Z0-9]+$", "default": "classicBasics" },
        "version": { "type": "string", "pattern": "^\d+\.\d+\.\d+$", "default": "1.0.0" },
        "globals": { "type": "object", "additionalProperties": { "$ref": "#/definitions/uniformSpec" } },
        "textures": { "type": "object", "additionalProperties": { "$ref": "#/definitions/textureSpec" } },

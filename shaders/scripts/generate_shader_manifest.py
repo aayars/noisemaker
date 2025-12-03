@@ -49,7 +49,7 @@ def scan_effect(effect_dir):
 def main():
     manifest = {}
     
-    for namespace in ["basics", "nd", "nm", "nu", "vol"]:
+    for namespace in ["classicBasics", "classicNoisedeck", "classicNoisemaker", "filter", "mixer", "synth", "stateful", "vol"]:
         ns_dir = EFFECTS_ROOT / namespace
         if not ns_dir.exists():
             continue

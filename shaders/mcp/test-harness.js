@@ -30,7 +30,7 @@
  *   --webgpu, --wgsl          Use WebGPU/WGSL backend
  * 
  * Effect selection:
- *   --effects <patterns>      CSV of effect IDs or glob patterns (default: "basics/noise")
+ *   --effects <patterns>      CSV of effect IDs or glob patterns (default: "classicBasics/noise")
  * 
  * Test selection:
  *   --all                     Run ALL optional tests
@@ -46,11 +46,11 @@
  *   --verbose                 Show additional diagnostic info
  * 
  * Examples:
- *   node test-harness.js --effects basics/noise --backend webgl2
- *   node test-harness.js --effects "basics/*" --webgl2 --benchmark
- *   node test-harness.js --effects "nm/*" --webgpu --all
- *   node test-harness.js --effects "basics/noise,nm/worms" --glsl --uniforms
- *   node test-harness.js --structure-only --effects "nd/*" --webgl2
+ *   node test-harness.js --effects classicBasics/noise --backend webgl2
+ *   node test-harness.js --effects "classicBasics/*" --webgl2 --benchmark
+ *   node test-harness.js --effects "classicNoisemaker/*" --webgpu --all
+ *   node test-harness.js --effects "classicBasics/noise,nm/worms" --glsl --uniforms
+ *   node test-harness.js --structure-only --effects "classicNoisedeck/*" --webgl2
  */
 
 import fs from 'fs';
@@ -78,9 +78,9 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
  * These effects are DESIGNED to output a single color by their nature.
  */
 const MONOCHROME_EXEMPT_EFFECTS = new Set([
-    'basics/alpha',       // Extracts alpha channel as grayscale - input noise has alpha=1.0
-    'basics/shape',       // Outputs a shape on solid background - "solid" tag is valid
-    'basics/solid',       // Outputs a solid fill color by design
+    'classicBasics/alpha',       // Extracts alpha channel as grayscale - input noise has alpha=1.0
+    'classicBasics/shape',       // Outputs a shape on solid background - "solid" tag is valid
+    'classicBasics/solid',       // Outputs a solid fill color by design
 ]);
 
 /**
@@ -94,18 +94,18 @@ const BLANK_EXEMPT_EFFECTS = new Set([
  * Effects exempt from transparent output check.
  */
 const TRANSPARENT_EXEMPT_EFFECTS = new Set([
-    'nd/mediaInput',      // Media input effect - outputs transparent when no media file loaded
+    'classicNoisedeck/mediaInput',      // Media input effect - outputs transparent when no media file loaded
 ]);
 
 /**
  * Effects exempt from passthrough check.
  */
 const PASSTHROUGH_EXEMPT_EFFECTS = new Set([
-    'basics/pixelate',    // Pixelate groups colors into blocks - preserves average but changes structure
-    'nm/aberration',      // Chromatic aberration uses edge mask (pow(dist, 3)) - center unchanged, edges shifted
-    'nm/fxaa',            // FXAA anti-aliasing only modifies edge pixels - subtle effect on smooth noise input
-    'nm/onScreenDisplay', // OSD overlays text/UI elements - mostly passes through underlying image
-    'nm/strayHair',       // Hair overlay effect - sparse thin lines over image preserve most pixels
+    'classicBasics/pixelate',    // Pixelate groups colors into blocks - preserves average but changes structure
+    'classicNoisemaker/aberration',      // Chromatic aberration uses edge mask (pow(dist, 3)) - center unchanged, edges shifted
+    'classicNoisemaker/fxaa',            // FXAA anti-aliasing only modifies edge pixels - subtle effect on smooth noise input
+    'classicNoisemaker/onScreenDisplay', // OSD overlays text/UI elements - mostly passes through underlying image
+    'classicNoisemaker/strayHair',       // Hair overlay effect - sparse thin lines over image preserve most pixels
 ]);
 
 // =========================================================================
@@ -175,7 +175,7 @@ function parseArgs() {
     
     // Default effects
     if (parsed.effects.length === 0) {
-        parsed.effects = ['basics/noise'];
+        parsed.effects = ['classicBasics/noise'];
     }
     
     return parsed;
@@ -187,7 +187,7 @@ function parseArgs() {
 
 /**
  * Discover all effects from the filesystem.
- * Returns array of effect IDs like "basics/noise", "nm/worms", etc.
+ * Returns array of effect IDs like "classicBasics/noise", "classicNoisemaker/worms", etc.
  */
 function discoverEffectsFromDisk() {
     const effectsDir = path.join(PROJECT_ROOT, 'shaders', 'effects');
@@ -680,7 +680,7 @@ async function main() {
         console.error('ERROR: Backend flag is REQUIRED.');
         console.error('  Use --backend webgl2 or --webgl2 or --glsl for WebGL2/GLSL');
         console.error('  Use --backend webgpu or --webgpu or --wgsl for WebGPU/WGSL');
-        console.error('\nExample: node test-harness.js --effects basics/noise --backend webgl2');
+        console.error('\nExample: node test-harness.js --effects classicBasics/noise --backend webgl2');
         process.exit(1);
     }
     

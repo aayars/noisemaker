@@ -1,0 +1,95 @@
+import { Effect } from '../../../src/runtime/effect.js';
+
+/**
+ * Ripple
+ * /shaders/effects/ripple/ripple.wgsl
+ */
+export default class Ripple extends Effect {
+  name = "Ripple";
+  namespace = "classicNoisemaker";
+  func = "ripple";
+
+  globals = {
+    freq: {
+        type: "float",
+        default: 3,
+        uniform: "freq",
+        min: 1,
+        max: 16,
+        step: 0.5,
+        ui: {
+            label: "Frequency",
+            control: "slider"
+        }
+    },
+    displacement: {
+        type: "float",
+        default: 0.025,
+        uniform: "displacement",
+        min: 0,
+        max: 0.5,
+        step: 0.001,
+        ui: {
+            label: "Displacement",
+            control: "slider"
+        }
+    },
+    kink: {
+        type: "float",
+        default: 1,
+        uniform: "kink",
+        min: 0,
+        max: 32,
+        step: 0.5,
+        ui: {
+            label: "Kink",
+            control: "slider"
+        }
+    },
+    splineOrder: {
+        type: "int",
+        default: 3,
+        uniform: "splineOrder",
+        min: 0,
+        max: 3,
+        step: 1,
+        ui: {
+            label: "Spline Order",
+            control: "slider"
+        }
+    },
+    speed: {
+        type: "float",
+        default: 1,
+        uniform: "speed",
+        min: 0,
+        max: 5,
+        step: 0.1,
+        ui: {
+            label: "Speed",
+            control: "slider"
+        }
+    }
+};
+
+  passes = [
+    {
+      name: "main",
+      program: "ripple",
+      inputs: {
+        inputTex: "inputTex",
+        referenceTexture: "inputTex"
+      },
+      uniforms: {
+        freq: "freq",
+        displacement: "displacement",
+        kink: "kink",
+        splineOrder: "splineOrder",
+        speed: "speed"
+      },
+      outputs: {
+        color: "outputTex"
+      }
+    }
+  ];
+}

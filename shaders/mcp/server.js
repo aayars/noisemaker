@@ -83,11 +83,11 @@ const TOOLS = [
             properties: {
                 effect_id: {
                     type: 'string',
-                    description: 'Single effect identifier (e.g., "basics/noise"). Use "effects" for multiple.'
+                    description: 'Single effect identifier (e.g., "classicBasics/noise"). Use "effects" for multiple.'
                 },
                 effects: {
                     type: 'string',
-                    description: 'CSV of effect IDs or glob patterns (e.g., "basics/noise,nm/*"). Overrides effect_id.'
+                    description: 'CSV of effect IDs or glob patterns (e.g., "classicBasics/noise,nm/*"). Overrides effect_id.'
                 },
                 backend: {
                     type: 'string',
