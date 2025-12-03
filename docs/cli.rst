@@ -72,10 +72,8 @@ Generate a .png or .jpg image from a preset.
 
 **AI Features (requires API keys):**
 
-- ``--with-ai`` - Apply image-to-image transformation (requires stability.ai key)
 - ``--with-upscale`` - Apply 4x upscaling (requires stability.ai key)
 - ``--with-alt-text`` - Generate alt text description (requires OpenAI key)
-- ``--stability-model TEXT`` - Override default stability.ai model
 
 **Debug Options:**
 
@@ -131,7 +129,6 @@ Generate an animation (MP4 or GIF) from a preset.
 
 - ``--with-supersample`` - Apply 2x supersample anti-aliasing
 - ``--with-fxaa`` - Apply FXAA anti-aliasing
-- ``--with-ai`` - Apply AI image-to-image transformation
 - ``--with-alt-text`` - Generate alt text description
 
 **Examples:**
@@ -327,7 +324,7 @@ API Keys
 
 Some features require API keys set as environment variables:
 
-- **Stability AI** (for ``--with-ai`` and ``--with-upscale``): Set ``STABILITY_API_KEY``
+- **Stability AI** (for ``--with-upscale``): Set ``STABILITY_API_KEY``
 - **OpenAI** (for ``--with-alt-text``): Set ``OPENAI_API_KEY``
 
 .. code-block:: bash

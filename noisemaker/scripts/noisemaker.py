@@ -3,7 +3,6 @@ import random
 import shutil
 import sys
 import tempfile
-import textwrap
 from enum import Enum
 
 import click
@@ -94,10 +93,8 @@ def _show_effect_presets(ctx: click.Context, param: click.Parameter, value: bool
 @click.option("--with-alpha", help="Include alpha channel", is_flag=True, default=False)
 @click.option("--with-supersample", help="Apply x2 supersample anti-aliasing", is_flag=True, default=False)
 @click.option("--with-fxaa", help="Apply FXAA anti-aliasing", is_flag=True, default=False)
-@click.option("--with-ai", help="AI: Apply image-to-image (requires stability.ai key)", is_flag=True, default=False)
 @click.option("--with-upscale", help="AI: Apply x4 upscale (requires stability.ai key)", is_flag=True, default=False)
 @click.option("--with-alt-text", help="AI: Generate alt text (requires OpenAI key)", is_flag=True, default=False)
-@click.option("--stability-model", help="AI: Override default stability.ai model", type=str, default=None)
 @click.option("--debug-print", help="Debug: Print ancestors and settings to STDOUT", is_flag=True, default=False)
 @click.option("--debug-out", help="Debug: Log ancestors and settings to file", type=click.Path(dir_okay=False), default=None)
 @click.argument("preset_name")
@@ -113,10 +110,8 @@ def generate(
     with_alpha,
     with_supersample,
     with_fxaa,
-    with_ai,
     with_upscale,
     with_alt_text,
-    stability_model,
     debug_print,
     debug_out,
     preset_name,
@@ -144,7 +139,7 @@ def generate(
         preset = Preset(preset_name)
 
     if debug_print or debug_out:
-        debug_text = _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_ai, with_upscale, stability_model)
+        debug_text = _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_upscale)
 
         if debug_print:
             for line in debug_text:
@@ -165,9 +160,7 @@ def generate(
             with_alpha=with_alpha,
             with_supersample=with_supersample,
             with_fxaa=with_fxaa,
-            with_ai=with_ai,
             with_upscale=with_upscale,
-            stability_model=stability_model,
         )
 
     except Exception as e:
@@ -189,7 +182,7 @@ def generate(
         print(ai.describe(preset.name.replace("-", " "), preset.ai_settings.get("prompt", ""), filename))
 
 
-def _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_ai, with_upscale, stability_model):
+def _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_upscale):
     first_column = ["Layers:"]
 
     if preset.flattened_layers:
@@ -204,7 +197,7 @@ def _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_ai,
     first_column.append("")
     first_column.append("  - Effects (by newest):")
 
-    if not preset.final_effects and not with_ai and not preset.post_effects:
+    if not preset.final_effects and not preset.post_effects:
         first_column.append("    - None")
         first_column.append("")
 
@@ -219,26 +212,8 @@ def _debug_print(seed, preset, with_alpha, with_supersample, with_fxaa, with_ai,
 
         first_column.append("")
 
-    if with_ai:
-        first_column.append("    - AI Settings:")
-
-        for k, v in sorted(preset.ai_settings.items()):
-            if stability_model and k == "model":
-                v = stability_model
-
-            for i, line in enumerate(textwrap.wrap(f"{k.replace('_', ' ')}: {v}", 42)):
-                if i == 0:
-                    first_column.append(f"      - {line}")
-                else:
-                    first_column.append(f"        {line}")
-
-        first_column.append("")
-
-    if preset.post_effects or with_ai:
+    if preset.post_effects:
         first_column.append("    - Post Pass:")
-
-        if with_ai:
-            first_column.append("      - stable diffusion")
 
         for effect in reversed(preset.post_effects):
             if callable(effect):
@@ -370,7 +345,6 @@ def apply(ctx, seed, filename, no_resize, with_fxaa, time, speed, preset_name, i
 @click.option("--with-alt-text", help="Generate alt text (requires OpenAI key)", is_flag=True, default=False)
 @click.option("--with-supersample", help="Apply x2 supersample anti-aliasing", is_flag=True, default=False)
 @click.option("--with-fxaa", help="Apply FXAA anti-aliasing", is_flag=True, default=False)
-@click.option("--with-ai", help="AI: Apply image-to-image (requires stability.ai key)", is_flag=True, default=False)
 @click.option("--target-duration", type=float, default=None, help="Stretch output to this duration (seconds) using motion-compensated interpolation")
 @click.argument("preset_name", type=click.Choice(["random"] + sorted(GENERATOR_PRESETS)))
 @click.pass_context
@@ -388,7 +362,6 @@ def animate(
     with_alt_text,
     with_supersample,
     with_fxaa,
-    with_ai,
     preset_name,
     target_duration,
 ):
@@ -428,9 +401,6 @@ def animate(
                     with_alpha=False,
                     with_supersample=with_supersample,
                     with_fxaa=with_fxaa,
-                    with_ai=with_ai,
-                    style_filename=f"{tmp}/style.png",
-                    stability_model="stable-diffusion-v1-6",
                 )
             except Exception as e:
                 util.logger.error(f"Generator render failed: {e}\nSeed: {seed}\nArgs: {generator.__dict__}")

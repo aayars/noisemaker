@@ -154,10 +154,7 @@ class Preset:
         with_alpha: bool = False,
         with_supersample: bool = False,
         with_fxaa: bool = False,
-        with_ai: bool = False,
         with_upscale: bool = False,
-        stability_model: str | None = None,
-        style_filename: str | None = None,
         debug: bool = False,
     ) -> tf.Tensor | dict[str, Any]:
         """
@@ -173,10 +170,7 @@ class Preset:
             with_alpha: Include alpha channel
             with_supersample: Use 2x supersampling
             with_fxaa: Apply FXAA antialiasing
-            with_ai: Use AI post-processing
             with_upscale: Use AI upscaling
-            stability_model: Override AI model
-            style_filename: AI style reference file
             debug: Return execution graph instead of rendering
 
         Returns:
@@ -195,12 +189,9 @@ class Preset:
                 octave_effects=self.octave_effects,
                 post_effects=self.post_effects,
                 with_fxaa=with_fxaa,
-                with_ai=with_ai,
                 final_effects=self.final_effects,
                 with_alpha=with_alpha,
                 with_upscale=with_upscale,
-                stability_model=stability_model,
-                style_filename=style_filename,
                 time=time,
                 speed=speed,
                 **self.generator_kwargs,

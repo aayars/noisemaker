@@ -540,10 +540,7 @@ export async function multires(freq, shape, opts = {}) {
   const withSupersample =
     opts.withSupersample ?? opts.with_supersample ?? false;
   const withFxaa = opts.withFxaa ?? opts.with_fxaa ?? false;
-  const withAi = opts.withAi ?? opts.with_ai ?? false;
   const withUpscale = opts.withUpscale ?? opts.with_upscale ?? false;
-  const stabilityModel = opts.stabilityModel ?? opts.stability_model ?? null;
-  const styleFilename = opts.styleFilename ?? opts.style_filename ?? null;
   const inputTensor = opts.tensor ?? null;
 
   // Preserve Python's behaviour where ``seed=0`` leaves the previous global
@@ -554,17 +551,9 @@ export async function multires(freq, shape, opts = {}) {
     setValueSeed(numericSeed);
   }
 
-  if (withAi && withSupersample) {
-    throw new Error('--with-ai and --with-supersample may not be used together.');
-  }
-  if (withAi) {
-    throw new Error('AI post-processing is not supported in the JavaScript implementation.');
-  }
   if (withUpscale) {
     throw new Error('withUpscale is not supported in the JavaScript implementation.');
   }
-  void stabilityModel;
-  void styleFilename;
 
   const originalShape = shape.slice();
   const freqShape = shape.slice();

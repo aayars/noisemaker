@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
@@ -246,12 +245,9 @@ def multires(
     octave_effects: list[Callable] | None = None,
     post_effects: list[Callable] | None = None,
     with_alpha: bool = False,
-    with_ai: bool = False,
     final_effects: list[Callable] | None = None,
     with_upscale: bool = False,
     with_fxaa: bool = False,
-    stability_model: str | None = None,
-    style_filename: str | None = None,
     time: float = 0.0,
     speed: float = 1.0,
     tensor: tf.Tensor | None = None,
@@ -296,12 +292,9 @@ def multires(
         octave_effects: A list of composer lambdas to invoke per-octave
         post_effects: A list of composer lambdas to invoke after flattening layers
         with_alpha: Include alpha channel
-        with_ai: AI: Apply image-to-image before the final effects pass
         final_effects: A list of composer lambdas to invoke after everything else
         with_upscale: AI: x2 upscale final results
         with_fxaa: Apply FXAA to results
-        stability_model: AI: Override the default stability.ai model
-        style_filename: AI: Save the style reference, or load it if the file already exists
         speed: Displacement range for Z/W axis (simplex and periodic only)
         time: Time argument for Z/W axis (simplex and periodic only)
         tensor: Optional input tensor to start with
@@ -312,10 +305,6 @@ def multires(
 
     if seed:
         value.set_seed(seed)
-
-    if with_ai and with_supersample:
-        # Supersampling makes the input too large for current AI models
-        raise Exception("--with-ai and --with-supersample may not be used together.")
 
     # Normalize input
     color_space = value.coerce_enum(color_space, ColorSpace)
@@ -417,48 +406,6 @@ def multires(
         for effect_or_preset in post_effects:
             tensor, f = _apply_post_effect_or_preset(effect_or_preset, tensor, shape, time, speed)
             final += f
-
-    if with_ai:
-        tensor = value.normalize(tensor)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = f"{tmp}/temp.png"
-            # tmp_path = "input.png"  # XXX
-
-            util.save(tensor, tmp_path)
-
-            try:
-                # image-to-image as a style reference
-                style_reference = None
-
-                if style_filename:
-                    if os.path.exists(style_filename):
-                        style_reference = tf.image.convert_image_dtype(util.load(style_filename), tf.float32)
-
-                    style_path = style_filename
-
-                else:
-                    style_path = f"{tmp}/temp-style.png"
-
-                if style_reference is None:
-                    style_reference = ai.apply(preset.ai_settings, seed, input_filename=tmp_path, stability_model=stability_model)
-
-                style_reference = value.resample(style_reference, shape)
-
-                util.save(style_reference, style_path)
-
-                new_tensor = ai.apply_style(preset.ai_settings, seed, tmp_path, style_path)
-
-                new_tensor = value.resample(new_tensor, shape)
-
-                # tensor = new_tensor
-                tensor = value.blend(tensor, new_tensor, 0.5)
-                tensor = tf.image.adjust_contrast(tensor, 1.25)
-
-                preset.ai_success = True
-
-            except Exception as e:
-                util.logger.error(f"ai.apply() failed: {e}\nSeed: {seed}")
 
     for effect_or_preset in final + (final_effects or []):
         tensor = _apply_final_effect_or_preset(effect_or_preset, tensor, shape, time, speed)
