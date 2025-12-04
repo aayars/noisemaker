@@ -1,8 +1,7 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * Aberration
- * /shaders/effects/aberration/aberration.wgsl
+ * classicNoisemaker/aberration - Chromatic aberration effect
  */
 export default class Aberration extends Effect {
   name = "Aberration";
@@ -11,41 +10,25 @@ export default class Aberration extends Effect {
 
   globals = {
     displacement: {
-        type: "float",
-        default: 0.02,
-        uniform: "displacement",
-        min: 0,
-        max: 0.1,
-        step: 0.001,
-        ui: {
-            label: "Displacement",
-            control: "slider"
-        }
-    },
-    speed: {
-        type: "float",
-        default: 0.2,
-        uniform: "speed",
-        min: 0,
-        max: 2.0,
-        step: 0.01,
-        ui: {
-            label: "Speed",
-            control: "slider"
-        }
+      type: "float",
+      default: 0.02,
+      uniform: "displacement",
+      min: 0,
+      max: 0.1,
+      step: 0.001,
+      ui: {
+        label: "Displacement",
+        control: "slider"
+      }
     }
-};
+  };
 
   passes = [
     {
-      name: "main",
-      program: "aberration",
+      name: "render",
+      program: "chromaticAberration",
       inputs: {
         inputTex: "inputTex"
-      },
-      uniforms: {
-        displacement: "displacement",
-        speed: "speed"
       },
       outputs: {
         fragColor: "outputTex"

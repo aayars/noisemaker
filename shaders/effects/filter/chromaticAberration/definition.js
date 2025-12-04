@@ -1,35 +1,33 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * nu/aberration - Chromatic aberration effect
+ * filter/chromaticAberration - Chromatic aberration effect
  */
-export default class Aberration extends Effect {
-  name = "Aberration";
+export default class ChromaticAberration extends Effect {
+  name = "ChromaticAberration";
   namespace = "filter";
-  func = "aberration";
+  func = "chromaticAberration";
 
   globals = {
-    displacement: {
+    aberrationAmt: {
       type: "float",
-      default: 0.02,
-      uniform: "aberrationDisplacement",
+      default: 50,
+      uniform: "aberrationAmt",
       min: 0,
-      max: 0.1,
-      step: 0.001,
+      max: 100,
       ui: {
-        label: "Displacement",
+        label: "aberration",
         control: "slider"
       }
     },
-    speed: {
+    passthru: {
       type: "float",
-      default: 0.2,
-      uniform: "aberrationSpeed",
+      default: 50,
+      uniform: "passthru",
       min: 0,
-      max: 2,
-      step: 0.01,
+      max: 100,
       ui: {
-        label: "Speed",
+        label: "passthru",
         control: "slider"
       }
     }
@@ -38,7 +36,7 @@ export default class Aberration extends Effect {
   passes = [
     {
       name: "render",
-      program: "aberration",
+      program: "chromaticAberration",
       inputs: {
         inputTex: "inputTex"
       },
