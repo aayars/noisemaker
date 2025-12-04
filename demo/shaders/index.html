@@ -108,12 +108,19 @@
 
     /* Full bleed mode */
     body.full-bleed-mode #canvas-container {
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      padding: 0;
       justify-content: center;
+      z-index: 1;
     }
 
     body.full-bleed-mode #canvas {
       width: 100vw;
       height: 100vh;
+      border: none;
+      box-shadow: none;
     }
 
     #canvas {
@@ -141,7 +148,7 @@
       background: transparent;
       backdrop-filter: none;
       border: none;
-      z-index: 100;
+      z-index: 1000;
       scrollbar-width: none; /* Firefox */
       -ms-overflow-style: none; /* IE/Edge */
     }
@@ -464,7 +471,7 @@
     }
     </style>
 </head>
-<body>
+<body class="full-bleed-mode">
     <div id="loading" class="loading">loading effects...</div>
     <div id="app-container" style="display: none;">
         <div id="left-panel">
@@ -651,7 +658,7 @@
         </div>
 
         <div id="canvas-container">
-            <canvas id="canvas" width="1024" height="1024"></canvas>
+            <canvas id="canvas"></canvas>
         </div>
     </div>
 
@@ -708,11 +715,20 @@
         // so we need an absolute path to avoid double-pathing issues
         const shaderBasePath = new URL('../../shaders', import.meta.url).href;
         
+        // Initialize with viewport dimensions (accounting for device pixel ratio)
+        const dpr = window.devicePixelRatio || 1;
+        const initialWidth = Math.floor(window.innerWidth * dpr);
+        const initialHeight = Math.floor(window.innerHeight * dpr);
+        
+        // Set initial canvas size
+        canvas.width = initialWidth;
+        canvas.height = initialHeight;
+
         const renderer = new CanvasRenderer({
             canvas: canvas,
             canvasContainer: canvasContainer,
-            width: 1024,
-            height: 1024,
+            width: initialWidth,
+            height: initialHeight,
             basePath: shaderBasePath,
             preferWebGPU: false,
             onFPS: (fps) => {
@@ -724,6 +740,21 @@
                 console.error('Renderer error:', err);
             }
         });
+
+        // Handle window resize - update pipeline and canvas resolution
+        function handleResize() {
+            const dpr = window.devicePixelRatio || 1;
+            const width = Math.floor(window.innerWidth * dpr);
+            const height = Math.floor(window.innerHeight * dpr);
+            canvas.width = width;
+            canvas.height = height;
+            renderer.resize(width, height);
+        }
+
+        window.addEventListener('resize', handleResize);
+        
+        // Initial resize to ensure correct dimensions
+        handleResize();
 
         const ui = new DemoUI(renderer, {
             effectSelect,

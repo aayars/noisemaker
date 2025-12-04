@@ -14,6 +14,7 @@ These tools launch a fresh browser session for each invocation:
 |------|---------|
 | `compileEffect` | Verify shader compiles cleanly |
 | `renderEffectFrame` | Render frame, check for monochrome output |
+| `runDslProgram` | Compile and run arbitrary DSL code, return metrics |
 | `describeEffectFrame` | AI vision analysis of rendered output |
 | `benchmarkEffectFPS` | Measure sustained framerate |
 | `testUniformResponsiveness` | Verify uniform controls affect output |
@@ -189,6 +190,112 @@ Render a single frame of a shader effect and analyze if the output is monochrome
   "frame_base64": "iVBORw0KGgo..."
 }
 ```
+
+---
+
+## runDslProgram
+
+Compile and run an arbitrary DSL program, rendering a single frame and returning image metrics. Use this to test custom DSL compositions without pre-defined effects.
+
+### Input Schema
+
+```json
+{
+  "dsl": "string (required)",
+  "backend": "string (required): 'webgl2' | 'webgpu'",
+  "test_case": {
+    "time": "number (optional)",
+    "resolution": "[number, number] (optional)",
+    "seed": "number (optional)",
+    "uniforms": "object (optional)"
+  }
+}
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `dsl` | string | Yes | DSL source code to compile and run (e.g., `"noise().write(o0)"`) |
+| `backend` | string | Yes | Rendering backend: `"webgl2"` or `"webgpu"` |
+| `test_case` | object | No | Test configuration |
+| `test_case.time` | number | No | Time value to render at |
+| `test_case.resolution` | [number, number] | No | Resolution [width, height] |
+| `test_case.seed` | number | No | Random seed for reproducibility |
+| `test_case.uniforms` | object | No | Uniform value overrides |
+
+### Output Schema
+
+```json
+{
+  "dsl": "string",
+  "backend": "string",
+  "status": "'ok' | 'error'",
+  "frame": {
+    "width": "number",
+    "height": "number"
+  },
+  "metrics": {
+    "mean_rgb": "[number, number, number]",
+    "std_rgb": "[number, number, number]",
+    "luma_variance": "number",
+    "unique_sampled_colors": "number",
+    "is_monochrome": "boolean",
+    "is_essentially_blank": "boolean"
+  },
+  "passes": [
+    {
+      "id": "string",
+      "status": "'ok' | 'error'"
+    }
+  ],
+  "console_errors": ["string"],
+  "error": "string (if status is 'error')"
+}
+```
+
+### Example
+
+**Request:**
+```json
+{
+  "dsl": "noise(scale: 5).posterize(levels: 4).write(o0)",
+  "backend": "webgl2"
+}
+```
+
+**Response:**
+```json
+{
+  "dsl": "noise(scale: 5).posterize(levels: 4).write(o0)",
+  "backend": "webgl2",
+  "status": "ok",
+  "frame": {
+    "width": 1280,
+    "height": 720
+  },
+  "metrics": {
+    "mean_rgb": [0.45, 0.52, 0.48],
+    "std_rgb": [0.28, 0.31, 0.29],
+    "luma_variance": 0.082,
+    "unique_sampled_colors": 16,
+    "is_monochrome": false,
+    "is_essentially_blank": false
+  },
+  "passes": [
+    { "id": "node_0_pass_0", "status": "ok" },
+    { "id": "node_1_pass_0", "status": "ok" }
+  ],
+  "console_errors": []
+}
+```
+
+### Use Cases
+
+- **Testing compositions**: Verify that chained effects work together correctly
+- **Debugging**: Test specific DSL code snippets without creating effect definitions
+- **Validating DSL syntax**: Quick syntax and compilation checks for DSL code
+- **Ad-hoc experiments**: Run custom shader pipelines for exploration
 
 ---
 

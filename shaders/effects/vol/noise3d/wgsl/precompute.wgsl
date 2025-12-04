@@ -3,7 +3,7 @@
 @group(0) @binding(1) var<uniform> scale: f32;
 @group(0) @binding(2) var<uniform> seed: f32;
 @group(0) @binding(3) var<uniform> octaves: i32;
-@group(0) @binding(4) var<uniform> ridged: i32;
+@group(0) @binding(4) var<uniform> ridges: i32;
 @group(0) @binding(5) var<uniform> volumeSize: i32;
 @group(0) @binding(6) var<uniform> colorMode: i32;
 
@@ -119,7 +119,7 @@ fn noise4D(p: vec4<f32>) -> f32 {
 }
 
 // FBM using 4D noise with periodic w for time
-fn fbm4D(p: vec4<f32>, ridgedMode: i32) -> f32 {
+fn fbm4D(p: vec4<f32>, ridgesMode: i32) -> f32 {
     let MAX_OCT: i32 = 8;
     var amplitude: f32 = 0.5;
     var frequency: f32 = 1.0;
@@ -133,7 +133,7 @@ fn fbm4D(p: vec4<f32>, ridgedMode: i32) -> f32 {
         let pos = vec4<f32>(p.xyz * frequency, p.w);
         var n = noise4D(pos);
         n = clamp(n * 1.5, -1.0, 1.0);
-        if (ridgedMode == 1) {
+        if (ridgesMode == 1) {
             n = 1.0 - abs(n);
         } else {
             n = (n + 1.0) * 0.5;
@@ -178,13 +178,13 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
     
     // Compute 4D FBM noise at this point with time as w
     let p4d = vec4<f32>(scaledP, w);
-    let noiseVal = fbm4D(p4d, ridged);
+    let noiseVal = fbm4D(p4d, ridges);
     
     // Compute analytical gradient using finite differences in noise space
     let eps = 0.01 / scale;
-    let nx = fbm4D(vec4<f32>(scaledP + vec3<f32>(eps, 0.0, 0.0), w), ridged);
-    let ny = fbm4D(vec4<f32>(scaledP + vec3<f32>(0.0, eps, 0.0), w), ridged);
-    let nz = fbm4D(vec4<f32>(scaledP + vec3<f32>(0.0, 0.0, eps), w), ridged);
+    let nx = fbm4D(vec4<f32>(scaledP + vec3<f32>(eps, 0.0, 0.0), w), ridges);
+    let ny = fbm4D(vec4<f32>(scaledP + vec3<f32>(0.0, eps, 0.0), w), ridges);
+    let nz = fbm4D(vec4<f32>(scaledP + vec3<f32>(0.0, 0.0, eps), w), ridges);
     
     // Gradient points from low to high density
     let gradient = vec3<f32>(nx - noiseVal, ny - noiseVal, nz - noiseVal) / eps;
@@ -198,8 +198,8 @@ fn main(@builtin(position) position: vec4<f32>) -> FragmentOutput {
         fragColor = vec4<f32>(noiseVal, noiseVal, noiseVal, 1.0);
     } else {
         // For RGB color mode, compute 3 different noise channels with offsets
-        let g = fbm4D(vec4<f32>(scaledP, w) + vec4<f32>(0.0, 0.0, 0.0, 1.33), ridged);
-        let b = fbm4D(vec4<f32>(scaledP, w) + vec4<f32>(0.0, 0.0, 0.0, 2.67), ridged);
+        let g = fbm4D(vec4<f32>(scaledP, w) + vec4<f32>(0.0, 0.0, 0.0, 1.33), ridges);
+        let b = fbm4D(vec4<f32>(scaledP, w) + vec4<f32>(0.0, 0.0, 0.0, 2.67), ridges);
         fragColor = vec4<f32>(noiseVal, g, b, 1.0);
     }
     

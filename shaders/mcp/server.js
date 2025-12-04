@@ -264,6 +264,45 @@ const TOOLS = [
             required: ['backend']
         }
     },
+    {
+        name: 'runDslProgram',
+        description: 'Compile and run a DSL program, rendering a single frame and returning image metrics. Use this to test arbitrary DSL compositions without pre-defined effects.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                dsl: {
+                    type: 'string',
+                    description: 'DSL source code to compile and run (e.g., "noise().write(o0)")'
+                },
+                backend: {
+                    type: 'string',
+                    enum: ['webgl2', 'webgpu'],
+                    description: 'Rendering backend (required)'
+                },
+                test_case: {
+                    type: 'object',
+                    description: 'Optional test configuration',
+                    properties: {
+                        time: { type: 'number', description: 'Time value to render at' },
+                        resolution: {
+                            type: 'array',
+                            items: { type: 'number' },
+                            minItems: 2,
+                            maxItems: 2,
+                            description: 'Resolution [width, height]'
+                        },
+                        seed: { type: 'number', description: 'Random seed' },
+                        uniforms: {
+                            type: 'object',
+                            additionalProperties: true,
+                            description: 'Uniform overrides'
+                        }
+                    }
+                }
+            },
+            required: ['dsl', 'backend']
+        }
+    },
     
     // =========================================================================
     // ON-DISK TOOLS (no browser required)
@@ -480,6 +519,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 result = await runBrowserTest(args, async (session, effectId) => {
                     return await session.testNoPassthrough(effectId);
                 });
+                break;
+            }
+            
+            case 'runDslProgram': {
+                const dsl = args.dsl;
+                const backend = args.backend;
+                const testCase = args.test_case || {};
+                
+                if (!dsl) {
+                    throw new Error('dsl parameter is required');
+                }
+                if (!backend) {
+                    throw new Error('backend parameter is required');
+                }
+                
+                // Setup: Create fresh browser session
+                const session = new BrowserSession({ backend, headless: true });
+                
+                try {
+                    await session.setup();
+                    
+                    // Run DSL program
+                    const dslResult = await session.runDslProgram(dsl, {
+                        time: testCase.time,
+                        resolution: testCase.resolution,
+                        seed: testCase.seed,
+                        uniforms: testCase.uniforms
+                    });
+                    
+                    result = {
+                        backend,
+                        dsl,
+                        ...dslResult
+                    };
+                    
+                } finally {
+                    await session.teardown();
+                }
                 break;
             }
             

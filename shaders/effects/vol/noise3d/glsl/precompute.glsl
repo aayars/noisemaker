@@ -5,7 +5,7 @@ uniform float time;
 uniform float scale;
 uniform float seed;
 uniform int octaves;
-uniform int ridged;
+uniform int ridges;
 uniform int volumeSize;
 uniform int colorMode;
 
@@ -120,7 +120,7 @@ float noise4D(vec4 p) {
 }
 
 // FBM using 4D noise with periodic w for time
-float fbm4D(vec4 p, int ridgedMode) {
+float fbm4D(vec4 p, int ridgesMode) {
     const int MAX_OCT = 8;
     float amplitude = 0.5;
     float frequency = 1.0;
@@ -134,7 +134,7 @@ float fbm4D(vec4 p, int ridgedMode) {
         vec4 pos = vec4(p.xyz * frequency, p.w);
         float n = noise4D(pos);
         n = clamp(n * 1.5, -1.0, 1.0);
-        if (ridgedMode == 1) {
+        if (ridgesMode == 1) {
             n = 1.0 - abs(n);
         } else {
             n = (n + 1.0) * 0.5;
@@ -181,14 +181,14 @@ void main() {
     
     // Compute 4D FBM noise at this point with time as w
     vec4 p4d = vec4(scaledP, w);
-    float noiseVal = fbm4D(p4d, ridged);
+    float noiseVal = fbm4D(p4d, ridges);
     
     // Compute analytical gradient using finite differences in noise space
     // Use small epsilon scaled to the noise frequency
     float eps = 0.01 / scale;
-    float nx = fbm4D(vec4(scaledP + vec3(eps, 0.0, 0.0), w), ridged);
-    float ny = fbm4D(vec4(scaledP + vec3(0.0, eps, 0.0), w), ridged);
-    float nz = fbm4D(vec4(scaledP + vec3(0.0, 0.0, eps), w), ridged);
+    float nx = fbm4D(vec4(scaledP + vec3(eps, 0.0, 0.0), w), ridges);
+    float ny = fbm4D(vec4(scaledP + vec3(0.0, eps, 0.0), w), ridges);
+    float nz = fbm4D(vec4(scaledP + vec3(0.0, 0.0, eps), w), ridges);
     
     // Gradient points from low to high density
     vec3 gradient = vec3(nx - noiseVal, ny - noiseVal, nz - noiseVal) / eps;
@@ -202,8 +202,8 @@ void main() {
         fragColor = vec4(noiseVal, noiseVal, noiseVal, 1.0);
     } else {
         // For RGB color mode, compute 3 different noise channels with offsets
-        float g = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 1.33), ridged);
-        float b = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 2.67), ridged);
+        float g = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 1.33), ridges);
+        float b = fbm4D(vec4(scaledP, w) + vec4(0.0, 0.0, 0.0, 2.67), ridges);
         fragColor = vec4(noiseVal, g, b, 1.0);
     }
     

@@ -25,7 +25,7 @@ struct DemoUniforms {
     colorMode : i32,
     hueRotation : f32,
     hueRange : f32,
-    ridged : bool,
+    ridges : bool,
 };
 
 fn loadUniforms() -> DemoUniforms {
@@ -196,7 +196,7 @@ fn hsv2rgb(hsv: vec3<f32>) -> vec3<f32> {
     return rgb + vec3<f32>(m, m, m);
 }
 
-fn fbm(p: vec3<f32>, offset: f32, ridged: bool, oct: i32, seed: f32) -> f32 {
+fn fbm(p: vec3<f32>, offset: f32, ridges: bool, oct: i32, seed: f32) -> f32 {
     var amplitude = 0.5;
     var frequency = 1.0;
     var sum = 0.0;
@@ -211,7 +211,7 @@ fn fbm(p: vec3<f32>, offset: f32, ridged: bool, oct: i32, seed: f32) -> f32 {
         let octaveRotation = rotationFromAxisAngle(axis, angle);
         let sampleOffset = randomVec3(jitterSeed + vec3<f32>(23.0, 37.0, 53.0)) * 5.0;
         var n = snoise(octaveRotation * (p * frequency) + baseSeedOffset + offsetVec + sampleOffset);
-        if (ridged) {
+        if (ridges) {
             n = 1.0 - abs(n);
             n = n * 2.0 - 1.0;
         }
@@ -232,11 +232,11 @@ fn main(@builtin(position) pos : vec4<f32>) -> @location(0) vec4<f32> {
 
     let t = uniformsData.time + uniformsData.offset;
     let domain = vec3<f32>(st, t);
-    let hybridRidged = uniformsData.colorMode == COLOR_MODE_HSV && uniformsData.ridged;
+    let hybridRidged = uniformsData.colorMode == COLOR_MODE_HSV && uniformsData.ridges;
 
-    let r = fbm(domain, 0.0, select(uniformsData.ridged, false, hybridRidged), uniformsData.octaves, uniformsData.seed);
-    let g = fbm(domain, 100.0, select(uniformsData.ridged, false, hybridRidged), uniformsData.octaves, uniformsData.seed);
-    let b = fbm(domain, 200.0, uniformsData.ridged, uniformsData.octaves, uniformsData.seed);
+    let r = fbm(domain, 0.0, select(uniformsData.ridges, false, hybridRidged), uniformsData.octaves, uniformsData.seed);
+    let g = fbm(domain, 100.0, select(uniformsData.ridges, false, hybridRidged), uniformsData.octaves, uniformsData.seed);
+    let b = fbm(domain, 200.0, uniformsData.ridges, uniformsData.octaves, uniformsData.seed);
 
     var col: vec3<f32>;
     switch uniformsData.colorMode {

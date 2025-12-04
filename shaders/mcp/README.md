@@ -29,6 +29,7 @@ node shaders/mcp/test-harness.js --effects classicBasics/noise --backend webgl2
 |------|---------|
 | `compileEffect` | Verify shader compiles cleanly |
 | `renderEffectFrame` | Render frame, check for monochrome output |
+| `runDslProgram` | Compile and run arbitrary DSL code, return metrics |
 | `describeEffectFrame` | AI vision analysis of rendered output |
 | `benchmarkEffectFPS` | Measure sustained framerate |
 | `testUniformResponsiveness` | Verify uniform controls affect output |

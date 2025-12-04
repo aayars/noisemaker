@@ -79,7 +79,7 @@ export default class Noise3D extends Effect {
     "ridges": {
         "type": "boolean",
         "default": false,
-        "uniform": "ridged"
+        "uniform": "ridges"
     },
     "seed": {
         "type": "float",

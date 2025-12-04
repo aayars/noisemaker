@@ -19,6 +19,7 @@ import { fileURLToPath } from 'url';
 import {
     compileEffect,
     renderEffectFrame,
+    runDslProgram,
     benchmarkEffectFps,
     describeEffectFrame,
     checkEffectStructure,
@@ -379,6 +380,21 @@ export class BrowserSession {
     async renderEffectFrame(effectId, options = {}) {
         this.clearConsoleMessages();
         const result = await renderEffectFrame(this.page, effectId, {
+            backend: this.options.backend,
+            ...options
+        });
+        if (this.consoleMessages.length > 0) {
+            result.console_errors = this.consoleMessages.map(m => m.text);
+        }
+        return result;
+    }
+    
+    /**
+     * Run a DSL program and compute metrics.
+     */
+    async runDslProgram(dsl, options = {}) {
+        this.clearConsoleMessages();
+        const result = await runDslProgram(this.page, dsl, {
             backend: this.options.backend,
             ...options
         });

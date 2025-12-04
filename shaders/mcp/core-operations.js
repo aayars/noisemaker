@@ -590,6 +590,322 @@ export async function renderEffectFrame(page, effectId, options = {}) {
 }
 
 /**
+ * Run a DSL program and compute metrics
+ * 
+ * Unlike compileEffect/renderEffectFrame which select pre-defined effects,
+ * this function compiles and runs arbitrary DSL source code.
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
+ * @param {string} dsl - DSL source code to compile and run
+ * @param {object} options
+ * @param {'webgl2'|'webgpu'} options.backend - Rendering backend (REQUIRED)
+ * @param {number} [options.time] - Time to render at
+ * @param {[number,number]} [options.resolution] - Resolution [width, height]
+ * @param {number} [options.seed] - Random seed
+ * @param {Record<string,any>} [options.uniforms] - Uniform overrides
+ * @param {number} [options.warmupFrames=10] - Frames to wait before capture
+ * @returns {Promise<{status: 'ok'|'error', frame: {width: number, height: number}, metrics: object, diagnostics?: Array}>}
+ */
+export async function runDslProgram(page, dsl, options = {}) {
+    if (!options.backend) {
+        throw new Error('FATAL: backend parameter is REQUIRED. Pass { backend: "webgl2" } or { backend: "webgpu" }');
+    }
+    const backend = options.backend;
+    const targetBackend = backend === 'webgpu' ? 'wgsl' : 'glsl';
+    const warmupFrames = options.warmupFrames ?? 10;
+    
+    // Compile and run the DSL in the browser
+    const result = await page.evaluate(async ({ dsl, targetBackend, warmupFrames, uniforms, timeout }) => {
+        // Switch backend if needed
+        const currentBackend = typeof window.__noisemakerCurrentBackend === 'function'
+            ? window.__noisemakerCurrentBackend()
+            : 'glsl';
+        
+        if (currentBackend !== targetBackend) {
+            const radio = document.querySelector(`input[name="backend"][value="${targetBackend}"]`);
+            if (radio) {
+                radio.click();
+                const switchStart = Date.now();
+                while (Date.now() - switchStart < timeout) {
+                    const status = document.getElementById('status');
+                    const text = (status?.textContent || '').toLowerCase();
+                    const pipeline = window.__noisemakerRenderingPipeline;
+                    const pipelineBackend = pipeline?.backend?.getName?.()?.toLowerCase() || '';
+                    const expectedBackend = targetBackend === 'wgsl' ? 'webgpu' : 'webgl2';
+                    
+                    if (text.includes(`switched to ${targetBackend}`) && 
+                        pipelineBackend.includes(expectedBackend.toLowerCase())) {
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 10));
+                }
+            }
+        }
+        
+        // Set the DSL in the editor and trigger compilation
+        const dslEditor = document.getElementById('dsl-editor');
+        if (!dslEditor) {
+            return { error: 'DSL editor not found' };
+        }
+        
+        dslEditor.value = dsl;
+        dslEditor.dispatchEvent(new Event('input', { bubbles: true }));
+        
+        // Click the run button to compile
+        const runBtn = document.getElementById('dsl-run-btn');
+        if (runBtn) {
+            runBtn.click();
+        }
+        
+        // Wait for compilation status
+        const startTime = Date.now();
+        let compilationStatus = null;
+        let compilationMessage = '';
+        
+        while (Date.now() - startTime < timeout) {
+            const status = document.getElementById('status');
+            if (status) {
+                const text = (status.textContent || '').toLowerCase();
+                if (text.includes('compilation failed')) {
+                    compilationStatus = 'error';
+                    compilationMessage = status.textContent || '';
+                    break;
+                }
+                if (text.includes('compiled')) {
+                    compilationStatus = 'ok';
+                    compilationMessage = status.textContent || '';
+                    break;
+                }
+            }
+            await new Promise(r => setTimeout(r, 10));
+        }
+        
+        if (compilationStatus === 'error') {
+            return { 
+                status: 'error', 
+                error: compilationMessage,
+                diagnostics: []
+            };
+        }
+        
+        if (compilationStatus === null) {
+            return { 
+                status: 'error', 
+                error: 'Compilation timeout',
+                diagnostics: []
+            };
+        }
+        
+        // Apply uniform overrides if provided
+        if (uniforms) {
+            const pipeline = window.__noisemakerRenderingPipeline;
+            if (pipeline) {
+                if (pipeline.setUniform) {
+                    for (const [name, value] of Object.entries(uniforms)) {
+                        try {
+                            pipeline.setUniform(name, value);
+                        } catch (e) {
+                            console.warn(`[runDslProgram] Failed to set uniform ${name}:`, e.message);
+                        }
+                    }
+                } else if (pipeline.globalUniforms) {
+                    Object.assign(pipeline.globalUniforms, uniforms);
+                }
+            }
+        }
+        
+        // Wait for warmup frames
+        const initialFrame = window.__noisemakerFrameCount || 0;
+        const warmupStart = Date.now();
+        while (Date.now() - warmupStart < timeout) {
+            const currentFrame = window.__noisemakerFrameCount || 0;
+            if (currentFrame >= initialFrame + warmupFrames) {
+                break;
+            }
+            await new Promise(r => setTimeout(r, 10));
+        }
+        
+        // Read pixels and compute metrics (same logic as renderEffectFrame)
+        const pipeline = window.__noisemakerRenderingPipeline;
+        if (!pipeline) {
+            return { status: 'error', error: 'Pipeline not available after compilation' };
+        }
+        
+        const backendObj = pipeline.backend;
+        const backendName = backendObj?.getName?.() || 'WebGL2';
+        const surface = pipeline.surfaces?.get('o0');
+        
+        if (!surface) {
+            return { status: 'error', error: 'Surface o0 not found' };
+        }
+        
+        let data, width, height;
+        
+        if (backendName === 'WebGPU') {
+            try {
+                const result = await backendObj.readPixels(surface.read);
+                if (!result || !result.data) {
+                    return { status: 'error', error: 'Failed to read pixels from WebGPU' };
+                }
+                data = result.data;
+                width = result.width;
+                height = result.height;
+            } catch (err) {
+                return { status: 'error', error: `WebGPU readPixels failed: ${err.message}` };
+            }
+        } else {
+            // WebGL2 path
+            const gl = backendObj?.gl;
+            if (!gl) {
+                return { status: 'error', error: 'GL context not available' };
+            }
+            
+            const textureInfo = backendObj.textures?.get(surface.read);
+            if (!textureInfo) {
+                return { status: 'error', error: `Texture info missing for ${surface.read}` };
+            }
+            
+            width = textureInfo.width;
+            height = textureInfo.height;
+            
+            const fbo = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureInfo.handle, 0);
+            
+            const hasFloatExt = !!gl.getExtension('EXT_color_buffer_float');
+            let isFloat = false;
+            
+            if (hasFloatExt) {
+                data = new Float32Array(width * height * 4);
+                gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, data);
+                if (gl.getError() === gl.NO_ERROR) {
+                    isFloat = true;
+                } else {
+                    data = new Uint8Array(width * height * 4);
+                    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+                }
+            } else {
+                data = new Uint8Array(width * height * 4);
+                gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+            }
+            
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.deleteFramebuffer(fbo);
+            
+            if (isFloat) {
+                const converted = new Uint8Array(data.length);
+                for (let i = 0; i < data.length; i++) {
+                    converted[i] = Math.max(0, Math.min(255, Math.round(data[i] * 255)));
+                }
+                data = converted;
+            }
+        }
+        
+        // Compute metrics
+        const pixelCount = width * height;
+        const stride = Math.max(1, Math.floor(pixelCount / 1000));
+        
+        let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+        let sumR2 = 0, sumG2 = 0, sumB2 = 0;
+        let sumLuma = 0, sumLuma2 = 0;
+        const sampledColors = new Set();
+        let sampleCount = 0;
+        let isAllZero = true;
+        let isAllTransparent = true;
+        
+        for (let i = 0; i < data.length; i += stride * 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+            
+            if (r !== 0 || g !== 0 || b !== 0) isAllZero = false;
+            if (a > 0) isAllTransparent = false;
+            
+            sumR += r; sumG += g; sumB += b; sumA += a;
+            sumR2 += r * r; sumG2 += g * g; sumB2 += b * b;
+            
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            sumLuma += luma;
+            sumLuma2 += luma * luma;
+            
+            const colorKey = (Math.floor(r / 4) << 12) | (Math.floor(g / 4) << 6) | Math.floor(b / 4);
+            sampledColors.add(colorKey);
+            sampleCount++;
+        }
+        
+        const meanR = sumR / sampleCount;
+        const meanG = sumG / sampleCount;
+        const meanB = sumB / sampleCount;
+        const meanA = sumA / sampleCount;
+        const meanLuma = sumLuma / sampleCount;
+        
+        const normalizedMeanR = meanR / 255;
+        const normalizedMeanG = meanG / 255;
+        const normalizedMeanB = meanB / 255;
+        
+        const isEssentiallyBlank = (
+            normalizedMeanR < 0.01 && 
+            normalizedMeanG < 0.01 && 
+            normalizedMeanB < 0.01 && 
+            sampledColors.size <= 10
+        );
+        
+        const metrics = {
+            mean_rgb: [normalizedMeanR, normalizedMeanG, normalizedMeanB],
+            mean_alpha: meanA / 255,
+            std_rgb: [
+                Math.sqrt(sumR2 / sampleCount - meanR * meanR) / 255,
+                Math.sqrt(sumG2 / sampleCount - meanG * meanG) / 255,
+                Math.sqrt(sumB2 / sampleCount - meanB * meanB) / 255
+            ],
+            luma_variance: (sumLuma2 / sampleCount - meanLuma * meanLuma) / (255 * 255),
+            unique_sampled_colors: sampledColors.size,
+            is_all_zero: isAllZero,
+            is_all_transparent: isAllTransparent,
+            is_essentially_blank: isEssentiallyBlank,
+            is_monochrome: sampledColors.size <= 1
+        };
+        
+        // Get pass info
+        const passes = (pipeline?.graph?.passes || []).map(pass => ({
+            id: pass.id || pass.program,
+            status: 'ok'
+        }));
+        
+        return { 
+            status: 'ok', 
+            width, 
+            height, 
+            metrics, 
+            backendName,
+            passes
+        };
+    }, { dsl, targetBackend, warmupFrames, uniforms: options.uniforms, timeout: STATUS_TIMEOUT });
+    
+    if (result.error) {
+        return {
+            status: 'error',
+            frame: null,
+            metrics: null,
+            error: result.error,
+            diagnostics: result.diagnostics || []
+        };
+    }
+    
+    return {
+        status: result.status,
+        backend: result.backendName,
+        frame: {
+            width: result.width,
+            height: result.height
+        },
+        metrics: result.metrics,
+        passes: result.passes
+    };
+}
+
+/**
  * Benchmark effect FPS over a duration
  * 
  * @param {import('@playwright/test').Page} page - Playwright page with demo loaded
