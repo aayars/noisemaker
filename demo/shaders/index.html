@@ -186,12 +186,15 @@
       color: color-mix(in srgb, var(--color6) 90%, var(--accent3) 10%);
       text-transform: lowercase;
       letter-spacing: 0.05em;
-      cursor: pointer;
       user-select: none;
       display: flex;
       align-items: center;
       justify-content: flex-start;
       gap: 0.5em;
+    }
+
+    .module-title-text {
+      cursor: pointer;
     }
 
     .module-title:hover {
@@ -219,6 +222,60 @@
 
     .shader-module.collapsed .module-content {
       display: none;
+    }
+
+    /* Skip button styles */
+    .module-skip-btn {
+      padding: 0.15rem 0.4rem;
+      font-size: 0.6rem;
+      font-family: Nunito, sans-serif;
+      font-weight: 600;
+      text-transform: lowercase;
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--accent3) 30%, transparent 70%);
+      border-radius: var(--ui-corner-radius-small);
+      color: color-mix(in srgb, var(--color5) 70%, transparent 30%);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .module-skip-btn:hover {
+      background: color-mix(in srgb, var(--accent3) 20%, transparent 80%);
+      border-color: color-mix(in srgb, var(--accent3) 50%, transparent 50%);
+      color: var(--color6);
+    }
+
+    .module-skip-btn.active {
+      background: color-mix(in srgb, var(--accent3) 40%, transparent 60%);
+      border-color: var(--accent3);
+      color: var(--color6);
+    }
+
+    /* Skipped effect styles */
+    .shader-module.skipped {
+      opacity: 0.5;
+    }
+
+    .shader-module.skipped .module-title {
+      background: color-mix(
+        in srgb,
+        var(--color3) 15%,
+        transparent 85%
+      );
+    }
+
+    .shader-module.skipped .module-title-text {
+      text-decoration: line-through;
+      color: color-mix(in srgb, var(--color5) 60%, transparent 40%);
+    }
+
+    /* Prevent expansion when skipped */
+    .shader-module.skipped .module-title::before {
+      opacity: 0.3;
+    }
+
+    .shader-module.skipped .module-title-text {
+      cursor: default;
     }
 
     #dsl-run-btn:hover {

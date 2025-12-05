@@ -189,7 +189,7 @@ export function lex(src) {
             continue
         }
 
-        if (isLetter(ch)) {
+        if (isLetter(ch) || ch === '_') {
             let j = i
             while (j < src.length && (isLetter(src[j]) || isDigit(src[j]) || src[j] === '_')) j++
             const lexeme = src.slice(i, j)

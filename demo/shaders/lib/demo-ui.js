@@ -717,12 +717,61 @@ export class DemoUI {
 
             const titleDiv = document.createElement('div');
             titleDiv.className = 'module-title';
-            titleDiv.textContent = effectInfo.namespace 
+            
+            // Title text (click to expand/collapse, but not when skipped)
+            const titleText = document.createElement('span');
+            titleText.className = 'module-title-text';
+            titleText.textContent = effectInfo.namespace 
                 ? `${effectInfo.namespace}.${effectInfo.name}` 
                 : effectInfo.name;
-            titleDiv.addEventListener('click', () => {
+            titleDiv.appendChild(titleText);
+            
+            // Spacer to push skip button to the right
+            const spacer = document.createElement('span');
+            spacer.style.flex = '1';
+            titleDiv.appendChild(spacer);
+            
+            // Skip button
+            const skipBtn = document.createElement('button');
+            skipBtn.className = 'module-skip-btn';
+            skipBtn.textContent = 'skip';
+            skipBtn.title = 'Skip this effect in the pipeline';
+            skipBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const isSkipped = moduleDiv.classList.toggle('skipped');
+                skipBtn.textContent = isSkipped ? 'unskip' : 'skip';
+                skipBtn.classList.toggle('active', isSkipped);
+                
+                // When skipped, collapse the module
+                if (isSkipped) {
+                    moduleDiv.classList.add('collapsed');
+                }
+                
+                // Update the effect parameter and regenerate DSL
+                this._effectParameterValues[effectKey]._skip = isSkipped;
+                this._updateDslFromEffectParams();
+                
+                // _skip requires a recompile since it changes the pass structure
+                await this._recompilePipeline();
+            });
+            titleDiv.appendChild(skipBtn);
+            
+            // Click on title text to expand/collapse (not the whole title div)
+            titleText.addEventListener('click', () => {
+                // Don't expand if skipped
+                if (moduleDiv.classList.contains('skipped')) {
+                    return;
+                }
                 moduleDiv.classList.toggle('collapsed');
             });
+            
+            // Check if this effect is already skipped (from parsed DSL)
+            if (effectInfo.args?._skip === true) {
+                moduleDiv.classList.add('skipped', 'collapsed');
+                skipBtn.textContent = 'unskip';
+                skipBtn.classList.add('active');
+            }
+            
             moduleDiv.appendChild(titleDiv);
 
             const contentDiv = document.createElement('div');
@@ -734,6 +783,11 @@ export class DemoUI {
 
             const effectKey = `step_${effectInfo.stepIndex}`;
             this._effectParameterValues[effectKey] = {};
+            
+            // Initialize _skip from parsed args if present
+            if (effectInfo.args?._skip === true) {
+                this._effectParameterValues[effectKey]._skip = true;
+            }
 
             for (const [key, spec] of Object.entries(effectDef.globals)) {
                 if (spec.ui && spec.ui.control === false) continue;
@@ -977,6 +1031,25 @@ export class DemoUI {
         } catch (err) {
             console.error('Shader compilation failed:', err);
             this.showStatus('shader error: ' + this.formatCompilationError(err), 'error');
+        }
+    }
+    
+    /**
+     * Recompile the pipeline after a structural change (e.g., _skip toggle)
+     * @private
+     */
+    async _recompilePipeline() {
+        const dsl = this.getDsl();
+        if (!dsl) return;
+        
+        try {
+            await this._renderer.compile(dsl, {
+                shaderOverrides: this._shaderOverrides
+            });
+            this.showStatus('pipeline updated', 'success');
+        } catch (err) {
+            console.error('Pipeline compilation failed:', err);
+            this.showStatus('compilation error: ' + this.formatCompilationError(err), 'error');
         }
     }
     

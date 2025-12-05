@@ -355,17 +355,33 @@ export function unparse(compiled, overrides = {}, options = {}) {
                 args: []
             };
             
+            // Build reverse mapping from uniform names to param names
+            const uniformToParam = {};
+            if (effectDef?.globals) {
+                for (const [paramName, spec] of Object.entries(effectDef.globals)) {
+                    if (spec.uniform && spec.uniform !== paramName) {
+                        uniformToParam[spec.uniform] = paramName;
+                    }
+                }
+            }
+            
             // Start with original args
             if (step.args) {
                 for (const [key, value] of Object.entries(step.args)) {
                     // Skip internal properties
                     if (key === 'from' || key === 'temp') continue;
                     
+                    // Skip _skip: false (only include when true)
+                    if (key === '_skip' && value !== true) continue;
+                    
+                    // Translate uniform name back to param name if needed
+                    const paramKey = uniformToParam[key] || key;
+                    
                     // Handle surface references
                     if (value && typeof value === 'object' && value.kind) {
-                        call.kwargs[key] = value.name;
+                        call.kwargs[paramKey] = value.name;
                     } else {
-                        call.kwargs[key] = value;
+                        call.kwargs[paramKey] = value;
                     }
                 }
             }

@@ -111,6 +111,25 @@ export function expand(compilationResult, options = {}) {
                 continue;
             }
             
+            // Handle _skip flag - skip this effect in the pipeline
+            // When an effect is skipped, we pass through the current input unchanged
+            // The step still gets a nodeId for tracking, but no passes are generated
+            if (step.args?._skip === true) {
+                console.log('[expand] skipping step:', step.op, '(step.temp:', step.temp, ')');
+                // Register a passthrough so downstream steps can find the input
+                const nodeId = `node_${step.temp}`;
+                if (currentInput) {
+                    textureMap.set(`${nodeId}_out`, currentInput);
+                }
+                if (currentInput3d) {
+                    textureMap.set(`${nodeId}_out3d`, currentInput3d);
+                }
+                if (currentInputGeo) {
+                    textureMap.set(`${nodeId}_outGeo`, currentInputGeo);
+                }
+                continue;
+            }
+            
             const effectName = step.op;
             const effectDef = getEffect(effectName);
 

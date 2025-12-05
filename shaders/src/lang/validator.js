@@ -841,6 +841,18 @@ export function validate(ast) {
                         args[argKey] = value
                     }
                 }
+                
+                // Handle _skip meta-argument (skip this step in the pipeline)
+                if (kw && kw._skip !== undefined) {
+                    const skipNode = kw._skip;
+                    if (skipNode && skipNode.type === 'Boolean') {
+                        args._skip = skipNode.value;
+                    } else {
+                        args._skip = false;
+                    }
+                    seen.add('_skip');
+                }
+                
                 if (kw) {
                     for (const key of Object.keys(kw)) {
                         if (!seen.has(key)) {
