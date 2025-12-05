@@ -12,7 +12,7 @@ const STARTER_OPS = new Set([
     'gradient','noise','osc','solid'
 ])
 
-const SURFACE_PASSTHROUGH_CALLS = new Set(['src'])
+const SURFACE_PASSTHROUGH_CALLS = new Set(['src', 'read'])
 const validatorHooks = {}
 
 export function registerValidatorHook(name, hook) {
@@ -486,7 +486,6 @@ export function validate(ast) {
                         candidateNames.push(`${ns}.${call.name}`)
                     }
                 }
-
                 for (const candidate of candidateNames) {
                     if (candidate && ops[candidate]) {
                         opName = candidate
@@ -545,7 +544,11 @@ export function validate(ast) {
                         let surf = null
                         let invalidStarterChain = false
                         const starter = node ? getStarterInfo(node) : null
-                    const inlineSurface = callToSurface(node)
+                    // Handle Read nodes (parser creates special Read type for read() calls)
+                    if (node && node.type === 'Read' && node.surface) {
+                        surf = toSurface(node.surface)
+                    }
+                    const inlineSurface = surf || callToSurface(node)
                     if (inlineSurface) {
                         surf = inlineSurface
                     } else if (node && node.type === 'Chain') {

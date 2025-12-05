@@ -1133,7 +1133,7 @@ export async function createPipeline(graph, options = {}) {
         }
         backend = new WebGPUBackend(device, context)
     } else if (options.canvas) {
-        const gl = options.canvas.getContext('webgl2')
+        const gl = options.canvas.getContext('webgl2', { preserveDrawingBuffer: true })
         if (!gl) {
             throw new Error('WebGL2 not available')
         }
