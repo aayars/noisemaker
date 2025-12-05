@@ -299,6 +299,7 @@ export class DemoUI {
         this._parameterValues = {};
         this._effectParameterValues = {}; // Map: step_N -> {param: value}
         this._shaderOverrides = {}; // Map: stepIndex -> { programName: { glsl?, wgsl?, fragment?, vertex? } }
+        this._writeTargetOverrides = {}; // Map: planIndex -> surfaceName (e.g., 'o0', 'f1')
         this._parsedDslStructure = [];
         this._allEffects = [];
         
@@ -708,6 +709,18 @@ export class DemoUI {
                 }
             }
             
+            // Apply write target overrides
+            for (const [planIndexStr, targetName] of Object.entries(this._writeTargetOverrides)) {
+                const planIndex = parseInt(planIndexStr, 10);
+                if (compiled.plans[planIndex]) {
+                    const isOutput = targetName.startsWith('o');
+                    compiled.plans[planIndex].write = {
+                        type: isOutput ? 'OutputRef' : 'FeedbackRef',
+                        name: targetName
+                    };
+                }
+            }
+            
             const searchMatch = currentDslText.match(/^search\s+(\S.*?)$/m);
             if (searchMatch) {
                 compiled.searchNamespaces = searchMatch[1].split(/\s*,\s*/);
@@ -749,10 +762,38 @@ export class DemoUI {
         
         this._controlsContainer.innerHTML = '';
         this._effectParameterValues = {};
+        this._writeTargetOverrides = {};
+
+        // Parse DSL to get plans with write targets
+        let compiled = null;
+        try {
+            compiled = compile(dsl);
+        } catch (err) {
+            console.warn('Failed to parse DSL for controls:', err);
+            return;
+        }
+        if (!compiled || !compiled.plans) return;
 
         const effects = extractEffectsFromDsl(dsl);
         this._parsedDslStructure = effects;
         if (effects.length === 0) return;
+
+        // Build a map of stepIndex -> planIndex for write module placement
+        let globalStepIndex = 0;
+        const stepToPlan = new Map();
+        const planLastStep = new Map();
+        for (let planIndex = 0; planIndex < compiled.plans.length; planIndex++) {
+            const plan = compiled.plans[planIndex];
+            if (!plan.chain) continue;
+            const chainLength = plan.chain.length;
+            for (let i = 0; i < chainLength; i++) {
+                stepToPlan.set(globalStepIndex, planIndex);
+                if (i === chainLength - 1) {
+                    planLastStep.set(planIndex, globalStepIndex);
+                }
+                globalStepIndex++;
+            }
+        }
 
         for (const effectInfo of effects) {
             let effectDef = getEffect(effectInfo.effectKey);
@@ -851,7 +892,7 @@ export class DemoUI {
 
             const controlsDiv = document.createElement('div');
             controlsDiv.id = `controls-${effectInfo.stepIndex}`;
-            controlsDiv.style.cssText = 'background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); border-radius: var(--ui-corner-radius); padding: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;';
+            controlsDiv.style.cssText = 'background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); border-radius: var(--ui-corner-radius); padding: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; column-gap: 1em; row-gap: 0.5rem;';
 
             const effectKey = `step_${effectInfo.stepIndex}`;
             this._effectParameterValues[effectKey] = {};
@@ -885,7 +926,91 @@ export class DemoUI {
             
             moduleDiv.appendChild(contentDiv);
             this._controlsContainer.appendChild(moduleDiv);
+
+            // Add write module after the last step of each plan
+            const planIndex = stepToPlan.get(effectInfo.stepIndex);
+            const lastStepOfPlan = planLastStep.get(planIndex);
+            if (effectInfo.stepIndex === lastStepOfPlan && planIndex !== undefined) {
+                const plan = compiled.plans[planIndex];
+                if (plan.write) {
+                    const writeModule = this._createWriteModule(planIndex, plan.write);
+                    this._controlsContainer.appendChild(writeModule);
+                }
+            }
         }
+    }
+
+    /**
+     * Create a write module for a plan
+     * @private
+     */
+    _createWriteModule(planIndex, writeTarget) {
+        const moduleDiv = document.createElement('div');
+        moduleDiv.className = 'shader-module';
+        moduleDiv.dataset.planIndex = planIndex;
+        moduleDiv.dataset.effectName = 'write';
+        moduleDiv.style.marginBottom = '0.5em';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'module-title';
+        titleDiv.textContent = 'write';
+        titleDiv.addEventListener('click', () => {
+            moduleDiv.classList.toggle('collapsed');
+        });
+        moduleDiv.appendChild(titleDiv);
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'module-content';
+
+        const controlsDiv = document.createElement('div');
+        controlsDiv.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;';
+
+        // Create target dropdown
+        const controlGroup = document.createElement('div');
+        controlGroup.className = 'control-group';
+
+        const header = document.createElement('div');
+        header.className = 'control-header';
+        
+        const label = document.createElement('label');
+        label.className = 'control-label';
+        label.textContent = 'surface';
+        header.appendChild(label);
+        controlGroup.appendChild(header);
+
+        const select = document.createElement('select');
+        select.className = 'control-select';
+
+        // Add output surfaces o0-o7
+        for (let i = 0; i < 8; i++) {
+            const option = document.createElement('option');
+            option.value = `o${i}`;
+            option.textContent = `o${i}`;
+            select.appendChild(option);
+        }
+        // Add feedback surfaces f0-f3
+        for (let i = 0; i < 4; i++) {
+            const option = document.createElement('option');
+            option.value = `f${i}`;
+            option.textContent = `f${i}`;
+            select.appendChild(option);
+        }
+
+        // Set current value
+        const currentTarget = typeof writeTarget === 'string' ? writeTarget : writeTarget.name;
+        select.value = currentTarget;
+
+        select.addEventListener('change', (e) => {
+            this._writeTargetOverrides[planIndex] = e.target.value;
+            this._onControlChange();
+        });
+
+        controlGroup.appendChild(select);
+        controlsDiv.appendChild(controlGroup);
+        contentDiv.appendChild(controlsDiv);
+        moduleDiv.appendChild(contentDiv);
+
+        return moduleDiv;
     }
     
     /**
@@ -1529,6 +1654,7 @@ export class DemoUI {
      */
     clearShaderOverrides() {
         this._shaderOverrides = {};
+        this._writeTargetOverrides = {};
     }
     
     /**
