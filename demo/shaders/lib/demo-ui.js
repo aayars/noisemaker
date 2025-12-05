@@ -32,6 +32,22 @@ import {
 } from '../../../shaders/src/renderer/canvas.js';
 
 /**
+ * Convert camelCase to space-separated lowercase words
+ * @param {string} str - camelCase string
+ * @returns {string} Space-separated lowercase string
+ * @example
+ * camelToSpaceCase('someEffectName') // 'some effect name'
+ * camelToSpaceCase('posterize') // 'posterize'
+ */
+export function camelToSpaceCase(str) {
+    if (typeof str !== 'string') return '';
+    return str
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+        .toLowerCase();
+}
+
+/**
  * Format enum name for DSL output - quote if not a valid identifier
  * @param {string} name - Name to format
  * @returns {string} Formatted name
@@ -483,12 +499,12 @@ export class DemoUI {
         sortedNamespaces.forEach(namespace => {
             const effectList = grouped[namespace];
             const optgroup = document.createElement('optgroup');
-            optgroup.label = namespace;
+            optgroup.label = camelToSpaceCase(namespace);
             
             effectList.sort((a, b) => a.name.localeCompare(b.name)).forEach(effect => {
                 const option = document.createElement('option');
                 option.value = `${namespace}/${effect.name}`;
-                option.textContent = effect.name;
+                option.textContent = camelToSpaceCase(effect.name);
                 optgroup.appendChild(option);
             });
             
