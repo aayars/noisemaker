@@ -1,7 +1,13 @@
 import { Effect } from '../../../src/runtime/effect.js';
 
 /**
- * nu/bloom - Two-pass bloom effect
+ * filter/bloom - Multi-pass N-tap bloom effect
+ * 
+ * Pass 1: Bright-pass extraction with threshold + soft knee
+ * Pass 2: N-tap bloom gather using golden angle spiral kernel
+ * Pass 3: Composite bloom into scene with tint and intensity
+ * 
+ * All math in linear color space.
  */
 export default class Bloom extends Effect {
   name = "Bloom";
@@ -9,46 +15,118 @@ export default class Bloom extends Effect {
   func = "bloom";
 
   globals = {
-    alpha: {
+    threshold: {
       type: "float",
-      default: 0.5,
-      uniform: "bloomAlpha",
+      default: 0.8,
+      uniform: "bloomThreshold",
       min: 0,
-      max: 1,
+      max: 2,
       step: 0.05,
       ui: {
-        label: "Alpha",
+        label: "Threshold",
         control: "slider"
+      }
+    },
+    softKnee: {
+      type: "float",
+      default: 0.2,
+      uniform: "bloomSoftKnee",
+      min: 0,
+      max: 0.5,
+      step: 0.01,
+      ui: {
+        label: "Soft Knee",
+        control: "slider"
+      }
+    },
+    intensity: {
+      type: "float",
+      default: 1.0,
+      uniform: "bloomIntensity",
+      min: 0,
+      max: 3,
+      step: 0.05,
+      ui: {
+        label: "Intensity",
+        control: "slider"
+      }
+    },
+    radius: {
+      type: "float",
+      default: 32,
+      uniform: "bloomRadius",
+      min: 1,
+      max: 128,
+      step: 1,
+      ui: {
+        label: "Radius",
+        control: "slider"
+      }
+    },
+    taps: {
+      type: "int",
+      default: 32,
+      uniform: "numTaps",
+      min: 8,
+      max: 64,
+      step: 1,
+      ui: {
+        label: "Taps",
+        control: "slider"
+      }
+    },
+    tint: {
+      type: "vec3",
+      default: [1.0, 1.0, 1.0],
+      uniform: "bloomTint",
+      ui: {
+        label: "Tint",
+        control: "color"
       }
     }
   };
 
-  // Internal texture for downsampled bloom data
+  // Internal textures for bloom pipeline
   textures = {
-    _bloomDownsample: {
-      width: 64,
-      height: 64,
+    _brightTex: {
+      width: "input",
+      height: "input",
+      format: "rgba16float"
+    },
+    _bloomTex: {
+      width: "input",
+      height: "input",
       format: "rgba16float"
     }
   };
 
   passes = [
     {
-      name: "downsample",
-      program: "downsample",
+      name: "brightPass",
+      program: "brightPass",
       inputs: {
         inputTex: "inputTex"
       },
       outputs: {
-        fragColor: "_bloomDownsample"
+        fragColor: "_brightTex"
       }
     },
     {
-      name: "upsample",
-      program: "upsample",
+      name: "ntapGather",
+      program: "ntapGather",
+      inputs: {
+        inputTex: "_brightTex"
+      },
+      outputs: {
+        fragColor: "_bloomTex"
+      }
+    },
+    {
+      name: "composite",
+      program: "composite",
       inputs: {
         inputTex: "inputTex",
-        downsampleBuffer: "_bloomDownsample"
+        bloomTex: "_bloomTex"
       },
       outputs: {
         fragColor: "outputTex"
