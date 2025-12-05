@@ -742,9 +742,11 @@ export class DemoUI {
                 skipBtn.textContent = isSkipped ? 'unskip' : 'skip';
                 skipBtn.classList.toggle('active', isSkipped);
                 
-                // When skipped, collapse the module
+                // When skipped, collapse the module; when unskipped, expand it
                 if (isSkipped) {
                     moduleDiv.classList.add('collapsed');
+                } else {
+                    moduleDiv.classList.remove('collapsed');
                 }
                 
                 // Update the effect parameter and regenerate DSL
@@ -756,8 +758,8 @@ export class DemoUI {
             });
             titleDiv.appendChild(skipBtn);
             
-            // Click on title text to expand/collapse (not the whole title div)
-            titleText.addEventListener('click', () => {
+            // Click on title bar to expand/collapse (skip button has stopPropagation)
+            titleDiv.addEventListener('click', () => {
                 // Don't expand if skipped
                 if (moduleDiv.classList.contains('skipped')) {
                     return;
