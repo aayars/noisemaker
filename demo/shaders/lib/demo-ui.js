@@ -857,6 +857,106 @@ export class DemoUI {
                 codeBtn.title = 'Edit shader source code';
                 titleDiv.appendChild(codeBtn);
             }
+
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'module-skip-btn';
+            deleteBtn.textContent = 'delete';
+            deleteBtn.title = 'Remove this effect from the pipeline';
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                
+                const currentDsl = this.getDsl();
+                if (!currentDsl) return;
+                
+                try {
+                    const compiled = compile(currentDsl);
+                    if (!compiled || !compiled.plans) return;
+                    
+                    // Preserve search namespaces
+                    const searchMatch = currentDsl.match(/^search\s+(\S.*?)$/m);
+                    if (searchMatch) {
+                        compiled.searchNamespaces = searchMatch[1].split(/\s*,\s*/);
+                    }
+                    
+                    const targetStepIndex = effectInfo.stepIndex;
+                    let globalStepIndex = 0;
+                    let found = false;
+
+                    const getEffectDefCallback = (effectName, namespace) => {
+                        let def = getEffect(effectName);
+                        if (def) return def;
+                        
+                        if (namespace) {
+                            def = getEffect(`${namespace}/${effectName}`) || 
+                                  getEffect(`${namespace}.${effectName}`);
+                            if (def) return def;
+                        }
+                        
+                        return null;
+                    };
+                    
+                    for (let p = 0; p < compiled.plans.length; p++) {
+                        const plan = compiled.plans[p];
+                        if (!plan.chain) continue;
+                        
+                        for (let s = 0; s < plan.chain.length; s++) {
+                            if (globalStepIndex === targetStepIndex) {
+                                plan.chain.splice(s, 1);
+                                
+                                // If we removed the head of the chain and there are remaining steps,
+                                // ensure the new head has a valid input source if needed.
+                                if (s === 0 && plan.chain.length > 0) {
+                                    const newHead = plan.chain[0];
+                                    const isReadOp = newHead.builtin && (newHead.op === '_read' || newHead.op === '_read3d');
+                                    
+                                    if (!isReadOp) {
+                                        const namespace = newHead.namespace?.namespace || newHead.namespace?.resolved || null;
+                                        const def = getEffectDefCallback(newHead.op, namespace);
+                                        
+                                        // If def found and NOT a starter effect, prepend read(o0).
+                                        // If def NOT found, assume it needs input (safer to have redundant read than invalid chain).
+                                        const needsInput = !def || !isStarterEffect({ instance: def });
+                                        
+                                        if (needsInput) {
+                                            plan.chain.unshift({
+                                                builtin: true,
+                                                op: '_read',
+                                                args: { tex: 'o0' }
+                                            });
+                                        }
+                                    }
+                                }
+
+                                if (plan.chain.length === 0) {
+                                    compiled.plans.splice(p, 1);
+                                }
+                                found = true;
+                                break;
+                            }
+                            globalStepIndex++;
+                        }
+                        if (found) break;
+                    }
+                    
+                    if (found) {
+                        const newDsl = unparse(compiled, {}, {
+                            customFormatter: this._boundFormatValue,
+                            getEffectDef: getEffectDefCallback
+                        });
+                        
+                        this.setDsl(newDsl);
+                        this._renderer.currentDsl = newDsl;
+                        
+                        this.createEffectControlsFromDsl(newDsl);
+                        await this._recompilePipeline();
+                    }
+                } catch (err) {
+                    console.error('Failed to delete effect:', err);
+                    this.showStatus('failed to delete effect', 'error');
+                }
+            });
+            titleDiv.appendChild(deleteBtn);
             
             // Skip button
             const skipBtn = document.createElement('button');
