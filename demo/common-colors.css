@@ -1,0 +1,36 @@
+/**
+ * Noisemaker Demo - Color Palette
+ * 
+ * This file contains only color-related CSS variables.
+ * Import this file to get the default color scheme, or replace it with your own palette.
+ * 
+ * Downstream consumers (like Noisedeck) should import common-layout.css 
+ * and provide their own color definitions.
+ */
+
+@font-face {
+  font-family: "Nunito";
+  src: url("./font/Nunito/Nunito-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+:root {
+  /* Base color palette */
+  --color1: #07090d;
+  --color2: #101522;
+  --color3: #1b2538;
+  --color4: #26314f;
+  --color5: #98a7c8;
+  --color6: #d9deeb;
+  --color7: #f6f8ff;
+  
+  /* Accent colors */
+  --accent1: #141a2d;
+  --accent2: #1f2842;
+  --accent3: #a5b8ff;
+  --accent4: #dce6ff;
+  
+  /* Semantic colors */
+  --red: #ff5b6b;
+}
