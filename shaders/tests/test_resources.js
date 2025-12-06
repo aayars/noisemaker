@@ -48,8 +48,6 @@ test('Resource Allocation - Reuse', () => {
     const physB = alloc.get('B');
     const physC = alloc.get('C');
 
-    console.log('Allocations:', Object.fromEntries(alloc));
-
     if (physA === physB) throw new Error('A and B should not share slot (overlap at pass 1)');
     if (physB === physC) throw new Error('B and C should not share slot (overlap at pass 2)');
     if (physA !== physC) throw new Error(`A and C should share slot. A=${physA}, C=${physC}`);
@@ -87,7 +85,6 @@ test('Resource Allocation - Branching', () => {
     //    A was released after 2. So D can use phys_0.
     
     const alloc = allocateResources(passes);
-    console.log('Branching Allocations:', Object.fromEntries(alloc));
     
     const physA = alloc.get('A');
     const physB = alloc.get('B');

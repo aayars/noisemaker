@@ -112,8 +112,6 @@ test('Integration - Simple Generator', () => {
     if (!graph.passes || graph.passes.length === 0) {
         throw new Error('No passes generated')
     }
-    
-    console.log(`  Generated ${graph.passes.length} passes`)
 })
 
 test('Integration - Chain with Parameters', () => {
@@ -128,8 +126,6 @@ test('Integration - Chain with Parameters', () => {
     if (!pass) {
         throw new Error('No pass generated')
     }
-    
-    console.log(`  Pass program: ${pass.program}`)
 })
 
 test('Integration - Texture Allocation', () => {
@@ -139,8 +135,6 @@ test('Integration - Texture Allocation', () => {
     if (!graph.textures) {
         throw new Error('No textures in graph')
     }
-    
-    console.log(`  Allocated ${graph.textures.size} textures`)
 })
 
 test('Integration - Resource Allocation', () => {
@@ -150,8 +144,6 @@ test('Integration - Resource Allocation', () => {
     if (!graph.allocations) {
         throw new Error('No resource allocations')
     }
-    
-    console.log(`  Resource allocations: ${graph.allocations.size} virtual -> physical mappings`)
 })
 
 test('Integration - Multiple Outputs', () => {
@@ -167,8 +159,6 @@ test('Integration - Multiple Outputs', () => {
             throw new Error(`Failed to compile: ${source}`)
         }
     }
-    
-    console.log(`  Compiled ${sources.length} different outputs`)
 })
 
 test('Integration - Graph Metadata', () => {
@@ -186,8 +176,6 @@ test('Integration - Graph Metadata', () => {
     if (graph.source !== source) {
         throw new Error('Graph source mismatch')
     }
-    
-    console.log(`  Graph ID: ${graph.id}`)
 })
 
 test('Integration - Hash Consistency', () => {

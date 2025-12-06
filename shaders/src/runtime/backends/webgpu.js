@@ -1760,8 +1760,6 @@ export class WebGPUBackend extends Backend {
                 
                 // If we can't fix the error, throw it
                 console.error('Failed to create bind group:', err)
-                console.log('Entries:', currentEntries)
-                console.log('Bindings:', bindings)
                 throw err
             }
         }

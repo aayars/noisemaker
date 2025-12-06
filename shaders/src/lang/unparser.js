@@ -184,12 +184,27 @@ function unparseCall(call, options = {}) {
     const name = call.name;
     const parts = [];
     const customFormatter = options.customFormatter || null;
+    const specs = options.specs || {};
     
     // Handle kwargs (named arguments)
     if (call.kwargs && Object.keys(call.kwargs).length > 0) {
         for (const [key, value] of Object.entries(call.kwargs)) {
+            // Skip _skip: false
+            if (key === '_skip' && value === false) continue;
+
             // Get spec from options if available
-            const spec = options.specs?.[key] || null;
+            const spec = specs[key] || null;
+
+            // Check against default value
+            if (spec && spec.default !== undefined) {
+                const formattedValue = formatValue(value, spec, customFormatter);
+                const formattedDefault = formatValue(spec.default, spec, customFormatter);
+                
+                if (formattedValue === formattedDefault) {
+                    continue;
+                }
+            }
+
             parts.push(`${key}: ${formatValue(value, spec, customFormatter)}`);
         }
     }

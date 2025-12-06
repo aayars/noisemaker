@@ -45,9 +45,6 @@ try {
     const code = 'search basics\nosc(10).kaleid(4).kaleid(2).write(o0)';
     const { passes, allocations } = compileAndAllocate(code);
     
-    console.log('Passes:', passes.length);
-    console.log('Allocations:', Object.fromEntries(allocations));
-    
     const texA = passes[0].outputs.color; // node_0_out
     const texB = passes[1].outputs.color; // node_1_out
     const texC = passes[2].outputs.color; // node_2_out or global_o0
@@ -63,8 +60,6 @@ try {
         const physC = allocations.get(texC);
         if (physB === physC) throw new Error('B and C overlap');
         if (physA !== physC) throw new Error(`Expected reuse: A=${physA}, C=${physC}`);
-    } else {
-        console.log('Optimization active: Direct write to global_o0');
     }
     
     console.log('PASS: Phase 2 Integration');

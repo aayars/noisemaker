@@ -562,6 +562,17 @@ export class DemoUI {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
                     const value = this._parameterValues[key];
                     if (value === undefined || value === null) continue;
+
+                    // Skip _skip: false
+                    if (key === '_skip' && value === false) continue;
+
+                    // Check against default value
+                    if (spec.default !== undefined) {
+                        const formattedValue = this._boundFormatValue(value, spec);
+                        const formattedDefault = this._boundFormatValue(spec.default, spec);
+                        if (formattedValue === formattedDefault) continue;
+                    }
+
                     params.push(`${key}: ${this._boundFormatValue(value, spec)}`);
                 }
             }
@@ -575,6 +586,17 @@ export class DemoUI {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
                     const value = this._parameterValues[key];
                     if (value === undefined || value === null) continue;
+
+                    // Skip _skip: false
+                    if (key === '_skip' && value === false) continue;
+
+                    // Check against default value
+                    if (spec.default !== undefined) {
+                        const formattedValue = this._boundFormatValue(value, spec);
+                        const formattedDefault = this._boundFormatValue(spec.default, spec);
+                        if (formattedValue === formattedDefault) continue;
+                    }
+
                     params.push(`${key}: ${this._boundFormatValue(value, spec)}`);
                 }
             }
@@ -596,6 +618,17 @@ export class DemoUI {
                     if (key === 'tex' && spec.type === 'surface') continue;
                     const value = this._parameterValues[key];
                     if (value === undefined || value === null) continue;
+
+                    // Skip _skip: false
+                    if (key === '_skip' && value === false) continue;
+
+                    // Check against default value
+                    if (spec.default !== undefined) {
+                        const formattedValue = this._boundFormatValue(value, spec);
+                        const formattedDefault = this._boundFormatValue(spec.default, spec);
+                        if (formattedValue === formattedDefault) continue;
+                    }
+
                     params.push(`${key}: ${this._boundFormatValue(value, spec)}`);
                 }
             }
@@ -609,6 +642,17 @@ export class DemoUI {
                     const value = this._parameterValues[key];
                     if (value === undefined || value === null) continue;
                     if (key === 'volumeSize') consumerVolumeSize = value;
+
+                    // Skip _skip: false
+                    if (key === '_skip' && value === false) continue;
+
+                    // Check against default value
+                    if (spec.default !== undefined) {
+                        const formattedValue = this._boundFormatValue(value, spec);
+                        const formattedDefault = this._boundFormatValue(spec.default, spec);
+                        if (formattedValue === formattedDefault) continue;
+                    }
+
                     params.push(`${key}: ${this._boundFormatValue(value, spec)}`);
                 }
             }
@@ -624,6 +668,17 @@ export class DemoUI {
                 for (const [key, spec] of Object.entries(effect.instance.globals)) {
                     const value = this._parameterValues[key];
                     if (value === undefined || value === null) continue;
+                    
+                    // Skip _skip: false
+                    if (key === '_skip' && value === false) continue;
+
+                    // Check against default value
+                    if (spec.default !== undefined) {
+                        const formattedValue = this._boundFormatValue(value, spec);
+                        const formattedDefault = this._boundFormatValue(spec.default, spec);
+                        if (formattedValue === formattedDefault) continue;
+                    }
+
                     params.push(`${key}: ${this._boundFormatValue(value, spec)}`);
                 }
             }
