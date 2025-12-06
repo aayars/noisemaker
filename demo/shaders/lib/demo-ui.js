@@ -726,10 +726,20 @@ export class DemoUI {
                 : effectInfo.name;
             titleDiv.appendChild(titleText);
             
-            // Spacer to push skip button to the right
+            // Spacer to push buttons to the right
             const spacer = document.createElement('span');
             spacer.style.flex = '1';
             titleDiv.appendChild(spacer);
+            
+            // Code button (for shader editing) - only if effect has shaders
+            let codeBtn = null;
+            if (effectDef.shaders) {
+                codeBtn = document.createElement('button');
+                codeBtn.className = 'module-skip-btn';
+                codeBtn.textContent = 'code';
+                codeBtn.title = 'Edit shader source code';
+                titleDiv.appendChild(codeBtn);
+            }
             
             // Skip button
             const skipBtn = document.createElement('button');
@@ -809,7 +819,7 @@ export class DemoUI {
             
             // Add shader editor section if effect has shaders
             if (effectDef.shaders) {
-                const shaderSection = this._createShaderEditorSection(effectInfo, effectDef);
+                const shaderSection = this._createShaderEditorSection(effectInfo, effectDef, codeBtn);
                 contentDiv.appendChild(shaderSection);
             }
             
@@ -821,31 +831,14 @@ export class DemoUI {
     /**
      * Create the shader editor section for an effect
      * @private
+     * @param {object} effectInfo - Effect info
+     * @param {object} effectDef - Effect definition
+     * @param {HTMLButtonElement} toggleBtn - The code button in the title bar that toggles visibility
      */
-    _createShaderEditorSection(effectInfo, effectDef) {
+    _createShaderEditorSection(effectInfo, effectDef, toggleBtn) {
         const section = document.createElement('div');
         section.className = 'shader-editor-section';
-        section.style.cssText = 'margin-top: 0.75rem; border-top: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); padding-top: 0.75rem;';
-        
-        // Header with toggle button
-        const header = document.createElement('div');
-        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;';
-        
-        const label = document.createElement('span');
-        label.className = 'control-label';
-        label.textContent = 'shader source';
-        header.appendChild(label);
-        
-        const toggleBtn = document.createElement('button');
-        toggleBtn.textContent = 'edit';
-        toggleBtn.style.cssText = 'padding: 0.25rem 0.5rem; background: color-mix(in srgb, var(--accent3) 20%, transparent 80%); border: 1px solid color-mix(in srgb, var(--accent3) 40%, transparent 60%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.625rem; font-weight: 600; cursor: pointer;';
-        header.appendChild(toggleBtn);
-        
-        section.appendChild(header);
-        
-        // Editor container (hidden by default)
-        const editorContainer = document.createElement('div');
-        editorContainer.style.cssText = 'display: none;';
+        section.style.cssText = 'display: none; margin-top: 0.75rem; border-top: 1px solid color-mix(in srgb, var(--accent3) 15%, transparent 85%); padding-top: 0.75rem;';
         
         // Program selector
         const programNames = Object.keys(effectDef.shaders);
@@ -859,10 +852,10 @@ export class DemoUI {
                 option.textContent = name;
                 programSelect.appendChild(option);
             });
-            editorContainer.appendChild(programSelect);
+            section.appendChild(programSelect);
             
             programSelect.addEventListener('change', () => {
-                this._updateShaderEditorContent(effectInfo, effectDef, programSelect.value, editorContainer);
+                this._updateShaderEditorContent(effectInfo, effectDef, programSelect.value, section);
             });
         }
         
@@ -871,42 +864,43 @@ export class DemoUI {
         textarea.className = 'shader-source-editor';
         textarea.spellcheck = false;
         textarea.style.cssText = 'width: 100%; min-height: 200px; resize: vertical; background: color-mix(in srgb, var(--color1) 60%, transparent 40%); border: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%); border-radius: var(--ui-corner-radius-small); font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace; font-size: 0.625rem; line-height: 1.4; color: var(--color5); padding: 0.5rem; box-sizing: border-box;';
-        editorContainer.appendChild(textarea);
+        section.appendChild(textarea);
         
         // Apply button
         const applyBtn = document.createElement('button');
         applyBtn.textContent = 'apply shader';
         applyBtn.style.cssText = 'margin-top: 0.5rem; width: 100%; padding: 0.375rem 0.75rem; background: color-mix(in srgb, var(--accent3) 30%, transparent 70%); border: 1px solid color-mix(in srgb, var(--accent3) 50%, transparent 50%); border-radius: var(--ui-corner-radius-small); color: var(--color6); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;';
-        editorContainer.appendChild(applyBtn);
+        section.appendChild(applyBtn);
         
         // Reset button
         const resetBtn = document.createElement('button');
         resetBtn.textContent = 'reset to original';
         resetBtn.style.cssText = 'margin-top: 0.25rem; width: 100%; padding: 0.375rem 0.75rem; background: transparent; border: 1px solid color-mix(in srgb, var(--accent3) 30%, transparent 70%); border-radius: var(--ui-corner-radius-small); color: var(--color5); font-family: Nunito, sans-serif; font-size: 0.6875rem; font-weight: 600; cursor: pointer;';
-        editorContainer.appendChild(resetBtn);
+        section.appendChild(resetBtn);
         
-        section.appendChild(editorContainer);
-        
-        // Toggle visibility
-        toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = editorContainer.style.display !== 'none';
-            editorContainer.style.display = isVisible ? 'none' : 'block';
-            toggleBtn.textContent = isVisible ? 'edit' : 'hide';
-            
-            if (!isVisible) {
-                // Load current shader source
-                const programName = programNames.length > 1 
-                    ? editorContainer.querySelector('select').value 
-                    : programNames[0];
-                this._updateShaderEditorContent(effectInfo, effectDef, programName, editorContainer);
-            }
-        });
+        // Toggle visibility via the code button in title bar
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                toggleBtn.textContent = isVisible ? 'code' : 'hide';
+                toggleBtn.classList.toggle('active', !isVisible);
+                
+                if (!isVisible) {
+                    // Load current shader source
+                    const programName = programNames.length > 1 
+                        ? section.querySelector('select').value 
+                        : programNames[0];
+                    this._updateShaderEditorContent(effectInfo, effectDef, programName, section);
+                }
+            });
+        }
         
         // Apply button handler
         applyBtn.addEventListener('click', () => {
             const programName = programNames.length > 1 
-                ? editorContainer.querySelector('select')?.value 
+                ? section.querySelector('select')?.value 
                 : programNames[0];
             const backend = this._renderer.backend;
             const source = textarea.value;
@@ -917,11 +911,11 @@ export class DemoUI {
         // Reset button handler
         resetBtn.addEventListener('click', () => {
             const programName = programNames.length > 1 
-                ? editorContainer.querySelector('select')?.value 
+                ? section.querySelector('select')?.value 
                 : programNames[0];
             
             this._resetShaderOverride(effectInfo.stepIndex, programName);
-            this._updateShaderEditorContent(effectInfo, effectDef, programName, editorContainer);
+            this._updateShaderEditorContent(effectInfo, effectDef, programName, section);
         });
         
         return section;
