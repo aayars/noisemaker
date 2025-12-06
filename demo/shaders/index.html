@@ -1289,7 +1289,9 @@
         function updateMediaTexture() {
             if (!mediaSource || !renderer._pipeline) return;
             
-            const result = renderer.updateTextureFromSource('imageTex', mediaSource, { flipY: true });
+            // Get the texture ID from the effect's externalTexture property
+            const texId = renderer.currentEffect?.instance?.externalTexture || 'imageTex';
+            const result = renderer.updateTextureFromSource(texId, mediaSource, { flipY: true });
             
             // Update the effect's imageSize uniform
             if (result.width > 0 && result.height > 0) {
@@ -1351,8 +1353,9 @@
         
         // Check if selected effect is a media input effect and show/hide module
         function checkMediaInputEffect(effect) {
-            isMediaInputEffect = effect?.instance?.externalTexture === 'imageTex' ||
-                                 effect?.instance?.func === 'mediaInput';
+            isMediaInputEffect = !!effect?.instance?.externalTexture ||
+                                 effect?.instance?.func === 'mediaInput' ||
+                                 effect?.instance?.func === 'media';
             
             if (isMediaInputEffect) {
                 mediaInputModule.style.display = 'block';

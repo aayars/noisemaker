@@ -15,6 +15,24 @@ export default class Media extends Effect {
   // Mark this as requiring external texture updates
   externalTexture = "imageTex";
 
+  // WGSL uniform packing layout - maps uniform names to vec4 slots/components
+  uniformLayout = {
+    resolution: { slot: 0, components: 'xy' },
+    time: { slot: 0, components: 'z' },
+    seed: { slot: 0, components: 'w' },
+    position: { slot: 1, components: 'x' },
+    rotation: { slot: 1, components: 'y' },
+    scaleAmt: { slot: 1, components: 'z' },
+    offsetX: { slot: 1, components: 'w' },
+    offsetY: { slot: 2, components: 'x' },
+    tiling: { slot: 2, components: 'y' },
+    flip: { slot: 2, components: 'z' },
+    backgroundOpacity: { slot: 2, components: 'w' },
+    backgroundColor: { slot: 3, components: 'xyz' },
+    motionBlur: { slot: 3, components: 'w' },
+    imageSize: { slot: 4, components: 'xy' }
+  };
+
   globals = {
     position: {
       type: "int",
@@ -171,7 +189,7 @@ export default class Media extends Effect {
     },
     imageSize: {
       type: "vec2",
-      default: [1, 1],
+      default: [1024, 1024],
       uniform: "imageSize",
       ui: {
         control: false

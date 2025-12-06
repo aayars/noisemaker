@@ -11,7 +11,7 @@ fn map_range(value : f32, inMin : f32, inMax : f32, outMin : f32, outMax : f32) 
 fn main(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
     let dims = vec2<f32>(textureDimensions(tex0, 0));
     var st = position.xy / dims;
-    st.y = 1.0 - st.y;
+    
 
     let color1 = textureSample(tex0, samp, st);
     let color2 = textureSample(tex1, samp, st);

@@ -388,14 +388,10 @@ export function expand(compilationResult, options = {}) {
                                 // No explicit write target, default to o0
                                 pass.inputs[uniformName] = 'global_o0';
                             }
-                        } else if (texRef === 'imageTex') {
-                            // External media input - preserve as-is for dynamic texture binding
+                        } else if (effectDef.externalTexture && texRef === effectDef.externalTexture) {
+                            // External texture input (e.g., camera/video) - preserve as-is for dynamic binding
                             // The texture will be created/updated via updateTextureFromSource()
-                            pass.inputs[uniformName] = 'imageTex';
-                        } else if (texRef === 'textTex') {
-                            // External text input - preserve as-is for dynamic texture binding
-                            // The texture will be created/updated via updateTextureFromSource()
-                            pass.inputs[uniformName] = 'textTex';
+                            pass.inputs[uniformName] = texRef;
                         } else if (step.args && Object.prototype.hasOwnProperty.call(step.args, texRef)) {
                             // Reference to an argument (e.g. blend(tex: ...))
                             const arg = step.args[texRef];

@@ -920,7 +920,7 @@ export class CanvasRenderer {
     /**
      * Update a texture from an external source (video, image, canvas).
      * This is used for media input effects that need to display camera/video content.
-     * @param {string} texId - Texture ID (e.g., "imageTex")
+     * @param {string} texId - Texture ID from effect's externalTexture property
      * @param {HTMLVideoElement|HTMLImageElement|HTMLCanvasElement|ImageBitmap} source - Media source
      * @param {object} [options] - Update options
      * @param {boolean} [options.flipY=true] - Whether to flip the Y axis

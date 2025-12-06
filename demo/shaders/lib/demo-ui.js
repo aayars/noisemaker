@@ -793,7 +793,6 @@ export class DemoUI {
 
             for (const [key, spec] of Object.entries(effectDef.globals)) {
                 if (spec.ui && spec.ui.control === false) continue;
-                if (spec.type === 'surface') continue;
 
                 const controlGroup = this._createControlGroup(
                     key, 
@@ -1093,6 +1092,8 @@ export class DemoUI {
             this._createSliderControl(controlGroup, header, key, spec, value, effectKey);
         } else if (spec.type === 'vec4') {
             this._createColorControl(controlGroup, key, value, effectKey);
+        } else if (spec.type === 'surface') {
+            this._createSurfaceControl(controlGroup, key, spec, value, effectKey);
         }
 
         return controlGroup;
@@ -1300,6 +1301,58 @@ export class DemoUI {
             this._onControlChange();
         });
         container.appendChild(colorInput);
+    }
+    
+    /** @private */
+    _createSurfaceControl(container, key, spec, value, effectKey) {
+        const select = document.createElement('select');
+        select.className = 'control-select';
+        
+        // Available surfaces: o0-o7 for output surfaces, f0-f3 for feedback surfaces
+        const surfaces = [
+            { id: 'o0', label: 'o0 (output)' },
+            { id: 'o1', label: 'o1' },
+            { id: 'o2', label: 'o2' },
+            { id: 'o3', label: 'o3' },
+            { id: 'o4', label: 'o4' },
+            { id: 'o5', label: 'o5' },
+            { id: 'o6', label: 'o6' },
+            { id: 'o7', label: 'o7' },
+            { id: 'f0', label: 'f0 (feedback)' },
+            { id: 'f1', label: 'f1' },
+            { id: 'f2', label: 'f2' },
+            { id: 'f3', label: 'f3' }
+        ];
+        
+        // Parse current value to get the surface ID
+        let currentSurface = spec.default || 'o1';
+        if (typeof value === 'string') {
+            // Handle src(o1) format or plain o1/f0 format
+            const match = value.match(/src\(([^)]+)\)|^(o[0-7]|f[0-3])$/);
+            if (match) {
+                currentSurface = match[1] || match[2];
+            } else if (value) {
+                currentSurface = value;
+            }
+        }
+        
+        surfaces.forEach(surface => {
+            const option = document.createElement('option');
+            option.value = surface.id;
+            option.textContent = surface.label;
+            option.selected = surface.id === currentSurface;
+            select.appendChild(option);
+        });
+        
+        select.addEventListener('change', async (e) => {
+            // Store as src(surfaceId) format for DSL
+            this._effectParameterValues[effectKey][key] = `src(${e.target.value})`;
+            // Surface changes require a full pipeline recompile (not just uniform updates)
+            this._updateDslFromEffectParams();
+            await this._recompilePipeline();
+        });
+        
+        container.appendChild(select);
     }
     
     /** @private Called when a control value changes */

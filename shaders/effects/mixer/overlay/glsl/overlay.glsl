@@ -17,7 +17,7 @@ float blendOverlay(float a, float b) {
 
 void main() {
     vec2 st = gl_FragCoord.xy / resolution;
-    st.y = 1.0 - st.y;
+    
 
     vec4 color1 = texture(tex0, st);
     vec4 color2 = texture(tex1, st);
