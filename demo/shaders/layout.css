@@ -512,3 +512,43 @@ body.full-bleed-mode #canvas {
   transition: width 0.2s ease;
   width: 0%;
 }
+
+/* 
+ * Effect Chain Styling
+ * Applies "chain" styling (connected modules) ONLY to the dynamic effects list.
+ * Static modules (Pipeline, DSL, Inputs) retain their original spacing.
+ */
+
+/* Container for the chain - ensure no gaps between effects */
+#effect-controls-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Force modules in the chain to touch and be square by default */
+#effect-controls-container .shader-module {
+  margin-bottom: 0 !important; /* Override inline styles */
+  border-radius: 0;
+  border-bottom: none; /* Prevent double borders */
+}
+
+/* Start of a chain: First child OR element after a write node */
+#effect-controls-container .shader-module:first-child,
+#effect-controls-container .shader-module[data-effect-name="write"] + .shader-module {
+  border-top-left-radius: var(--ui-corner-radius);
+  border-top-right-radius: var(--ui-corner-radius);
+}
+
+/* End of a chain: Write node OR Last child */
+#effect-controls-container .shader-module[data-effect-name="write"],
+#effect-controls-container .shader-module:last-child {
+  border-bottom-left-radius: var(--ui-corner-radius);
+  border-bottom-right-radius: var(--ui-corner-radius);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent3) 25%, transparent 75%);
+}
+
+/* Restore spacing after a chain ends (after write node) */
+#effect-controls-container .shader-module[data-effect-name="write"] {
+  margin-bottom: 0.5rem !important;
+}
