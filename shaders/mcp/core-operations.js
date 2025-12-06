@@ -2071,7 +2071,7 @@ export async function checkEffectStructure(effectId, options = {}) {
         // - Keys with spaces (should be converted: "Random Mix" → randomMix)
         // - Keys with dashes/underscores (should be converted: "Catmull-Rom" → catmullRom)
         // - Keys with special chars (should be stripped: "32³" → size32, "Deriv+divide" → derivDivide)
-        const choicesMatches = globalsSection.matchAll(/choices:\s*\{([^}]+)\}/g);
+        const choicesMatches = globalsSection.matchAll(/(?:["']?choices["']?)\s*:\s*\{([^}]+)\}/g);
         for (const choicesMatch of choicesMatches) {
             const choicesContent = choicesMatch[1];
             // Match both unquoted keys and quoted keys

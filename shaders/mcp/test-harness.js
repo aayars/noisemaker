@@ -610,9 +610,9 @@ Do NOT tag colorful patterns or mosaics as problematic - those are valid outputs
             results.visionFailed = true;
             console.log(`  ❌ vision: ${visionResult.error}`);
         } else if (visionResult.vision) {
-            const desc = (visionResult.vision.description || '').toLowerCase();
-            const tags = (visionResult.vision.tags || []).map(t => t.toLowerCase());
-            const notes = (visionResult.vision.notes || '').toLowerCase();
+            const desc = String(visionResult.vision.description || '').toLowerCase();
+            const tags = (visionResult.vision.tags || []).map(t => String(t).toLowerCase());
+            const notes = String(visionResult.vision.notes || '').toLowerCase();
             const allText = `${desc} ${tags.join(' ')} ${notes}`;
             
             const isMonoExempt = MONOCHROME_EXEMPT_EFFECTS.has(effectId);

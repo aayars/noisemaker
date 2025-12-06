@@ -54,9 +54,9 @@ export default class Cell3D extends Effect {
         "default": 0,
         "uniform": "metric",
         "choices": {
-            "Euclidean": 0,
-            "Manhattan": 1,
-            "Chebyshev": 2
+            "euclidean": 0,
+            "manhattan": 1,
+            "chebyshev": 2
         },
         "ui": {
             "label": "distance metric",

@@ -6,7 +6,7 @@ export default {
 		freq:  [2.0, 2.0, 2.0], 
 		phase: [1.0, 1.0, 1.0]
 	},
-    '1970s shirt':  {
+    "1970sShirt":  {
 		mode: 'rgb',
 		offset: [0.93, 0.97, 0.52], 
 		amp:  [0.76, 0.88, 0.37], 
@@ -41,21 +41,21 @@ export default {
 		freq: [1, 1, 1],
 		phase: [0.88, 0.4, 0.33]
 	},
-    'blue skies':  {
+    "blueSkies":  {
 		mode: 'rgb',
 		offset: [0.1, 0.4, 0.7], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.1, 0.1, 0.1]
 	},
-    'brushed metal':  {
+    "brushedMetal":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.0, 0.10, 0.2]
 	},
-	'burning sky': {
+	"burningSky": {
 		mode: 'rgb',
 		offset: [0.63290054, 0.37883538, 0.29405284], 
 		amp:  [0.7259015, 0.7004237, 0.9494409], 
@@ -76,21 +76,21 @@ export default {
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.4, 0.5, 0.6]
 	},
-    'cotton candy':  {
+    "cottonCandy":  {
 		mode: 'rgb',
 		offset: [0.59, 0.53, 0.94], 
 		amp:  [0.51, 0.39, 0.41], 
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.15, 0.41, 0.46]
 	},
-	'dark satin': {
+	"darkSatin": {
 		mode: 'hsv',
 		offset: [0, 0, 0.43],
 		amp: [0, 0, 0.51],
 		freq: [1, 1, 1],
 		phase: [0, 0, 0.36]
 	},
-    'dealer hat':  {
+    "dealerHat":  {
 		mode: 'rgb',
 		offset: [0.79, 0.45, 0.35], 
 		amp:  [0.83, 0.45, 0.19], 
@@ -104,7 +104,7 @@ export default {
 		freq:  [1, 1, 1], 
 		phase: [0, 0.2, 0.25]
 	},
-    'event horizon':  {
+    "eventHorizon":  {
 		mode: 'rgb',
 		offset: [0.22, 0.48, 0.62], 
 		amp:  [0.5, 0.5, 0.5], 
@@ -125,7 +125,7 @@ export default {
 		freq:  [2.0, 2.0, 2.0], 
 		phase: [1.0, 1.0, 1.0]
 	},
-	'hazy sunset': {
+	"hazySunset": {
 		mode: 'rgb',
 		offset: [0.96, 0.5, 0.49], 
 		amp:  [0.79, 0.56, 0.22], 
@@ -153,42 +153,42 @@ export default {
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.99, 0.12, 0.94]
 	},
-    'just blue':  {
+    "justBlue":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [0.0, 0.0, 1.0], 
 		phase: [0.5, 0.5, 0.5]
 	},
-    'just cyan':  {
+    "justCyan":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [0.0, 1.0, 1.0], 
 		phase: [0.5, 0.5, 0.5]
 	},
-    'just green':  {
+    "justGreen":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [0.0, 1.0, 0.0], 
 		phase: [0.5, 0.5, 0.5]
 	},
-    'just purple':  {
+    "justPurple":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [1.0, 0.0, 1.0], 
 		phase: [0.5, 0.5, 0.5]
 	},
-    'just red':  {
+    "justRed":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
 		freq:  [1.0, 0.0, 0.0], 
 		phase: [0.5, 0.5, 0.5]
 	},
-    'just yellow':  {
+    "justYellow":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
@@ -223,7 +223,7 @@ export default {
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.15, 0.2, 0.3]
 	},
-    'net of gems':  {
+    "netOfGems":  {
 		mode: 'rgb',
 		offset: [0.64, 0.12, 0.84], 
 		amp:  [0.5, 0.5, 0.5], 
@@ -258,7 +258,7 @@ export default {
 		freq:  [1.0, 1.0, 1.0], 
 		phase: [0.2, 0.25, 0.2]
 	},
-    'santa cruz':  {
+    "santaCruz":  {
 		mode: 'rgb',
 		offset: [0.5, 0.5, 0.5], 
 		amp:  [0.5, 0.5, 0.5], 
@@ -272,7 +272,7 @@ export default {
 		freq:  [1, 1, 1], 
 		phase: [0.0, 0.25, 0.5]
 	},
-	'sherbet double': {
+	"sherbetDouble": {
 		mode: 'rgb',
 		offset: [0.5224456, 0.3864609, 0.36020845], 
 		amp:  [0.6059281, 0.17591387, 0.17166573], 
@@ -384,7 +384,7 @@ export default {
 		freq:  [1, 1, 1], 
 		phase: [0.34, 0.41, 0.44]
 	},
-	'vintage photo': {
+	"vintagePhoto": {
 		mode: 'rgb',
 		offset: [0.56, 0.35, 0.14],
 		amp: [0.68, 0.79, 0.57],
