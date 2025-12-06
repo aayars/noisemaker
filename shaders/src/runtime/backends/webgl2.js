@@ -63,8 +63,22 @@ export class WebGL2Backend extends Backend {
         this.fullscreenVAO = this.createFullscreenVAO()
         this.emptyVAO = gl.createVertexArray()
         this.presentProgram = this.createPresentProgram()
+        this.defaultTexture = this.createDefaultTexture()
         
         return Promise.resolve()
+    }
+
+    createDefaultTexture() {
+        const gl = this.gl
+        const texture = gl.createTexture()
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        // 1x1 transparent black texture
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]))
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        return texture
     }
 
     createPresentProgram() {
@@ -826,21 +840,19 @@ export class WebGL2Backend extends Backend {
             if (globalName) {
                 // Global surface
                 texture = state.surfaces?.[globalName]?.handle
-                if (!texture) {
-                    console.warn(`[bindTextures] Global surface '${globalName}' not found for input '${samplerName}' in pass ${pass.id}`)
-                }
             } else if (texId.startsWith('feedback_')) {
                 // Feedback surface - always read from 'read' buffer (previous frame)
                 const feedbackName = texId.replace('feedback_', '')
                 texture = state.feedbackSurfaces?.[feedbackName]?.handle
-                if (!texture) {
-                    console.warn(`[bindTextures] Feedback surface '${feedbackName}' not found for input '${samplerName}' in pass ${pass.id}`)
-                }
             } else {
                 texture = this.textures.get(texId)?.handle
-                if (!texture) {
-                    console.warn(`[bindTextures] Texture '${texId}' not found for input '${samplerName}' in pass ${pass.id}`)
-                }
+            }
+            
+            // If texture is missing, use default texture (transparent black)
+            // This handles cases where a pipeline reads from an uninitialized surface
+            // (e.g. reading o0 before writing to it) without crashing or warning.
+            if (!texture) {
+                texture = this.defaultTexture
             }
             
             // Check if this is a 3D texture
