@@ -721,9 +721,14 @@ export class DemoUI {
             // Title text (click to expand/collapse, but not when skipped)
             const titleText = document.createElement('span');
             titleText.className = 'module-title-text';
+            
+            // Convert camelCase to space-separated lowercase
+            const formatName = (name) => name.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+            const formattedName = formatName(effectInfo.name);
+            
             titleText.textContent = effectInfo.namespace 
-                ? `${effectInfo.namespace}.${effectInfo.name}` 
-                : effectInfo.name;
+                ? `${effectInfo.namespace}.${formattedName}` 
+                : formattedName;
             titleDiv.appendChild(titleText);
             
             // Spacer to push buttons to the right
@@ -1056,15 +1061,10 @@ export class DemoUI {
         const controlGroup = document.createElement('div');
         controlGroup.className = 'control-group';
 
-        const header = document.createElement('div');
-        header.className = 'control-header';
-        
         const label = document.createElement('label');
         label.className = 'control-label';
         label.textContent = spec.ui?.label || key;
-        header.appendChild(label);
-        
-        controlGroup.appendChild(header);
+        controlGroup.appendChild(label);
 
         // Get value from DSL args or use default
         let value = effectInfo.args[key];
@@ -1083,7 +1083,7 @@ export class DemoUI {
         } else if (spec.type === 'member') {
             this._createMemberControl(controlGroup, key, spec, value, effectKey);
         } else if (spec.type === 'float' || spec.type === 'int') {
-            this._createSliderControl(controlGroup, header, key, spec, value, effectKey);
+            this._createSliderControl(controlGroup, key, spec, value, effectKey);
         } else if (spec.type === 'vec4') {
             this._createColorControl(controlGroup, key, value, effectKey);
         } else if (spec.type === 'surface') {
@@ -1244,13 +1244,7 @@ export class DemoUI {
     }
     
     /** @private */
-    _createSliderControl(container, header, key, spec, value, effectKey) {
-        const valueDisplay = document.createElement('span');
-        valueDisplay.className = 'control-value';
-        const formatVal = (v, isInt) => isInt ? v : Number(v).toFixed(2);
-        valueDisplay.textContent = value !== null ? formatVal(value, spec.type === 'int') : '';
-        header.appendChild(valueDisplay);
-
+    _createSliderControl(container, key, spec, value, effectKey) {
         const slider = document.createElement('input');
         slider.className = 'control-slider';
         slider.type = 'range';
@@ -1258,6 +1252,14 @@ export class DemoUI {
         slider.max = spec.max !== undefined ? spec.max : 100;
         slider.step = spec.step !== undefined ? spec.step : (spec.type === 'int' ? 1 : 0.01);
         slider.value = value !== null ? value : slider.min;
+
+        container.appendChild(slider);
+
+        const valueDisplay = document.createElement('span');
+        valueDisplay.className = 'control-value';
+        const formatVal = (v, isInt) => isInt ? v : Number(v).toFixed(2);
+        valueDisplay.textContent = value !== null ? formatVal(value, spec.type === 'int') : '';
+        container.appendChild(valueDisplay);
 
         slider.addEventListener('input', (e) => {
             const numVal = spec.type === 'int' ? parseInt(e.target.value) : parseFloat(e.target.value);
@@ -1269,8 +1271,6 @@ export class DemoUI {
         slider.addEventListener('change', () => {
             this._onControlChange();
         });
-
-        container.appendChild(slider);
     }
     
     /** @private */

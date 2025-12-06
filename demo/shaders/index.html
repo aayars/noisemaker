@@ -312,16 +312,15 @@
     }
 
     .control-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      margin-bottom: 0.5rem;
+      display: grid;
+      grid-template-columns: 80px 1fr 35px;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
     }
 
     .control-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: contents;
     }
 
     .control-label {
@@ -331,12 +330,17 @@
       color: color-mix(in srgb, var(--color6) 85%, var(--accent3) 15%);
       text-transform: lowercase;
       letter-spacing: 0.03em;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .control-value {
       font-size: 0.625rem;
       font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
       color: color-mix(in srgb, var(--color5) 90%, var(--accent3) 10%);
+      text-align: left;
     }
 
     .control-slider {
