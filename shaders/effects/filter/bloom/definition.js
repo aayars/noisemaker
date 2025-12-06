@@ -65,7 +65,7 @@ export default class Bloom extends Effect {
     },
     taps: {
       type: "int",
-      default: 32,
+      default: 8,
       uniform: "numTaps",
       min: 8,
       max: 64,

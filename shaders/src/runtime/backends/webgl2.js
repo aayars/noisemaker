@@ -862,54 +862,57 @@ export class WebGL2Backend extends Backend {
 
     bindUniforms(pass, program, state) {
         const gl = this.gl
-        // Pass uniforms first (from DSL/effect defaults), then globalUniforms on top
-        // This allows runtime overrides (like test uniforms) to take precedence
-        const uniforms = { ...pass.uniforms, ...state.globalUniforms }
+        const programUniforms = program.uniforms
         
-        for (const [name, value] of Object.entries(uniforms)) {
-            const uniform = program.uniforms[name]
-            if (!uniform) {
-                // Warn if a user-provided uniform is missing in the shader
-                // Skip warning for internal/global uniforms that might not be used
-                if (pass.uniforms && pass.uniforms[name] !== undefined) {
-                    // console.warn(`Uniform '${name}' provided but not found in program '${pass.program}'`)
-                }
-                continue
+        // Bind pass uniforms first (from DSL/effect defaults)
+        if (pass.uniforms) {
+            for (const name in pass.uniforms) {
+                const uniform = programUniforms[name]
+                if (!uniform) continue
+                const value = pass.uniforms[name]
+                if (value === undefined || value === null) continue
+                this._setUniform(gl, uniform, value)
             }
-            
-            const loc = uniform.location
-            
-            if (value === undefined || value === null) {
-                // console.warn(`Uniform '${name}' has undefined/null value`)
-                continue
+        }
+        
+        // Then bind globalUniforms on top (allows runtime overrides)
+        if (state.globalUniforms) {
+            for (const name in state.globalUniforms) {
+                const uniform = programUniforms[name]
+                if (!uniform) continue
+                const value = state.globalUniforms[name]
+                if (value === undefined || value === null) continue
+                this._setUniform(gl, uniform, value)
             }
-
-            // Determine uniform type and bind accordingly
-            switch (uniform.type) {
-                case gl.FLOAT:
-                    gl.uniform1f(loc, value)
-                    break
-                case gl.INT:
-                case gl.BOOL:
-                    gl.uniform1i(loc, typeof value === 'boolean' ? (value ? 1 : 0) : value)
-                    break
-                case gl.FLOAT_VEC2:
-                    gl.uniform2fv(loc, value)
-                    break
-                case gl.FLOAT_VEC3:
-                    gl.uniform3fv(loc, value)
-                    break
-                case gl.FLOAT_VEC4:
-                    gl.uniform4fv(loc, value)
-                    break
-                case gl.FLOAT_MAT3:
-                    gl.uniformMatrix3fv(loc, false, value)
-                    break
-                case gl.FLOAT_MAT4:
-                    gl.uniformMatrix4fv(loc, false, value)
-                    break
-                // Add more types as needed
-            }
+        }
+    }
+    
+    /** @private Helper to set a single uniform value */
+    _setUniform(gl, uniform, value) {
+        const loc = uniform.location
+        switch (uniform.type) {
+            case gl.FLOAT:
+                gl.uniform1f(loc, value)
+                break
+            case gl.INT:
+            case gl.BOOL:
+                gl.uniform1i(loc, typeof value === 'boolean' ? (value ? 1 : 0) : value)
+                break
+            case gl.FLOAT_VEC2:
+                gl.uniform2fv(loc, value)
+                break
+            case gl.FLOAT_VEC3:
+                gl.uniform3fv(loc, value)
+                break
+            case gl.FLOAT_VEC4:
+                gl.uniform4fv(loc, value)
+                break
+            case gl.FLOAT_MAT3:
+                gl.uniformMatrix3fv(loc, false, value)
+                break
+            case gl.FLOAT_MAT4:
+                gl.uniformMatrix4fv(loc, false, value)
+                break
         }
     }
 

@@ -132,8 +132,23 @@ export class Pipeline {
         this.width = 0
         this.height = 0
         this.zoom = 1  // Zoom factor for effect surfaces
-        this.frameReadTextures = null
+        // Pre-allocate frame Maps to avoid per-frame allocation
+        this.frameReadTextures = new Map()
+        this.frameWriteTextures = new Map()
         this.animationDuration = 10  // Default animation loop duration in seconds
+        // Pre-allocate frame state object to avoid per-frame allocation
+        this._frameState = {
+            frameIndex: 0,
+            time: 0,
+            globalUniforms: null,
+            surfaces: {},
+            writeSurfaces: {},
+            feedbackSurfaces: {},
+            writeFeedbackSurfaces: {},
+            graph: null,
+            screenWidth: 0,
+            screenHeight: 0
+        }
     }
 
     /**
@@ -576,7 +591,6 @@ export class Pipeline {
     setUniform(name, value) {
         const oldValue = this.globalUniforms[name]
         this.globalUniforms[name] = value
-        console.log(`[setUniform] ${name}: ${oldValue} -> ${value}`)
         
         // Also update the uniform in all passes that reference it
         if (this.graph && this.graph.passes) {
@@ -595,13 +609,11 @@ export class Pipeline {
                     this.dimensionReferencesParam(spec.height, name) ||
                     (spec.depth && this.dimensionReferencesParam(spec.depth, name))) {
                     affectsTextures = true
-                    console.log(`[setUniform] ${name} affects texture ${texId}`)
                     break
                 }
             }
             
             if (affectsTextures) {
-                console.log(`[setUniform] triggering updateParameterTextures`)
                 this.updateParameterTextures(this.globalUniforms)
             }
         }
@@ -685,8 +697,9 @@ export class Pipeline {
         this.updateGlobalUniforms(time, deltaTime)
         
         // Initialize per-frame surface bindings so within-frame reads see fresh writes
-        this.frameReadTextures = new Map()
-        this.frameWriteTextures = new Map()  // Track write targets for the frame
+        // Clear and reuse Maps to avoid per-frame allocation
+        this.frameReadTextures.clear()
+        this.frameWriteTextures.clear()
         for (const [name, surface] of this.surfaces.entries()) {
             this.frameReadTextures.set(name, surface.read)
             this.frameWriteTextures.set(name, surface.write)  // Start by writing to write buffer
@@ -756,30 +769,30 @@ export class Pipeline {
         
         // Swap double buffers for global surfaces
         this.swapBuffers()
-        
-        // Clear per-frame bindings
-        this.frameReadTextures = null
-        this.frameWriteTextures = null
 
         this.frameIndex++
     }
 
     /**
      * Update global uniforms (time, resolution, etc.)
+     * Mutates existing object to avoid per-frame allocation
      */
     updateGlobalUniforms(time, deltaTime) {
+        const g = this.globalUniforms
         const aspectValue = this.width / this.height
-        // Preserve existing uniforms (like effect parameters) while updating time/frame/etc
-        this.globalUniforms = {
-            ...this.globalUniforms,  // Preserve existing uniforms
-            time: time,
-            deltaTime: deltaTime,
-            frame: this.frameIndex,
-            resolution: [this.width, this.height],
-            aspect: aspectValue,
-            aspectRatio: aspectValue, // Alias for shaders expecting this name
-            // Add more global uniforms as needed
+        // Update time-varying uniforms in place
+        g.time = time
+        g.deltaTime = deltaTime
+        g.frame = this.frameIndex
+        // Reuse or create resolution array
+        if (!g.resolution) {
+            g.resolution = [this.width, this.height]
+        } else {
+            g.resolution[0] = this.width
+            g.resolution[1] = this.height
         }
+        g.aspect = aspectValue
+        g.aspectRatio = aspectValue // Alias for shaders expecting this name
     }
 
     /**
@@ -932,29 +945,44 @@ export class Pipeline {
 
     /**
      * Get current frame state
+     * Reuses pre-allocated objects to minimize per-frame allocations
      */
     getFrameState() {
-        // Build surfaces map with current read textures
-        const surfaceMap = {}
-        const writeSurfaceMap = {}
+        const state = this._frameState
+        const surfaceMap = state.surfaces
+        const writeSurfaceMap = state.writeSurfaces
+        const feedbackSurfaceMap = state.feedbackSurfaces
+        const writeFeedbackMap = state.writeFeedbackSurfaces
         
+        // Clear previous frame's surface entries
+        for (const key in surfaceMap) {
+            delete surfaceMap[key]
+        }
+        for (const key in writeSurfaceMap) {
+            delete writeSurfaceMap[key]
+        }
+        for (const key in feedbackSurfaceMap) {
+            delete feedbackSurfaceMap[key]
+        }
+        for (const key in writeFeedbackMap) {
+            delete writeFeedbackMap[key]
+        }
+        
+        // Build surfaces map with current read textures
         for (const [name, surface] of this.surfaces.entries()) {
-            const readTextureId = this.frameReadTextures?.get(name) ?? surface.read
+            const readTextureId = this.frameReadTextures.get(name) ?? surface.read
             const tex = this.backend.textures.get(readTextureId)
             if (tex) {
                 surfaceMap[name] = tex
             }
             // Use the frame's write target (set at frame start, doesn't change during frame)
             // This ensures multiple passes writing to the same surface all write to the same buffer
-            writeSurfaceMap[name] = this.frameWriteTextures?.get(name) ?? surface.write
+            writeSurfaceMap[name] = this.frameWriteTextures.get(name) ?? surface.write
         }
         
         // Build feedback surfaces map
         // Reads always come from 'read' buffer (previous frame's content)
         // Writes go to 'write' buffer
-        const feedbackSurfaceMap = {}
-        const writeFeedbackMap = {}
-        
         for (const [name, surface] of this.feedbackSurfaces.entries()) {
             const tex = this.backend.textures.get(surface.read)
             if (tex) {
@@ -963,20 +991,15 @@ export class Pipeline {
             writeFeedbackMap[name] = surface.write
         }
         
-        const _o0 = this.surfaces.get('o0')
+        // Update scalar state fields
+        state.frameIndex = this.frameIndex
+        state.time = this.lastTime
+        state.globalUniforms = this.globalUniforms
+        state.graph = this.graph
+        state.screenWidth = this.width
+        state.screenHeight = this.height
         
-        return {
-            frameIndex: this.frameIndex,
-            time: this.lastTime,
-            globalUniforms: this.globalUniforms,
-            surfaces: surfaceMap,
-            writeSurfaces: writeSurfaceMap,
-            feedbackSurfaces: feedbackSurfaceMap,
-            writeFeedbackSurfaces: writeFeedbackMap,
-            graph: this.graph,
-            screenWidth: this.width,
-            screenHeight: this.height
-        }
+        return state
     }
 
     /**

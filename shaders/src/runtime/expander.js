@@ -1,8 +1,6 @@
 import { getEffect } from './registry.js';
 import { stdEnums } from '../lang/std_enums.js';
 
-console.log('[EXPANDER MODULE LOADED]');
-
 /**
  * Expands the Logical Graph (plans) into a Render Graph (passes).
  * 
@@ -54,7 +52,6 @@ console.log('[EXPANDER MODULE LOADED]');
  */
 export function expand(compilationResult, options = {}) {
     const shaderOverrides = options.shaderOverrides || {};
-    console.log('[expand] called with', compilationResult?.plans?.length, 'plans');
     const passes = [];
     const errors = [];
     const programs = {};
@@ -87,8 +84,6 @@ export function expand(compilationResult, options = {}) {
         // Pipeline uniforms accumulate from upstream effects for downstream consumption
         // Example: noise3d sets volumeSize, ca3d uses it without declaring it
         const pipelineUniforms = {};
-
-        console.log('[expand] plan chain:', plan.chain.map(s => s.op).join(' -> '));
         
         for (const step of plan.chain) {
             // Handle builtin read operations - these just set the current input
@@ -115,7 +110,6 @@ export function expand(compilationResult, options = {}) {
             // When an effect is skipped, we pass through the current input unchanged
             // The step still gets a nodeId for tracking, but no passes are generated
             if (step.args?._skip === true) {
-                console.log('[expand] skipping step:', step.op, '(step.temp:', step.temp, ')');
                 // Register a passthrough so downstream steps can find the input
                 const nodeId = `node_${step.temp}`;
                 if (currentInput) {
@@ -132,8 +126,6 @@ export function expand(compilationResult, options = {}) {
             
             const effectName = step.op;
             const effectDef = getEffect(effectName);
-
-            console.log('[expand] step:', effectName, 'effectDef:', effectDef ? 'found' : 'NOT FOUND');
             
             if (!effectDef) {
                 errors.push({ message: `Effect '${effectName}' not found`, step });

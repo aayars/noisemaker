@@ -28,6 +28,8 @@ This guide is for AI coding agents working on Noisemaker, a procedural noise gen
   - Controls in `shaders/demo.html` must match Python effect params (except "shape").
   - **CRITICAL**: Surfaces `o0`..`o7` are **USER-ONLY**. Effects MUST allocate internal surfaces (e.g., `_feedbackBuffer`) in their `textures` property for feedback/temp storage. NEVER hardwire `o0`..`o7` in effect definitions.
   - **COMPUTE SEMANTICS**: Use `type: "compute"` for state updates, simulations, and multi-output passes. This is semantically correct even on WebGL2 - the runtime converts to GPGPU render passes automatically. Never write separate "simplified" WebGL2 shaders.
+  - **RENDER LOOP PERFORMANCE**: Never read DOM in render paths. UI controls must use event listeners that write to state objects (`pass.uniforms`, `globalUniforms`). The render loop reads only from these state objects, never from DOM elements.
+  - **ALLOCATION-FREE HOT PATHS**: Avoid `new Map()`, object spreads (`{ ...obj }`), and `console.log()` in render loops. Reuse pre-allocated objects and mutate in place.
 
 ## Integration Points
 - **Python CLI**: `noisemaker` command for image generation and effects.

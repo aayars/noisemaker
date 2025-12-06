@@ -68,3 +68,39 @@ The pipeline operates in three main phases:
 1.  **Graph Compilation**: Parses the DSL, expands effects into constituent passes, and performs topological sorting.
 2.  **Resource Allocation**: Manages a shared pool of textures and allocates them to graph nodes efficiently.
 3.  **Execution**: Dispatches the render passes to the GPU driver.
+
+## UI → Shader Data Flow
+
+The demo UI follows a strict event-driven architecture to ensure maximum performance.
+
+### Control Flow
+
+```
+User interacts with control (slider, checkbox, select)
+    ↓
+Event listener fires (change/input)
+    ↓
+Handler writes to state object (pass.uniforms, globalUniforms)
+    ↓
+Next render() frame picks up updated values
+```
+
+### Design Principles
+
+| Principle | Implementation |
+|-----------|----------------|
+| Event-driven updates | Controls use `addEventListener('change')`, never polled |
+| No DOM in render path | `render()` reads only from state objects |
+| State as source of truth | `pass.uniforms` and `globalUniforms` hold current values |
+| Immediate feedback | Sliders use `input` event for live preview |
+
+### Performance Requirements
+
+The render loop must be allocation-free and DOM-free:
+
+- **No `new Map()`** — use `.clear()` and reuse
+- **No object spreads** — mutate in place
+- **No DOM reads** — all values come from state objects
+- **No `console.log()`** — remove debug logging from hot paths
+
+These constraints ensure stable 60 FPS rendering regardless of effect complexity.

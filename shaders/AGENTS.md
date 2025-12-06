@@ -11,6 +11,8 @@ This guide is for AI coding agents working on the Noisemaker shader effects coll
 | Reserved surfaces | `o0`..`o7` are USER-ONLY; effects use internal textures |
 | Texture channels | Always 4-channel RGBA; never count channels |
 | WGSL structs | Members end with `,` (comma), not `;` |
+| DOM in render loop | **FORBIDDEN** — use event-driven state updates |
+| Per-frame allocations | Avoid `new Map()`, object spreads — reuse and mutate |
 
 ## Compute Pass Semantics
 
@@ -175,6 +177,52 @@ shaders/effects/nm/erosion_worms/
 ```
 
 All shaders are stored as separate files in `glsl/` and `wgsl/` subdirectories. One shader per file.
+
+## Performance Architecture
+
+### CRITICAL: No DOM Polling in Render Paths
+
+The render loop must **never** read from the DOM. All UI control values flow through state objects.
+
+| Layer | Data Flow | Forbidden |
+|-------|-----------|-----------|
+| UI Controls | Event listeners (`change`, `input`) → state object | Per-frame `.value` reads |
+| State Object | `pass.uniforms`, `globalUniforms` | Direct DOM access |
+| Render Loop | Reads only from state objects | `getElementById`, `.value`, `.checked` |
+
+### Event-Driven Control Updates
+
+```javascript
+// CORRECT: Event-driven
+slider.addEventListener('input', (e) => {
+    state.uniforms.radius = e.target.value;  // Write to state
+});
+
+// FORBIDDEN: Polling
+function render() {
+    state.uniforms.radius = slider.value;  // DOM read in hot path!
+}
+```
+
+### Uniform Binding
+
+Uniforms are rebound every frame (standard practice). GPU drivers optimize for this pattern.
+
+For new code:
+- Controls write to `pass.uniforms` or `globalUniforms` on user interaction
+- Render loop reads from these objects, never from DOM
+- Dirty tracking is optional—allocation avoidance is more impactful
+
+### Allocation Avoidance in Hot Paths
+
+The render loop must minimize per-frame allocations:
+
+| Pattern | Avoid | Prefer |
+|---------|-------|--------|
+| Maps | `new Map()` each frame | `.clear()` and reuse |
+| Objects | `{ ...spread }` | In-place mutation |
+| Arrays | `array.slice()` | Reuse pre-allocated arrays |
+| Logging | `console.log()` in loops | Remove or guard with flag |
 
 ## References
 

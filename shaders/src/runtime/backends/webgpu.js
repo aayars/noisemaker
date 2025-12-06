@@ -1579,10 +1579,16 @@ export class WebGPUBackend extends Backend {
             bindings = bindings.filter(b => neededBindingNames.has(b.name))
         }
         
-        // Get merged uniforms
-        // Pass uniforms first (from DSL/effect defaults), then globalUniforms on top
-        // This allows runtime overrides (like test uniforms) to take precedence
-        const uniforms = { ...pass.uniforms, ...state.globalUniforms }
+        // Helper to get uniform value with proper precedence (global overrides pass)
+        const getUniform = (name) => {
+            if (state.globalUniforms && name in state.globalUniforms) {
+                return state.globalUniforms[name]
+            }
+            if (pass.uniforms && name in pass.uniforms) {
+                return pass.uniforms[name]
+            }
+            return undefined
+        }
         
         // Map input names to texture views
         const textureMap = new Map()
@@ -1676,7 +1682,7 @@ export class WebGPUBackend extends Backend {
                 } else {
                     // Individual uniform - create small buffer for this value
                     // Use 0 as default for missing/invalid uniforms to ensure bind group completeness
-                    let value = uniforms[binding.name]
+                    let value = getUniform(binding.name)
                     
                     // Handle missing, null, or invalid values by providing sensible defaults
                     if (value === undefined || value === null || 

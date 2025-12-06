@@ -164,7 +164,7 @@ body.two-column-layout {
 }
 
 body.two-column-layout.js-demo-layout {
-  grid-template-columns: minmax(420px, 560px) 1fr;
+  grid-template-columns: minmax(525px, 700px) 1fr;
   height: 100vh;
   overflow: hidden;
 }
